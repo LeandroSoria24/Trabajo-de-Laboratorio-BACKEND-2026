@@ -1,7 +1,7 @@
 {
-  "name": "Laboratorio",
+  "name": "laboratorio",
   "version": "1.0.0",
-  "description": "",
+  "description": "- Leandro Soria Rosales, MUN° 00292 \r - Santiago Ortiz, MUN° 00451",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
@@ -14,5 +14,13 @@
   "dependencies": {
     "express": "^5.2.1"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LeandroSoria24/Trabajo-de-Laboratorio-BACKEND-2026.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LeandroSoria24/Trabajo-de-Laboratorio-BACKEND-2026/issues"
+  },
+  "homepage": "https://github.com/LeandroSoria24/Trabajo-de-Laboratorio-BACKEND-2026#readme"
 }
