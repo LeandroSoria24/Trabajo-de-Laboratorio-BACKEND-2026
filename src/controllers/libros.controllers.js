@@ -1,38 +1,11 @@
-import express from "express";
-const app = express();
-const PORT = 3000;
-app.use(express.json());
+import { libros } from '../data/libros.data.js';
 
-const libros = [
-    {
-        id: 1,
-        titulo: 'Cien años de soledad',
-        autor: 'Gabriel García Márquez',
-        anio: 1967
-    },
-    {
-        id: 2,
-        titulo: 'Don Quijote de la Mancha',
-        autor: 'Miguel de Cervantes',
-        anio: 1605
-    }
-]
-
-
-/* GETTERS */
-app.get('/', (req, res) => {
-    res.json({
-        mensaje: 'Api Laboratorio - Biblioteca',
-        version: '1.2',
-        estado: 'En desarrollo'
-    });
-})
-
-app.get('/libros', (req, res) => {
+//GETTERS
+export const getLibros = (req, res) => {
     res.json(libros)
-})
+}
 
-app.get('/libros/filtrados', (req, res) => {
+export const getLibrosFiltrados = (req, res) => {
     const tituloRecibido = req.query.titulo
 
     if (!tituloRecibido) {
@@ -41,10 +14,9 @@ app.get('/libros/filtrados', (req, res) => {
 
     const libroFiltrado = libros.filter(libro => libro.titulo.toLowerCase().includes(tituloRecibido.toLowerCase()))
     res.json(libroFiltrado)
-})
+}
 
-//ahora vamos a hacer un geter para libros pero con un parametro de identificacion, preferentemten un id por supuesto
-app.get('/libros/:id', (req, res) => {
+export const getLibroPorId = (req, res) => {
     const id = Number(req.params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
@@ -58,12 +30,12 @@ app.get('/libros/:id', (req, res) => {
     }
 
     res.json(libro);
-})
+}
 
 
 
-/* POST */
-app.post('/libros', (req, res) => {
+//POST
+export const createLibro = (req, res) => {
     const { titulo, autor, anio } = req.body;
 
     if (!titulo || !autor) {
@@ -78,12 +50,11 @@ app.post('/libros', (req, res) => {
     };
     libros.push(nuevoLibro);
     res.status(201).json(nuevoLibro);
-})
+}
 
 
-/* PUT */
-//obviamente hay que filtrar por id primero
-app.put('/libros/:id', (req, res) => {
+//PUT
+export const updateLibro = (req, res) => {
     const id = Number(req.params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
@@ -107,10 +78,11 @@ app.put('/libros/:id', (req, res) => {
     libro.anio = anio ?? null;
 
     res.json(libro);
-});
+}
 
-/* DELETE */
-app.delete('/libros/:id', (req, res) => {
+
+//DELETE
+export const deleteLibro = (req, res) => {
     const id = Number(req.params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
@@ -126,15 +98,4 @@ app.delete('/libros/:id', (req, res) => {
     libros.splice(indice, 1);
 
     res.status(204).send();
-})
-
-/* MANEJO DE RUTAS NO ENCONTRADAS (404) */
-app.use((req, res) => {
-    res.status(404).json({ error: 'Ruta no encontrada' })
-})
-
-
-/* LISTEN */
-app.listen(PORT, () => {
-    console.log(`servidor iniciado en puerto http://localhost:${PORT}`)
-});
+}
