@@ -1,8 +1,8 @@
 # API <Api de biblioteca>
 
 ## Integrantes
-Leandro Soria Rosales, MUN° 00292 
-Santiago Ortiz, MUN° 
+- Leandro Soria Rosales, MUN° 00292 
+- Santiago Ortiz, MUN° 
 
 ## Requisitos
 Node.js 24 LTS
