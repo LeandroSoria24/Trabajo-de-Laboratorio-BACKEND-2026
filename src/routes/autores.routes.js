@@ -1,0 +1,1 @@
+import { getAutores, getAutorPorId, createAutor, updateAutor, deleteAutor } from '../controllers/autores.controllers.js'
