@@ -2,7 +2,7 @@
 
 ## Integrantes
 - Leandro Soria Rosales, MUN° 00292 
-- Santiago Ortiz, MUN° 
+- Santiago Ortiz, MUN° 00451
 
 ## Requisitos
 Node.js 24 LTS
