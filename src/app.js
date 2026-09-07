@@ -1,6 +1,7 @@
 import express from "express";
 import librosRoutes from './routes/libros.routes.js'
 import autoresRoutes from './routes/autores.routes.js'
+import swaggerRoutes from './swagger.js'//══════════════════════════════════════════════════════
 
 
 const app = express();
@@ -29,6 +30,9 @@ app.use('/libros', librosRoutes);
 
 
 app.use('/autores', autoresRoutes); 
+
+/*════════════════════════════════════ DOCUMENTACIÓN INTERACTIVA SWAGGER ══════════════════════════════════════════════════════*/
+app.use('/docs', swaggerRoutes);
 
 /* MANEJO DE RUTAS NO ENCONTRADAS (404) */
 app.use((req, res) => {

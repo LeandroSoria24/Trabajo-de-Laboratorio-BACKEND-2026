@@ -54,6 +54,7 @@ Trabajo-de-Laboratorio-BACKEND-2026/
 |---|---|---|
 | `GET` | `/` | Mensaje de bienvenida de la API |
 | `GET` | `/info` | Información general de la API (versión y estado) |
+| `GET` | `/docs` | Documentación interactiva de la API con Swagger UI |
 
 ---
 
