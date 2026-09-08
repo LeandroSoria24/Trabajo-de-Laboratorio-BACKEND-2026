@@ -7,14 +7,15 @@ import {
     updateLibro, 
     deleteLibro 
 } from '../controllers/libros.controllers.js';
+import { validarId } from '../middlewares/validarId.js';
 
 const router = Router();
 
 router.get('/', getLibros);
 router.get('/filtrados', getLibrosFiltrados);
-router.get('/:id', getLibroPorId);
+router.get('/:id', validarId, getLibroPorId);
 router.post('/', createLibro);
-router.put('/:id', updateLibro);
-router.delete('/:id', deleteLibro);
+router.put('/:id', validarId, updateLibro);
+router.delete('/:id', validarId, deleteLibro);
 
 export default router;

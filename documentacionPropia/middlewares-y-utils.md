@@ -7,10 +7,11 @@ Este documento explica en profundidad el funcionamiento, la lógica interna y la
 ## 📑 Índice
 1. [¿Qué es un Middleware en Express?](#qué-es-un-middleware-en-express)
 2. [1. Logger de Peticiones (`logger.js`)](#1-logger-de-peticiones-loggerjs)
-3. [2. Creador de Errores (`crearError.js`)](#2-creador-de-errores-crearerrorjs)
-4. [3. Capturador 404 (`rutaNoEncontrada.js`)](#3-capturador-404-rutanoencontradajs)
-5. [4. Manejador Global de Errores (`manejoErrores.js`)](#4-manejador-global-de-errores-manejoerroresjs)
-6. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
+3. [2. Validador de ID (`validarId.js`)](#2-validador-de-id-validaridjs)
+4. [3. Creador de Errores (`crearError.js`)](#3-creador-de-errores-crearerrorjs)
+5. [4. Capturador 404 (`rutaNoEncontrada.js`)](#4-capturador-404-rutanoencontradajs)
+6. [5. Manejador Global de Errores (`manejoErrores.js`)](#5-manejador-global-de-errores-manejoerroresjs)
+7. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
 
 ---
 
@@ -67,7 +68,39 @@ GET /ruta-falsa - 404 (1ms)
 
 ---
 
-## 2. Creador de Errores (`crearError.js`)
+## 2. Validador de ID (`validarId.js`)
+
+**Ubicación:** `src/middlewares/validarId.js`  
+**Tipo:** Middleware de Validación a nivel de Ruta  
+**Posición:** En las rutas `libros.routes.js` y `autores.routes.js` antes de cada controlador con parámetro `/:id`.
+
+### Código:
+```javascript
+import { crearError } from "../utils/crearError.js";
+
+export const validarId = (req, res, next) => {
+    const id = Number(req.params.id);
+    const recurso = req.baseUrl.includes('libros') ? 'libro' : 'autor';
+
+    if (!Number.isInteger(id) || id <= 0) {
+        return next(crearError(`El ID del ${recurso} debe ser un número entero positivo`, 400));
+    }
+
+    next();
+};
+```
+
+### ¿Cómo funciona?
+1. **`Number(req.params.id)`:** Convierte el parámetro de texto de la URL en un número.
+2. **`req.baseUrl.includes('libros') ? 'libro' : 'autor'`:**  
+   Detecta automáticamente si la petición provino del router de libros (`/libros`) o de autores (`/autores`), permitiendo **reutilizar el mismo middleware** en ambos módulos adaptando el mensaje de error.
+3. **`if (!Number.isInteger(id) || id <= 0)`:**  
+   Si el ID no es un entero positivo (por ejemplo, `abc`, `-5` o `1.5`), corta el flujo llamando a `next(crearError(..., 400))`, derivando el error inmediatamente a `manejoErrores`.
+4. **`next()`:** Si el ID es válido, deja pasar la petición al controlador correspondiente (`getLibroPorId`, `updateLibro`, etc.).
+
+---
+
+## 3. Creador de Errores (`crearError.js`)
 
 **Ubicación:** `src/utils/crearError.js`  
 **Tipo:** Función Utilitaria (Factory Pattern)  
@@ -169,6 +202,7 @@ export const manejoErrores = (err, req, res, next) => {
 | Archivo | Rol | ¿Quién lo invoca o llama? | ¿Qué entrega al siguiente eslabón? |
 |---|---|---|---|
 | **`logger.js`** | Entrada y Salida | Express al recibir cualquier petición | Pasa la petición limpia mediante `next()` |
-| **`crearError.js`** | Fabricador de Errores | Controladores y `rutaNoEncontrada` | Un objeto `Error` con `.status` y `.message` |
+| **`validarId.js`** | Validación de parámetros | Rutas `/libros/:id` y `/autores/:id` | Pasa con `next()` o corta con `next(crearError(..., 400))` |
+| **`crearError.js`** | Fabricador de Errores | Controladores, `validarId` y `rutaNoEncontrada` | Un objeto `Error` con `.status` y `.message` |
 | **`rutaNoEncontrada.js`** | Detección de rutas 404 | Express cuando ninguna ruta coincide | Envía el error 404 a `next(error)` |
 | **`manejoErrores.js`** | Respuesta final de fallos | Express cuando alguien hace `next(error)` | Responde el JSON final con código HTTP |

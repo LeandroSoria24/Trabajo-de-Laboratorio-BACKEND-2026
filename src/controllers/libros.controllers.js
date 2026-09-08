@@ -1,45 +1,39 @@
 import { libros } from '../data/libros.data.js';
+import { crearError } from '../utils/crearError.js';
 
-//GETTERS
+// GETTERS
 export const getLibros = (req, res) => {
-    res.json(libros)
-}
+    res.json(libros);
+};
 
-export const getLibrosFiltrados = (req, res) => {
-    const tituloRecibido = req.query.titulo
+export const getLibrosFiltrados = (req, res, next) => {
+    const tituloRecibido = req.query.titulo;
 
     if (!tituloRecibido) {
-        return res.status(400).json({ error: 'Debe especificar el parámetro "titulo" para filtrar' })
+        return next(crearError('Debe especificar el parámetro "titulo" para filtrar', 400));
     }
 
-    const libroFiltrado = libros.filter(libro => libro.titulo.toLowerCase().includes(tituloRecibido.toLowerCase()))
-    res.json(libroFiltrado)
-}
+    const libroFiltrado = libros.filter(libro => libro.titulo.toLowerCase().includes(tituloRecibido.toLowerCase()));
+    res.json(libroFiltrado);
+};
 
-export const getLibroPorId = (req, res) => {
+export const getLibroPorId = (req, res, next) => {
     const id = Number(req.params.id);
-
-    if (!Number.isInteger(id) || id <= 0) {
-        return res.status(400).json({ error: 'El ID del libro debe ser un número entero positivo' });
-    }
-
     const libro = libros.find(libro => libro.id === id);
 
     if (!libro) {
-        return res.status(404).json({ error: `no existe un libro con id ${id}` });
+        return next(crearError(`no existe un libro con id ${id}`, 404));
     }
 
     res.json(libro);
-}
+};
 
-
-
-//POST
-export const createLibro = (req, res) => {
+// POST
+export const createLibro = (req, res, next) => {
     const { titulo, autor, anio } = req.body;
 
     if (!titulo || !autor) {
-        return res.status(400).json({ error: 'Faltan datos obligatorios: titulo y autor son requeridos' });
+        return next(crearError('Faltan datos obligatorios: titulo y autor son requeridos', 400));
     }
 
     const nuevoLibro = {
@@ -50,27 +44,21 @@ export const createLibro = (req, res) => {
     };
     libros.push(nuevoLibro);
     res.status(201).json(nuevoLibro);
-}
+};
 
-
-//PUT
-export const updateLibro = (req, res) => {
+// PUT
+export const updateLibro = (req, res, next) => {
     const id = Number(req.params.id);
-
-    if (!Number.isInteger(id) || id <= 0) {
-        return res.status(400).json({ error: 'El ID del libro debe ser un número entero positivo' });
-    }
-
     const libro = libros.find(libro => libro.id === id);
 
     if (!libro) {
-        return res.status(404).json({ error: `no existe un libro con id ${id}` });
+        return next(crearError(`no existe un libro con id ${id}`, 404));
     }
 
     const { titulo, autor, anio } = req.body;
 
     if (!titulo || !autor) {
-        return res.status(400).json({ error: 'Faltan datos obligatorios: titulo y autor son requeridos' });
+        return next(crearError('Faltan datos obligatorios: titulo y autor son requeridos', 400));
     }
 
     libro.titulo = titulo;
@@ -78,24 +66,17 @@ export const updateLibro = (req, res) => {
     libro.anio = anio ?? null;
 
     res.json(libro);
-}
+};
 
-
-//DELETE
-export const deleteLibro = (req, res) => {
+// DELETE
+export const deleteLibro = (req, res, next) => {
     const id = Number(req.params.id);
-
-    if (!Number.isInteger(id) || id <= 0) {
-        return res.status(400).json({ error: 'El ID del libro debe ser un número entero positivo' });
-    }
-
     const indice = libros.findIndex(libro => libro.id === id);
 
     if (indice === -1) {
-        return res.status(404).json({ error: `no existe un libro con id ${id}` });
+        return next(crearError(`no existe un libro con id ${id}`, 404));
     }
 
     libros.splice(indice, 1);
-
     res.status(204).send();
-}
+};

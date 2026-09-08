@@ -5,15 +5,15 @@ import {
     createAutor,
     updateAutor,
     deleteAutor 
-} from '../controllers/autores.controllers.js'
-
+} from '../controllers/autores.controllers.js';
+import { validarId } from '../middlewares/validarId.js';
 
 const router = Router();
 
 router.get('/', getAutores);
-router.get('/:id', getAutorPorId);
+router.get('/:id', validarId, getAutorPorId);
 router.post('/', createAutor);
-router.put('/:id', updateAutor);
-router.delete('/:id', deleteAutor);
+router.put('/:id', validarId, updateAutor);
+router.delete('/:id', validarId, deleteAutor);
 
 export default router;
