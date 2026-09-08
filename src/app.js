@@ -1,7 +1,6 @@
 import express from "express";
 import librosRoutes from './routes/libros.routes.js'
 import autoresRoutes from './routes/autores.routes.js'
-import swaggerRoutes from './swagger.js'//══════════════════════════════════════════════════════
 import { logger } from "./middlewares/logger.js"
 import {manejoErrores} from "./middlewares/manejoErrores.js"
 import {rutaNoEncontrada} from "./middlewares/rutaNoEncontrada.js"
@@ -38,8 +37,6 @@ app.use('/libros', librosRoutes);
 
 app.use('/autores', autoresRoutes); 
 
-/*════════════════════════════════════ DOCUMENTACIÓN INTERACTIVA SWAGGER ══════════════════════════════════════════════════════*/
-app.use('/docs', swaggerRoutes);
 
 /* MANEJO DE RUTAS NO ENCONTRADAS (404) */
 app.use(rutaNoEncontrada);
