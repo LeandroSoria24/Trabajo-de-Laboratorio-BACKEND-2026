@@ -1,5 +1,6 @@
 import { autores } from '../data/autores.data.js';
 import { crearError } from '../utils/crearError.js';
+import prisma from '../config/prisma.js';
 
 /* GET de todos los autores */
 export const getAutores = (req, res) => {
@@ -7,15 +8,22 @@ export const getAutores = (req, res) => {
 };
 
 /* GET Autor por el ID */
-export const getAutorPorId = (req, res, next) => {
-    const id = Number(req.params.id);
-    const autor = autores.find(a => a.id === id);
+export const getAutorPorId = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        const autor = await prisma.autor.findUnique({ where: { id } });
 
-    if (!autor) {
-        return next(crearError(`no existe un autor con id ${id}`, 404));
+        if (!autor) {
+            return next(crearError(`no existe un autor con id ${id}`, 404));
+        }
+
+        res.json(autor);
+    }
+    catch (error) {
+        next(error);
     }
 
-    res.json(autor);
+
 };
 
 /* POST crear Autor */
