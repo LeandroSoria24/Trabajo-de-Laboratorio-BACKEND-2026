@@ -3,77 +3,109 @@ import { crearError } from '../utils/crearError.js';
 import prisma from '../config/prisma.js';
 
 /* GET de todos los autores */
-export const getAutores = (req, res) => {
-    res.json(autores);
+export const getAutores = async (req, res, next) => {
+    try {
+        const autores = await prisma.autor.findMany();
+        res.json(autores);
+    } catch (error) {
+        next(error);
+    }
 };
+
 
 /* GET Autor por el ID */
 export const getAutorPorId = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
+        if (isNaN(id)) {
+            return next(crearError('El ID proporcionado no es válido', 400));
+        }
+
         const autor = await prisma.autor.findUnique({ where: { id } });
 
         if (!autor) {
-            return next(crearError(`no existe un autor con id ${id}`, 404));
+            return next(crearError(`No existe un autor con id ${id}`, 404));
         }
 
         res.json(autor);
-    }
-    catch (error) {
+    } catch (error) {
         next(error);
     }
-
-
 };
 
 /* POST crear Autor */
-export const createAutor = (req, res, next) => {
-    const { nombre, nacionalidad } = req.body;
+export const createAutor = async (req, res, next) => {
+    try {
+        const { nombre, nacionalidad } = req.body;
 
-    if (!nombre) {
-        return next(crearError('El campo "nombre" es obligatorio', 400));
+        if (!nombre) {
+            return next(crearError('El campo "nombre" es obligatorio', 400));
+        }
+
+        const nuevoAutor = await prisma.autor.create({
+            data: {
+                nombre,
+                nacionalidad: nacionalidad ?? null
+            }
+        });
+
+        res.status(201).json(nuevoAutor);
+    } catch (error) {
+        next(error);
     }
-
-    const nuevoAutor = {
-        id: autores.length > 0 ? Math.max(...autores.map(a => a.id)) + 1 : 1,
-        nombre,
-        nacionalidad: nacionalidad ?? null
-    };
-
-    autores.push(nuevoAutor);
-    res.status(201).json(nuevoAutor);
 };
 
 /* PUT Actualizar Autor */
-export const updateAutor = (req, res, next) => {
-    const id = Number(req.params.id);
-    const autor = autores.find(a => a.id === id);
+export const updateAutor = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) {
+            return next(crearError('El ID proporcionado no es válido', 400));
+        }
 
-    if (!autor) {
-        return next(crearError(`no existe un autor con id ${id}`, 404));
+        const { nombre, nacionalidad } = req.body;
+
+        if (!nombre) {
+            return next(crearError('El campo "nombre" es obligatorio', 400));
+        }
+
+        // Verificar si el registro existe antes de actualizar
+        const existeAutor = await prisma.autor.findUnique({ where: { id } });
+        if (!existeAutor) {
+            return next(crearError(`No existe un autor con id ${id}`, 404));
+        }
+
+        const autorActualizado = await prisma.autor.update({
+            where: { id },
+            data: {
+                nombre,
+                nacionalidad: nacionalidad ?? null
+            }
+        });
+
+        res.json(autorActualizado);
+    } catch (error) {
+        next(error);
     }
-
-    const { nombre, nacionalidad } = req.body;
-
-    if (!nombre) {
-        return next(crearError('El campo "nombre" es obligatorio', 400));
-    }
-
-    autor.nombre = nombre;
-    autor.nacionalidad = nacionalidad ?? null;
-
-    res.json(autor);
 };
 
 /* DELETE Eliminar Autor */
-export const deleteAutor = (req, res, next) => {
-    const id = Number(req.params.id);
-    const indice = autores.findIndex(a => a.id === id);
+export const deleteAutor = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) {
+            return next(crearError('El ID proporcionado no es válido', 400));
+        }
 
-    if (indice === -1) {
-        return next(crearError(`no existe un autor con id ${id}`, 404));
+        const existeAutor = await prisma.autor.findUnique({ where: { id } });
+        if (!existeAutor) {
+            return next(crearError(`No existe un autor con id ${id}`, 404));
+        }
+
+        await prisma.autor.delete({ where: { id } });
+
+        res.status(204).send();
+    } catch (error) {
+        next(error);
     }
-
-    autores.splice(indice, 1);
-    res.status(204).send();
 };
