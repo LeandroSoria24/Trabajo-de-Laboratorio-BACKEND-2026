@@ -1,6 +1,6 @@
 {
   "name": "laboratorio",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "- Leandro Soria Rosales, MUN° 00292 \r - Santiago Ortiz, MUN° 00451",
   "main": "src/app.js",
   "scripts": {

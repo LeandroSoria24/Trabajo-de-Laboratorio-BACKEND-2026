@@ -1,20 +1,40 @@
 import { libros } from '../data/libros.data.js';
 import { crearError } from '../utils/crearError.js';
+import prisma from '../config/prisma.js';
 
 // GETTERS
-export const getLibros = (req, res) => {
-    res.json(libros);
+export const getLibros = async (req, res, next) => {
+    try {
+        const libros = await prisma.libro.findMany();
+        res.json(libros);
+    }
+    catch (error) {
+        next(error);
+    }
 };
 
-export const getLibrosFiltrados = (req, res, next) => {
-    const tituloRecibido = req.query.titulo;
+export const getLibrosFiltrados = async (req, res, next) => {
+    try {
+        const tituloRecibido = req.query.titulo;
 
-    if (!tituloRecibido) {
-        return next(crearError('Debe especificar el parámetro "titulo" para filtrar', 400));
+        if (!tituloRecibido) {
+            return next(crearError('Debe especificar el parámetro "titulo" para filtrar', 400));
+        }
+
+        const libroFiltrado = await prisma.libro.findMany({
+            where: {
+                titulo: {
+                    contains: tituloRecibido,
+                    mode: 'insensitive'
+                }
+            }
+        })
+        res.json(libroFiltrado)
+        
     }
-
-    const libroFiltrado = libros.filter(libro => libro.titulo.toLowerCase().includes(tituloRecibido.toLowerCase()));
-    res.json(libroFiltrado);
+    catch (error) {
+        next(error);
+    }
 };
 
 export const getLibroPorId = (req, res, next) => {
