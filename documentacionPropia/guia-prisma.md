@@ -73,7 +73,7 @@ Para configurar **Prisma 7** con **PostgreSQL** y Node.js se instalaron los sigu
 npm install @prisma/client @prisma/adapter-pg pg dotenv
 
 # Dependencia de desarrollo (CLI de Prisma alineado a la misma versión del cliente)
-npm install --save-dev prisma
+npm install --save-dev prisma@^7.0.0 @prisma/client@^7.0.0
 ```
 
 ### Rol de cada paquete:
