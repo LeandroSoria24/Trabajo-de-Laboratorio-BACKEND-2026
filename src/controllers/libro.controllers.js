@@ -49,54 +49,86 @@ export const getLibroPorId = (req, res, next) => {
 };
 
 // POST
-export const createLibro = (req, res, next) => {
-    const { titulo, autor, anio } = req.body;
+export const createLibro = async (req, res, next) => {
+    try {
+        const { titulo, autorId, anio } = req.body;
 
-    if (!titulo || !autor) {
-        return next(crearError('Faltan datos obligatorios: titulo y autor son requeridos', 400));
+        if (!titulo || !autorId) {
+            return next(crearError('Faltan datos obligatorios: titulo y autorId son requeridos', 400));
+        }
+
+        // Si existe relación con la tabla Autor, se recomienda validar la existencia del autor primero
+        const existeAutor = await prisma.autor.findUnique({ where: { id: Number(autorId) } });
+        if (!existeAutor) {
+            return next(crearError(`No existe un autor con el ID ${autorId}`, 404));
+        }
+
+        const nuevoLibro = await prisma.libro.create({
+            data: {
+                titulo,
+                autorId: Number(autorId),
+                anio: anio ? Number(anio) : null
+            }
+        });
+
+        res.status(201).json(nuevoLibro);
+    } catch (error) {
+        next(error);
     }
-
-    const nuevoLibro = {
-        id: libros.length > 0 ? Math.max(...libros.map(l => l.id)) + 1 : 1,
-        titulo,
-        autor,
-        anio: anio ?? null
-    };
-    libros.push(nuevoLibro);
-    res.status(201).json(nuevoLibro);
 };
 
 // PUT
-export const updateLibro = (req, res, next) => {
-    const id = Number(req.params.id);
-    const libro = libros.find(libro => libro.id === id);
+export const updateLibro = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) {
+            return next(crearError('El ID proporcionado no es válido', 400));
+        }
 
-    if (!libro) {
-        return next(crearError(`no existe un libro con id ${id}`, 404));
+        const { titulo, autorId, anio } = req.body;
+
+        if (!titulo || !autorId) {
+            return next(crearError('Faltan datos obligatorios: titulo y autorId son requeridos', 400));
+        }
+
+        // Verificar si el libro existe antes de intentar actualizarlo
+        const existeLibro = await prisma.libro.findUnique({ where: { id } });
+        if (!existeLibro) {
+            return next(crearError(`No existe un libro con id ${id}`, 404));
+        }
+
+        const libroActualizado = await prisma.libro.update({
+            where: { id },
+            data: {
+                titulo,
+                autorId: Number(autorId),
+                anio: anio ? Number(anio) : null
+            }
+        });
+
+        res.json(libroActualizado);
+    } catch (error) {
+        next(error);
     }
-
-    const { titulo, autor, anio } = req.body;
-
-    if (!titulo || !autor) {
-        return next(crearError('Faltan datos obligatorios: titulo y autor son requeridos', 400));
-    }
-
-    libro.titulo = titulo;
-    libro.autor = autor;
-    libro.anio = anio ?? null;
-
-    res.json(libro);
 };
 
 // DELETE
-export const deleteLibro = (req, res, next) => {
-    const id = Number(req.params.id);
-    const indice = libros.findIndex(libro => libro.id === id);
+export const deleteLibro = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) {
+            return next(crearError('El ID proporcionado no es válido', 400));
+        }
 
-    if (indice === -1) {
-        return next(crearError(`no existe un libro con id ${id}`, 404));
+        const existeLibro = await prisma.libro.findUnique({ where: { id } });
+        if (!existeLibro) {
+            return next(crearError(`No existe un libro con id ${id}`, 404));
+        }
+
+        await prisma.libro.delete({ where: { id } });
+
+        res.status(204).send();
+    } catch (error) {
+        next(error);
     }
-
-    libros.splice(indice, 1);
-    res.status(204).send();
 };
