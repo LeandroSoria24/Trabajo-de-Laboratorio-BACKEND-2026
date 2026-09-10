@@ -7,24 +7,70 @@ API REST desarrollada con Node.js y Express para la gestión de libros y autores
 - Santiago Ortiz, MUN° 00451
 
 ## Requisitos
-Node.js 24 LTS
+- **Node.js**: v20 o v24 LTS
+- **PostgreSQL**: Servidor de base de datos activo
 
-## Instalación y Ejecución
+## Instalación y Configuración
 
-1. Clonar el repositorio y posicionarse en la carpeta del proyecto:
+### 1. Clonar el repositorio y posicionarse en la carpeta
 ```bash
+git clone https://github.com/LeandroSoria24/Trabajo-de-Laboratorio-BACKEND-2026.git
 cd Trabajo-de-Laboratorio-BACKEND-2026
 ```
 
-2. Instalar dependencias:
+### 2. Instalar dependencias
+Para instalar todas las dependencias declaradas en el proyecto (Express, Prisma, adaptador PostgreSQL, Dotenv, etc.):
 ```bash
 npm install
 ```
 
-3. Iniciar el servidor en modo desarrollo (con recarga automática):
-```bash
-npm run dev
+> **Nota para instalaciones manuales desde cero:**
+> ```bash
+> # Dependencias de producción
+> npm install express dotenv pg @prisma/adapter-pg
+> 
+> # Dependencias de desarrollo (Prisma CLI y Cliente)
+> npm install -D prisma @prisma/client
+> ```
+
+### 3. Configurar variables de entorno
+Crea un archivo `.env` en la raíz del proyecto (puedes tomar como base [.env.example](file:///.env.example)):
+
+```env
+DATABASE_URL="postgresql://USUARIO:PASSWORD@localhost:5432/gestion_eventos_db?schema=public"
 ```
+> Reemplaza `USUARIO`, `PASSWORD`, puerto y el nombre de la base de datos con los datos de tu conexión local de PostgreSQL.
+
+### 4. Configurar y sincronizar la base de datos con Prisma
+
+1. **Generar el cliente de Prisma:**
+   Genera los tipos y el cliente adaptado en `src/generated/prisma`:
+   ```bash
+   npx prisma generate
+   ```
+
+2. **Ejecutar las migraciones:**
+   Crea las tablas en PostgreSQL a partir del esquema (`prisma/schema.prisma`):
+   ```bash
+   npx prisma migrate dev
+   ```
+
+3. **(Opcional) Visualizar los datos con Prisma Studio:**
+   Interfaz gráfica interactiva en el navegador para consultar y manipular registros:
+   ```bash
+   npx prisma studio
+   ```
+
+### 5. Iniciar la aplicación
+
+- **Modo desarrollo** (con recarga automática mediante `node --watch`):
+  ```bash
+  npm run dev
+  ```
+- **Modo producción:**
+  ```bash
+  npm start
+  ```
 
 El servidor iniciará en: `http://localhost:3000`
 
@@ -34,15 +80,20 @@ El servidor iniciará en: `http://localhost:3000`
 
 ```text
 Trabajo-de-Laboratorio-BACKEND-2026/
+├── prisma/
+│   ├── migrations/       # Historial de migraciones SQL generadas
+│   └── schema.prisma     # Definición de modelos y esquema de base de datos
 ├── src/
-│   ├── controllers/      # Lógica de negocio (libros y autores)
-│   ├── data/             # Almacenamiento en memoria (mock data)
+│   ├── config/           # Configuración del cliente Prisma (adapter pg)
+│   ├── controllers/      # Lógica de controladores (libro.controllers, autor.controllers)
+│   ├── data/             # Mock data de prueba en memoria
+│   ├── generated/        # Cliente generado automáticamente por Prisma
 │   ├── middlewares/      # Middlewares (logger, validarId, rutaNoEncontrada, manejoErrores)
-│   ├── routes/           # Definición de rutas Express modulares
-│   ├── utils/            # Funciones auxiliares (crearError)
-│   ├── app.js            # Punto de entrada y configuración del servidor
-│   └── swagger.js        # Documentación interactiva Swagger UI
-├── documentacionPropia/  # Diagramas de flujo y guías detalladas de arquitectura
+│   ├── routes/           # Rutas modulares Express (libro.routes, autor.routes)
+│   ├── utils/            # Funciones auxiliares reutilizables (crearError)
+│   └── app.js            # Punto de entrada y configuración de Express
+├── documentacionPropia/  # Diagramas de flujo y guías de arquitectura
+├── .env.example          # Plantilla de variables de entorno
 ├── package.json
 └── README.md
 ```
