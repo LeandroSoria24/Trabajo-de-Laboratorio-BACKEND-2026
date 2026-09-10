@@ -6,7 +6,7 @@ import {
     createLibro, 
     updateLibro, 
     deleteLibro 
-} from '../controllers/libros.controllers.js';
+} from '../controllers/libro.controllers.js';
 import { validarId } from '../middlewares/validarId.js';
 
 const router = Router();

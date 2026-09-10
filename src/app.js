@@ -1,6 +1,6 @@
 import express from "express";
-import librosRoutes from './routes/libros.routes.js'
-import autoresRoutes from './routes/autores.routes.js'
+import librosRoutes from './routes/libro.routes.js';
+import autoresRoutes from './routes/autor.routes.js';
 import { logger } from "./middlewares/logger.js"
 import {manejoErrores} from "./middlewares/manejoErrores.js"
 import {rutaNoEncontrada} from "./middlewares/rutaNoEncontrada.js"

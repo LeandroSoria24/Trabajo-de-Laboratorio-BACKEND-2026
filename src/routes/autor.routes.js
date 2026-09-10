@@ -5,7 +5,7 @@ import {
     createAutor,
     updateAutor,
     deleteAutor 
-} from '../controllers/autores.controllers.js';
+} from '../controllers/autor.controllers.js';
 import { validarId } from '../middlewares/validarId.js';
 
 const router = Router();

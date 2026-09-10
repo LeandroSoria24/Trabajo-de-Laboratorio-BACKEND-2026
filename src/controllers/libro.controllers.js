@@ -30,23 +30,33 @@ export const getLibrosFiltrados = async (req, res, next) => {
             }
         })
         res.json(libroFiltrado)
-        
+
     }
     catch (error) {
         next(error);
     }
 };
 
-export const getLibroPorId = (req, res, next) => {
-    const id = Number(req.params.id);
-    const libro = libros.find(libro => libro.id === id);
+export const getLibroPorId =
+    async (req, res, next) => {
+        try {
+            const id = Number(req.params.id);
+            const libros = await prisma.libro.findUnique({
+                where: {
+                    id: id
+                }
+            })
+            if (!libros) {
+                return next(crearError(`no existe un libro con id ${id}`, 404));
+            }
 
-    if (!libro) {
-        return next(crearError(`no existe un libro con id ${id}`, 404));
-    }
+            res.json(libros);
+        }
+        catch (error) {
+            next(error);
+        }
 
-    res.json(libro);
-};
+    };
 
 // POST
 export const createLibro = async (req, res, next) => {
@@ -132,3 +142,63 @@ export const deleteLibro = async (req, res, next) => {
         next(error);
     }
 };
+
+/* アブノーマリティ･ダンシンガール / ぐちり feat.flower
+No matter how hard I try or how much effort I put in
+The results are always average
+I can't go on like this
+Constantly being manipulated by useless measures of worth
+I've already come to hate this life
+So, I think I'll restart my life
+
+My chest is completely filled with abnormality
+I'm becoming a me that isn't normal
+I ask myself over and over: Did I get it?
+A brand new me
+
+Look at me now, touch me right now
+I’ll throw away my ordinary clothes Now
+From my chrysalis, I’ll become a butterfly
+I’ll show off everything as it is
+There are no performers on this cooled-off stage
+So I'll beat out the steps, 1, 2, 3
+I'm not being manipulated, I'm dancing!
+Yeah, yeah, yeah, I'm going crazy!
+
+Normality cast a curse on me, and I yearned for abnormality, I
+Don't have any interest in your differing opinions or pet theories, I’ve already locked the door
+I went beyond love and hate and fell deeply in love with abnormality a long time ago
+And from the ruins of that warped love, it was created-
+A brand new me
+
+Look at me now, touch me right now
+I’ll throw away my ordinary clothes Now
+From my chrysalis, I’ll become a butterfly
+I’ll show off everything as it is
+There are no performers on this cooled-off stage
+So I'll beat out the steps, 1, 2, 3
+I'm not being manipulated, I'm dancing!
+Yeah, yeah, yeah, I'm going crazy!
+
+In a dark room by myself, before the mirror at midnight
+Who are you? Who am I?, I asked, but received no reply
+Go crazy, go crazy, go crazy, go crazy, go crazy, go crazy, go crazy, dance
+Oh, brand new me
+
+Look at me now, touch me right now
+Dressed up in transparent clothes
+From my chrysalis, I’ll become a butterfly
+I’ll show off everything as it is
+There are no performers on this impassioned stage
+So I'll beat out the steps, 1, 2, 3
+I'm not being manipulated, I'm dancing!
+Yeah, yeah, yeah, I'm going crazy!
+
+My chest is completely filled with abnormality
+I'm becoming a me that isn't normal
+And from the ruins of that warped love, it was created an unfulfillable love
+My chest is completely filled with abnormality
+I'm becoming a me that isn't normal
+I ask myself over and over: Did I get it?
+
+A brand-new me*/
