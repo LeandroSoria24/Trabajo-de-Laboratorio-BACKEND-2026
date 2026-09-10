@@ -61,22 +61,16 @@ export const getLibroPorId =
 // POST
 export const createLibro = async (req, res, next) => {
     try {
-        const { titulo, autorId, anio } = req.body;
+        const { titulo, autor, anio } = req.body;
 
-        if (!titulo || !autorId) {
-            return next(crearError('Faltan datos obligatorios: titulo y autorId son requeridos', 400));
-        }
-
-        // Si existe relación con la tabla Autor, se recomienda validar la existencia del autor primero
-        const existeAutor = await prisma.autor.findUnique({ where: { id: Number(autorId) } });
-        if (!existeAutor) {
-            return next(crearError(`No existe un autor con el ID ${autorId}`, 404));
+        if (!titulo || !autor) {
+            return next(crearError('Faltan datos obligatorios: titulo y autor son requeridos', 400));
         }
 
         const nuevoLibro = await prisma.libro.create({
             data: {
                 titulo,
-                autorId: Number(autorId),
+                autor: String(autor),
                 anio: anio ? Number(anio) : null
             }
         });
@@ -95,10 +89,10 @@ export const updateLibro = async (req, res, next) => {
             return next(crearError('El ID proporcionado no es válido', 400));
         }
 
-        const { titulo, autorId, anio } = req.body;
+        const { titulo, autor, anio } = req.body;
 
-        if (!titulo || !autorId) {
-            return next(crearError('Faltan datos obligatorios: titulo y autorId son requeridos', 400));
+        if (!titulo || !autor) {
+            return next(crearError('Faltan datos obligatorios: titulo y autor son requeridos', 400));
         }
 
         // Verificar si el libro existe antes de intentar actualizarlo
@@ -111,7 +105,7 @@ export const updateLibro = async (req, res, next) => {
             where: { id },
             data: {
                 titulo,
-                autorId: Number(autorId),
+                autor: String(autor),
                 anio: anio ? Number(anio) : null
             }
         });
