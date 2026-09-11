@@ -25,7 +25,27 @@ Esta guía recopila todas las formas de pedir, filtrar, ordenar, paginar y modif
    - [Operaciones en Lote (`createMany`, `deleteMany`, `updateMany`)](#e-operaciones-en-lote)
 5. [Mapeo Práctico: De Memoria a Prisma en los Controladores](#5-mapeo-práctico-de-memoria-a-prisma-en-los-controladores)
 6. [Manejo de Respuestas, Valores Nulos y Errores](#6-manejo-de-respuestas-valores-nulos-y-errores)
-7. [Tabla Resumen Rápida](#7-tabla-resumen-rápida)
+7. [Relaciones en Prisma ORM (1:1, 1:N y N:M)](#7-relaciones-en-prisma-orm-11-1n-y-nm)
+   - [Sintaxis Base y el Decorador `@relation`](#sintaxis-base-y-el-decorador-relation)
+   - [Relación 1 a 1 (Uno a Uno)](#a-relación-1-a-1-uno-a-uno)
+   - [Relación 1 a N (Uno a Muchos)](#b-relación-1-a-n-uno-a-muchos)
+   - [Relación N a M (Muchos a Muchos: Implícita y Explícita)](#c-relación-n-a-m-muchos-a-muchos-implícita-y-explícita)
+   - [Consultas con Datos Relacionados (`include` y `select`)](#d-consultas-con-datos-relacionados-include-y-select)
+   - [Escrituras Anidadas (*Nested Writes*: `connect` y `create`)](#e-escrituras-anidadas-nested-writes-connect-y-create)
+8. [Migración de Datos: B.D. con Registros Existentes (Estrategia `--create-only`)](#8-migración-de-datos-bd-con-registros-existentes-estrategia---create-only)
+   - [El Problema: Restricción NOT NULL sobre Datos Existentes](#el-problema-restricción-not-null-sobre-datos-existentes)
+   - [Paso 1: Generar la migración sin aplicarla (`--create-only`)](#paso-1-generar-la-migración-sin-aplicarla-sin-modificar-la-bd)
+   - [Paso 2: Adaptar el bloque SQL en `migration.sql` (6 Pasos Críticos)](#paso-2-adaptar-el-bloque-sql-en-migrationsql-6-pasos-críticos)
+   - [Paso 3: Aplicar la migración adaptada y regenerar Prisma Client](#paso-3-aplicar-la-migración-adaptada-y-regenerar-prisma-client)
+   - [Paso 4: Comprobación del estado y consistencia en B.D.](#paso-4-comprobación-del-estado-y-consistencia-en-bd)
+9. [Consumo de Consultas SQL Puras (*Raw SQL*) en Prisma](#9-consumo-de-consultas-sql-puras-raw-sql-en-prisma)
+   - [`$queryRaw`: Consultas de Lectura (`SELECT`)](#a-queryraw--consultas-de-lectura-select)
+   - [Seguridad y Prevención Automática de Inyecciones SQL](#b-seguridad-y-prevención-automática-de-inyecciones-sql)
+   - [`$executeRaw`: Modificaciones Masivas y DDL](#c-executeraw--modificaciones-masivas-y-ddl)
+   - [Variantes Unsafe (`$queryRawUnsafe` y `$executeRawUnsafe`)](#d-variantes-unsafe-queryrawunsafe-y-executerawunsafe)
+   - [Manejo de Tipos Especiales (BigInt en PostgreSQL)](#e-manejo-de-tipos-especiales-bigint-en-postgresql)
+10. [Tabla Resumen Rápida de Métodos y Operaciones](#10-tabla-resumen-rápida-de-métodos-y-operaciones)
+
 
 ---
 
@@ -368,15 +388,531 @@ Al usar Prisma en controladores Express:
 
 ---
 
-## 7. Tabla Resumen Rápida
+## 7. Relaciones en Prisma ORM (1:1, 1:N y N:M)
 
-| Método Prisma | ¿Qué hace? | ¿Qué devuelve si no encuentra nada? | Requiere en `where` |
+Las relaciones permiten vincular tablas mediante claves foráneas (*Foreign Keys*). En Prisma, toda relación se modela a través de dos componentes fundamentales:
+1. **Campo escalar de clave foránea:** La columna real en la base de datos (ej. `categoriaId Int`).
+2. **Campo de relación:** Un campo virtual en el modelo Prisma que representa el objeto o lista relacionada (ej. `categoria Categoria @relation(...)`), el cual no existe como columna física en PostgreSQL pero permite la navegación de datos en Prisma Client.
+
+---
+
+### Sintaxis Base y el Decorador `@relation`
+
+El atributo `@relation` se coloca en el lado que almacena físicamente la clave foránea:
+
+```prisma
+@relation(fields: [campoClaveForaneaLocal], references: [campoClavePrimariaDestino])
+```
+
+* `fields`: Lista de campos en el modelo actual que guardan la FK.
+* `references`: Lista de campos en el modelo de destino a los que apunta la FK (generalmente `id`).
+* `onDelete` / `onUpdate`: Comportamiento referencial opcional (`Cascade`, `Restrict`, `SetNull`, `NoAction`).
+
+---
+
+### A. Relación 1 a 1 (Uno a Uno)
+
+Un registro del modelo **A** se asocia exactamente con un registro del modelo **B**. 
+
+* **Ejemplo académico (UNCa):** Un `Evento` posee exactamente una `ConfiguracionEvento` (y esa configuración pertenece exclusivamente a ese evento).
+* **Regla clave:** La clave foránea **debe tener la restricción `@unique`** para evitar que más de un registro apunte al mismo padre.
+
+```prisma
+model Evento {
+  id            Int                  @id @default(autoincrement())
+  nombre        String
+  configuracion ConfiguracionEvento? // Relación virtual inversa (opcional)
+}
+
+model ConfiguracionEvento {
+  id                 Int     @id @default(autoincrement())
+  limiteInscripcion  Int
+  permiteCancelacion Boolean @default(true)
+  
+  // Clave foránea real en BD con @unique:
+  eventoId           Int     @unique
+  evento             Evento  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+}
+```
+
+---
+
+### B. Relación 1 a N (Uno a Muchos)
+
+Un registro del modelo **A** puede tener asociados múltiples registros del modelo **B**, pero cada registro de **B** pertenece a un único registro de **A**.
+
+* **Ejemplos:**
+  - Una `Categoria` tiene muchos `Evento`s (`libros Libro[]`).
+  - Cada `Evento` pertenece a una única `Categoria`.
+
+```prisma
+model Categoria {
+  id      Int      @id @default(autoincrement())
+  nombre  String   @unique
+  eventos Evento[] // Campo virtual: lista de eventos vinculados
+}
+
+model Evento {
+  id          Int       @id @default(autoincrement())
+  nombre      String
+  
+  // Clave foránea física:
+  categoriaId Int
+  categoria   Categoria @relation(fields: [categoriaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+}
+```
+
+> [!TIP]
+> En la relación 1 a N, el lado "Muchos" (`Evento`) contiene el campo escalar `categoriaId` y el `@relation`. El lado "Uno" (`Categoria`) únicamente declara la lista `Evento[]`.
+
+---
+
+### C. Relación N a M (Muchos a Muchos: Implícita y Explícita)
+
+Un registro de **A** puede relacionarse con muchos de **B**, y un registro de **B** puede relacionarse con muchos de **A**. Existen dos formas de implementarlas:
+
+#### 1. Relación N:M Implícita (Manejada automáticamente por Prisma)
+Se utiliza cuando **no necesitas guardar datos extra** en la tabla intermedia (como fecha de unión, rol o estado).
+
+* **Ejemplo (UNCa):** Un `Evento` puede estar respaldado por varias `Institucion`es, y una `Institucion` respalda varios `Evento`s.
+
+```prisma
+model Evento {
+  id            Int           @id @default(autoincrement())
+  nombre        String
+  instituciones Institucion[] // Solo listas en ambos modelos
+}
+
+model Institucion {
+  id      Int      @id @default(autoincrement())
+  nombre  String
+  eventos Evento[]
+}
+```
+
+> [!NOTE]
+> Prisma creará automáticamente en PostgreSQL una tabla de unión oculta llamada `_EventoToInstitucion` con dos columnas (`A` y `B`) como claves foráneas compuestas, gestionando las inserciones y borrados sin código SQL adicional.
+
+#### 2. Relación N:M Explícita (Con modelo intermedio)
+Se utiliza cuando la tabla intermedia **contiene atributos propios**.
+
+* **Ejemplo (UNCa):** Un `Participante` se inscribe en varios `Evento`s, pero la `Inscripcion` debe guardar `fechaInscripcion`, `asistio` o `estado`.
+
+```prisma
+model Evento {
+  id            Int           @id @default(autoincrement())
+  nombre        String
+  inscripciones Inscripcion[]
+}
+
+model Participante {
+  id            Int           @id @default(autoincrement())
+  nombre        String
+  email         String        @unique
+  inscripciones Inscripcion[]
+}
+
+// Modelo intermedio explícito
+model Inscripcion {
+  id               Int          @id @default(autoincrement())
+  fechaInscripcion DateTime     @default(now())
+  asistio          Boolean      @default(false)
+
+  eventoId         Int
+  evento           Evento       @relation(fields: [eventoId], references: [id])
+
+  participanteId   Int
+  participante     Participante @relation(fields: [participanteId], references: [id])
+
+  @@unique([eventoId, participanteId]) // Evita inscripciones duplicadas
+}
+```
+
+---
+
+### D. Consultas con Datos Relacionados (`include` y `select`)
+
+Por defecto, Prisma no trae las entidades relacionadas para mantener las consultas ultra rápidas. Para incluirlas (equivalente a un `JOIN`), se utiliza `include`:
+
+#### 1. Obtener registro individual con su objeto relacionado:
+```javascript
+// GET /eventos/:id con su Categoría
+const evento = await prisma.evento.findUnique({
+  where: { id: 1 },
+  include: {
+    categoria: true // Incluye el objeto { id, nombre } de la categoría
+  }
+});
+```
+
+Resultado retornado:
+```json
+{
+  "id": 1,
+  "nombre": "Congreso de Tecnología",
+  "categoriaId": 1,
+  "categoria": {
+    "id": 1,
+    "nombre": "Jornada"
+  }
+}
+```
+
+#### 2. Inclusiones múltiples y anidadas en profundidad:
+```javascript
+const eventosDetallados = await prisma.evento.findMany({
+  include: {
+    categoria: true,
+    configuracion: true,
+    inscripciones: {
+      include: {
+        participante: true // Join anidado: Evento -> Inscripcion -> Participante
+      }
+    }
+  }
+});
+```
+
+#### 3. Proyección precisa con `select`:
+```javascript
+const eventosCompactos = await prisma.evento.findMany({
+  select: {
+    id: true,
+    nombre: true,
+    categoria: {
+      select: {
+        nombre: true // Trae solo el nombre de la categoría sin su ID
+      }
+    }
+  }
+});
+```
+
+#### 4. Filtrar por propiedades del modelo relacionado:
+```javascript
+// Buscar todos los eventos que pertenecen a la categoría "Jornada"
+const jornadas = await prisma.evento.findMany({
+  where: {
+    categoria: {
+      nombre: 'Jornada'
+    }
+  }
+});
+
+// En listas 1:N o N:M: filtrar con 'some', 'every' o 'none'
+const categoriasConEventos = await prisma.categoria.findMany({
+  where: {
+    eventos: {
+      some: {
+        nombre: { contains: 'Node.js' }
+      }
+    }
+  }
+});
+```
+
+---
+
+### E. Escrituras Anidadas (*Nested Writes*: `connect` y `create`)
+
+Prisma permite vincular o crear registros relacionados dentro de la misma operación `create` o `update`:
+
+#### 1. `connect`: Asociar a un registro padre ya existente
+```javascript
+// Crear un evento y asociarlo a una categoría existente con ID 2
+const nuevoEvento = await prisma.evento.create({
+  data: {
+    nombre: 'Workshop de Node.js',
+    categoria: {
+      connect: { id: 2 } // O cualquier campo @unique como: connect: { nombre: 'Taller' }
+    }
+  }
+});
+```
+
+#### 2. `create`: Crear padre e hijo en una sola transacción
+```javascript
+// Crear un evento y a su vez una nueva categoría al vuelo
+const nuevoEvento = await prisma.evento.create({
+  data: {
+    nombre: 'Seminario de Cloud Computing',
+    categoria: {
+      create: {
+        nombre: 'Seminarios'
+      }
+    }
+  }
+});
+```
+
+---
+
+## 8. Migración de Datos: B.D. con Registros Existentes (Estrategia `--create-only`)
+
+> **Contexto de Cátedra (UNCa - Desarrollo Backend):**
+> En entornos reales y proyectos en evolución, los modelos cambian constantemente. Un desafío habitual es **incorporar una relación obligatoria (`NOT NULL`) a una tabla que ya contiene datos almacenados**.
+
+### El Problema: Restricción NOT NULL sobre Datos Existentes
+
+Imaginemos la situación inicial antes de migrar:
+* La base de datos PostgreSQL ya contiene la tabla `Evento` con registros existentes:
+  
+  | id | nombre |
+  | :--- | :--- |
+  | 1 | Congreso de Tecnología |
+  | 2 | Workshop de Node.js |
+
+* Modificamos `schema.prisma` incorporando el modelo `Categoria` y la relación obligatoria:
+  ```prisma
+  model Evento {
+    id          Int       @id @default(autoincrement())
+    nombre      String
+    categoriaId Int       // Obligatoria (NO es Int?)
+    categoria   Categoria @relation(fields: [categoriaId], references: [id])
+  }
+  ```
+
+* Al ejecutar la migración directa:
+  ```bash
+  npx prisma migrate dev --name incorporar-relaciones
+  ```
+  ❌ **Prisma bloquea la migración con un error crítico:**
+  Intenta agregar la columna `categoriaId` con la restricción `NOT NULL` a una tabla que ya posee filas. Al no tener un valor por defecto (`@default`), PostgreSQL no sabe qué valor asignar a los registros 1 y 2, violando la integridad de datos.
+
+---
+
+### Paso 1: Generar la migración sin aplicarla (sin modificar la B.D.)
+
+Usamos la bandera `--create-only`:
+
+```bash
+npx prisma migrate dev --name incorporar-relaciones --create-only
+```
+
+* **¿Qué hace `--create-only`?** Crea la carpeta y el archivo SQL en `prisma/migrations/<timestamp>_incorporar_relaciones/migration.sql`, pero **no ejecuta las instrucciones en la base de datos**.
+* Esto nos da control total para editar manualmente el script SQL antes de que toque PostgreSQL.
+
+---
+
+### Paso 2: Adaptar el bloque SQL en `migration.sql` (6 Pasos Críticos)
+
+Abrimos el archivo `migration.sql` generado y reemplazamos el bloque de creación de `Categoria` y alteración de `Evento` por la siguiente secuencia lógica de 6 pasos:
+
+```sql
+-- 1. Crear la tabla Categoria
+CREATE TABLE "Categoria" (
+    "id" SERIAL NOT NULL,
+    "nombre" TEXT NOT NULL,
+    CONSTRAINT "Categoria_pkey" PRIMARY KEY ("id")
+);
+
+-- 2. Agregar temporalmente la columna en Evento PERMITIENDO valores NULL
+ALTER TABLE "Evento" ADD COLUMN "categoriaId" INTEGER;
+
+-- 3. Crear una categoría inicial para los registros existentes (semilla / valor base)
+INSERT INTO "Categoria" ("nombre") VALUES ('Jornada');
+
+-- 4. Asignar el ID de esa categoría a todos los eventos huérfanos existentes
+UPDATE "Evento" 
+SET "categoriaId" = (
+    SELECT "id" 
+    FROM "Categoria" 
+    WHERE "nombre" = 'Jornada'
+) 
+WHERE "categoriaId" IS NULL;
+
+-- 5. Ahora que ninguna fila tiene NULL, convertir la columna en obligatoria (NOT NULL)
+ALTER TABLE "Evento" ALTER COLUMN "categoriaId" SET NOT NULL;
+
+-- 6. Crear la clave foránea con integridad referencial
+ALTER TABLE "Evento" 
+ADD CONSTRAINT "Evento_categoriaId_fkey" 
+FOREIGN KEY ("categoriaId") 
+REFERENCES "Categoria"("id") 
+ON DELETE RESTRICT 
+ON UPDATE CASCADE;
+```
+
+> [!IMPORTANT]
+> El orden de estas 6 instrucciones es inalterable: primero se crea la tabla destino, luego se agrega la columna permisiva, se inserta la categoría semilla, se pueblan los eventos huérfanos, se vuelve obligatoria la columna y finalmente se enlaza la clave foránea.
+
+---
+
+### Paso 3: Aplicar la migración adaptada y regenerar Prisma Client
+
+Una vez guardado el archivo `migration.sql` modificado, ejecutamos:
+
+```bash
+# 1. Aplica la migración personalizada a la base de datos PostgreSQL
+npx prisma migrate dev
+
+# 2. Regenera el cliente con los nuevos tipos y modelos vigentes
+npx prisma generate
+```
+
+---
+
+### Paso 4: Comprobación del estado y consistencia en B.D.
+
+1. **Verificar el historial de migraciones:**
+   ```bash
+   npx prisma migrate status
+   ```
+   Compara los archivos de migración locales con el registro histórico de la tabla interna `_prisma_migrations` de PostgreSQL. Debe indicar que todas las migraciones están aplicadas y sincronizadas.
+
+2. **Checklist de verificación de datos resultantes:**
+   * ✔ Existe la tabla `Categoria` en PostgreSQL.
+   * ✔ Se creó el registro semilla `"Jornada"`.
+   * ✔ Todos los eventos previos (`Congreso de Tecnología`, `Workshop de Node.js`) ahora poseen `categoriaId = 1`.
+   * ✔ Las nuevas tablas secundarias (`ConfiguracionEvento`, `Institucion`, `Participante`, `Inscripcion`, `_EventoToInstitucion`) se crearon satisfactoriamente.
+   * ✔ No se perdió ningún dato histórico de la tabla `Evento`.
+
+---
+
+## 9. Consumo de Consultas SQL Puras (*Raw SQL*) en Prisma
+
+Aunque Prisma Client resuelve la inmensa mayoría de las consultas mediante sus métodos CRUD, existen escenarios donde se requiere ejecutar **SQL nativo directo**:
+* Reportes analíticos con agrupaciones complejas (`HAVING`, subconsultas, `UNION`).
+* Uso de funciones de ventana (*Window Functions* como `ROW_NUMBER()`, `RANK()`).
+* Extensiones especializadas de PostgreSQL (ej. búsqueda fonética con `pg_trgm`, operadores geométricos PostGIS o tipos `JSONB` avanzados).
+* Actualizaciones o eliminaciones masivas basadas en condiciones complejas no soportadas directamente por el API del ORM.
+
+Prisma ofrece dos métodos principales a través del cliente: `$queryRaw` y `$executeRaw`.
+
+---
+
+### A. `$queryRaw`: Consultas de Lectura (`SELECT`)
+
+Se utiliza para consultas que **devuelven filas de datos**. Retorna siempre una `Promise` que resuelve a un **arreglo de objetos JavaScript** (`Array<Object>`), donde cada clave corresponde al nombre de la columna en PostgreSQL.
+
+```javascript
+import { prisma } from '../db.js';
+
+// 1. Consulta SQL básica
+const todosLosEventos = await prisma.$queryRaw`
+  SELECT id, nombre, "categoriaId" 
+  FROM "Evento"
+  ORDER BY id ASC
+`;
+
+// 2. Consulta con filtrado por parámetro
+const idBuscado = 1;
+const evento = await prisma.$queryRaw`
+  SELECT e.id, e.nombre, c.nombre AS "categoriaNombre"
+  FROM "Evento" e
+  INNER JOIN "Categoria" c ON e."categoriaId" = c.id
+  WHERE e.id = ${idBuscado}
+`;
+```
+
+---
+
+### B. Seguridad y Prevención Automática de Inyecciones SQL
+
+Una de las mayores ventajas de `$queryRaw` en Prisma es el uso de **Tagged Template Literals** (plantillas etiquetadas de JavaScript).
+
+```javascript
+const nombreUsuario = req.query.nombre; // Posible input malicioso
+
+// ✅ 100% SEGURO: Prisma NO concatena strings
+const resultado = await prisma.$queryRaw`
+  SELECT * FROM "Evento" WHERE nombre = ${nombreUsuario}
+`;
+```
+
+#### ¿Cómo protege Prisma contra SQL Injection?
+Prisma intercepta las variables dentro de `${...}` y las transforma en **consultas preparadas parametrizadas** (`parameterized queries` de PostgreSQL):
+
+$$\text{SQL enviado a Postgres} \rightarrow \texttt{SELECT * FROM "Evento" WHERE nombre = \$1}$$
+$$\text{Parámetros seguros} \rightarrow [\texttt{"' OR '1'='1" }]$$
+
+El motor de base de datos trata el valor estrictamente como un dato literal, neutralizando cualquier intento de inyección de código SQL.
+
+---
+
+### C. `$executeRaw`: Modificaciones Masivas y DDL
+
+Se utiliza para operaciones que **NO retornan filas**, como sentencias `INSERT`, `UPDATE`, `DELETE` o comandos de definición de datos (`DDL`).
+
+* Devuelve un **número entero** (`number`) indicando la **cantidad de filas afectadas** por la instrucción.
+
+```javascript
+// Actualizar el estado de múltiples eventos anteriores a una fecha
+const fechaLimite = new Date('2026-01-01');
+
+const filasAfectadas = await prisma.$executeRaw`
+  UPDATE "Evento"
+  SET "nombre" = CONCAT('[Cerrado] ', "nombre")
+  WHERE "createdAt" < ${fechaLimite}
+`;
+
+console.log(`Se actualizaron ${filasAfectadas} eventos.`);
+```
+
+---
+
+### D. Variantes Unsafe (`$queryRawUnsafe` y `$executeRawUnsafe`)
+
+Prisma también provee `$queryRawUnsafe` y `$executeRawUnsafe`. Estas funciones reciben un `string` plano en lugar de un template literal:
+
+```javascript
+// ⚠️ RIESGOSO si se concatena manualmente:
+const consulta = `SELECT * FROM "Evento" WHERE id = ` + req.params.id; // ¡VULNERABLE A SQL INJECTION!
+const resultado = await prisma.$queryRawUnsafe(consulta);
+```
+
+#### ¿Cuándo es válido usar `Unsafe`?
+Únicamente cuando necesitas construir partes dinámicas de la consulta que PostgreSQL no permite como parámetros (por ejemplo, el nombre dinámico de una tabla o una columna en una cláusula `ORDER BY`):
+
+```javascript
+// Forma segura con parámetros posicionales:
+const columnaOrden = 'nombre'; // Validada previamente contra una whitelist
+const idCategoria = 2;
+
+const resultado = await prisma.$queryRawUnsafe(
+  `SELECT * FROM "Evento" WHERE "categoriaId" = $1 ORDER BY "${columnaOrden}" ASC`,
+  idCategoria
+);
+```
+
+> [!WARNING]
+> Siempre que sea posible, **prioriza `$queryRaw` y `$executeRaw`** con tagged template literals. Solo recurre a las versiones `Unsafe` si tienes una lista blanca estricta de valores y pasando los datos mediante parámetros posicionales `$1, $2, ...`.
+
+---
+
+### E. Manejo de Tipos Especiales (BigInt en PostgreSQL)
+
+Cuando ejecutas consultas nativas que devuelven columnas `BIGINT` o funciones de conteo `COUNT(*)` en PostgreSQL, el driver de base de datos las mapea al tipo primitivo `BigInt` de JavaScript (ej. `10n`).
+
+JavaScript estándar **no puede serializar `BigInt` a JSON** con `JSON.stringify()` (arrojando un error: `TypeError: Do not know how to serialize a BigInt`).
+
+#### Solución recomendada en controladores Express:
+```javascript
+// Convertir BigInt a Number o String antes de enviarlo en res.json()
+const conteo = await prisma.$queryRaw`SELECT COUNT(*)::int AS total FROM "Evento"`;
+res.json({ total: conteo[0].total });
+
+// O convertirlo manualmente si viene como BigInt:
+const total = Number(conteo[0].total);
+```
+
+---
+
+## 10. Tabla Resumen Rápida de Métodos y Operaciones
+
+| Método Prisma | Propósito | ¿Qué devuelve si no hay coincidencias? | Consideraciones clave |
 |---|---|:---:|---|
-| `findMany()` | Obtiene una lista de registros | Arreglo vacío `[]` | Cualquier campo / opcional |
-| `findUnique()` | Obtiene un único registro | `null` | Solo campos `@id` o `@unique` |
-| `findFirst()` | Obtiene el primer registro coincidente | `null` | Cualquier campo |
-| `count()` | Cuenta la cantidad de filas coincidentes | `0` | Cualquier campo / opcional |
-| `create()` | Inserta un nuevo registro | Lanza excepción si falla | No usa `where` (usa `data`) |
-| `update()` | Modifica un registro existente | Lanza excepción si no existe | Solo campos `@id` o `@unique` |
-| `delete()` | Elimina un registro existente | Lanza excepción si no existe | Solo campos `@id` o `@unique` |
-| `upsert()` | Crea o actualiza según existencia | Siempre crea o actualiza | Solo campos `@id` o `@unique` |
+| `findMany()` | Lista múltiples registros | `[]` (Arreglo vacío) | Soporta `where`, `include`, `select`, `orderBy`, `take`, `skip` |
+| `findUnique()` | Busca un único registro por ID o clave única | `null` | Solo acepta campos `@id` o `@unique` en `where` |
+| `findFirst()` | Primer registro coincidente con una condición | `null` | Permite buscar por cualquier campo ordinario |
+| `count()` | Cantidad total de registros coincidentes | `0` | Equivale a `SELECT COUNT(*)` |
+| `create()` | Inserta un nuevo registro | Lanza excepción si falla | Soporta escrituras anidadas con `connect` y `create` |
+| `update()` | Modifica un registro existente | Lanza error (`P2025`) si no existe | Requiere campo único en `where` |
+| `delete()` | Elimina un registro existente | Lanza error (`P2025`) si no existe | Requiere campo único en `where` |
+| `upsert()` | Actualiza si existe, crea si no | Siempre retorna el registro | Operación atómica indivisible |
+| `createMany()` | Inserción en lote de múltiples registros | Objeto `{ count: n }` | No soporta `include` ni escrituras anidadas |
+| `updateMany()` | Actualización masiva de registros | Objeto `{ count: n }` | No valida existencia previa |
+| `deleteMany()` | Eliminación masiva de registros | Objeto `{ count: n }` | Borra todo si `where: {}` está vacío |
+| `$queryRaw\`...\`` | Ejecuta SQL `SELECT` puro | `[]` (Arreglo vacío) | Protege automáticamente contra SQL Injection |
+| `$executeRaw\`...\`` | Ejecuta SQL `UPDATE/DELETE/INSERT` | `0` (Filas afectadas) | Retorna la cantidad entera de filas modificadas |
+

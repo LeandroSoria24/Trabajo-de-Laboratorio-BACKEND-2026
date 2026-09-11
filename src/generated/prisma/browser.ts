@@ -23,6 +23,11 @@ export * from './enums.ts';
  */
 export type Autor = Prisma.AutorModel
 /**
+ * Model Categoria
+ * 
+ */
+export type Categoria = Prisma.CategoriaModel
+/**
  * Model Libro
  * 
  */

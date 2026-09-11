@@ -44,6 +44,13 @@ export const getLibroPorId =
             const libros = await prisma.libro.findUnique({
                 where: {
                     id: id
+                },
+                include: {
+                    categoria: {
+                        select: {
+                            nombre: true
+                        }
+                    }
                 }
             })
             if (!libros) {
@@ -62,10 +69,6 @@ export const getLibroPorId =
 export const createLibro = async (req, res, next) => {
     try {
         const { titulo, autor, anio } = req.body;
-
-        if (!titulo || !autor) {
-            return next(crearError('Faltan datos obligatorios: titulo y autor son requeridos', 400));
-        }
 
         const nuevoLibro = await prisma.libro.create({
             data: {

@@ -20,11 +20,19 @@ model Autor {
   updatedAt    DateTime @updatedAt
 }
 
+model Categoria{
+  id Int @id @default(autoincrement())
+  nombre String  @unique
+  libros Libro[]
+}
+
 model Libro {
-  id        Int      @id @default(autoincrement())
-  titulo    String
-  autor     String
-  anio      Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          Int       @id @default(autoincrement())
+  titulo      String
+  autor       String
+  anio        Int?
+  categoriaID Int?
+  categoria   Categoria? @relation(fields: [categoriaID], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
