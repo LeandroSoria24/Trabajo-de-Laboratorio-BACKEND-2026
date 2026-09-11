@@ -141,6 +141,7 @@ export const deleteLibro = async (req, res, next) => {
 };
 
 /* アブノーマリティ･ダンシンガール / ぐちり feat.flower
+postgresql://postgres:1234@localhost:5432/gestion_eventos_db?schema=public
 No matter how hard I try or how much effort I put in
 The results are always average
 I can't go on like this

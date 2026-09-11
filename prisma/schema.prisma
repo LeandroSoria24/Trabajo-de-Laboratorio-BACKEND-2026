@@ -17,7 +17,7 @@ model Autor {
   nombre       String
   nacionalidad String?
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime @default(now()) @updatedAt
 }
 
 model Categoria{
@@ -34,5 +34,5 @@ model Libro {
   categoriaID Int?
   categoria   Categoria? @relation(fields: [categoriaID], references: [id])
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime  @default(now()) @updatedAt
 }
