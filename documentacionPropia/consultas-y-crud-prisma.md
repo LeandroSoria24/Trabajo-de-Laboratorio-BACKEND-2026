@@ -38,6 +38,9 @@ Esta guía recopila todas las formas de pedir, filtrar, ordenar, paginar y modif
    - [Paso 2: Adaptar el bloque SQL en `migration.sql` (6 Pasos Críticos)](#paso-2-adaptar-el-bloque-sql-en-migrationsql-6-pasos-críticos)
    - [Paso 3: Aplicar la migración adaptada y regenerar Prisma Client](#paso-3-aplicar-la-migración-adaptada-y-regenerar-prisma-client)
    - [Paso 4: Comprobación del estado y consistencia en B.D.](#paso-4-comprobación-del-estado-y-consistencia-en-bd)
+   - [Alternativa Ágil: Sincronización Directa con `npx prisma db push`](#alternativa-ágil-sincronización-directa-con-npx-prisma-db-push)
+   - [¿Cuándo usar `prisma db push` vs `prisma migrate dev`?](#cuándo-usar-prisma-db-push-vs-prisma-migrate-dev)
+   - [Manejo de Datos Existentes y Flags Útiles de `db push`](#manejo-de-datos-existentes-y-flags-útiles-de-db-push)
 9. [Consumo de Consultas SQL Puras (*Raw SQL*) en Prisma](#9-consumo-de-consultas-sql-puras-raw-sql-en-prisma)
    - [`$queryRaw`: Consultas de Lectura (`SELECT`)](#a-queryraw--consultas-de-lectura-select)
    - [Seguridad y Prevención Automática de Inyecciones SQL](#b-seguridad-y-prevención-automática-de-inyecciones-sql)
@@ -769,6 +772,68 @@ npx prisma generate
 
 ---
 
+### Alternativa Ágil: Sincronización Directa con `npx prisma db push`
+
+Además del flujo formal de migraciones versionadas en archivos SQL (`npx prisma migrate dev`), Prisma ofrece el comando **`npx prisma db push`**, diseñado para sincronizar directamente el esquema declarativo (`schema.prisma`) con la base de datos de manera inmediata y sin generar archivos de historial.
+
+#### 1. ¿Qué hace `npx prisma db push`?
+* Lee el archivo `schema.prisma`.
+* Se conecta a la base de datos configurada (PostgreSQL local o en la nube como Supabase).
+* Compara el estado actual de las tablas en PostgreSQL con las definiciones de los modelos en Prisma.
+* Ejecuta automáticamente las instrucciones DDL necesarias (`CREATE TABLE`, `ALTER TABLE`, `ADD CONSTRAINT`, etc.) para sincronizar la base de datos con tu esquema.
+* **No crea archivos en `prisma/migrations/` ni interactúa con la tabla interna `_prisma_migrations`**.
+
+```bash
+# Sincroniza el esquema actual directamente con la base de datos
+npx prisma db push
+```
+
+---
+
+#### 2. ¿Cuándo usar `prisma db push` vs `prisma migrate dev`?
+
+| Criterio | `npx prisma db push` | `npx prisma migrate dev` |
+|---|---|---|
+| **Archivos generados** | Ninguno (no genera SQL ni carpetas de historial). | Genera carpetas versionadas con `migration.sql`. |
+| **Tabla `_prisma_migrations`** | No la consulta ni la modifica. | Registra cada migración aplicada y calcula su checksum. |
+| **Velocidad de iteración** | ⚡ Ultrarrápido: ideal para iterar modelos y probar relaciones. | ⏱️ Más formal: requiere nombrar cada migración (`--name`). |
+| **Bases de datos en la nube (ej. Supabase)** | Excelente para prototipado rápido y entornos de desarrollo personal. | Recomendado para sincronizar cambios estructurados entre miembros de equipo. |
+| **Scripts SQL manuales** | ❌ No permite insertar SQL personalizado en el proceso de migración. | ✔ Permite editar el `migration.sql` (ej. con `--create-only`) para poblar datos. |
+| **Entornos de Producción** | ❌ No recomendado (no hay trazabilidad ni control estricto). | ✔ Se despliega con `npx prisma migrate deploy`. |
+
+---
+
+#### 3. Manejo de Datos Existentes y Flags Útiles de `db push`
+
+Una duda frecuente es si `npx prisma db push` borra los datos existentes. **La respuesta es NO: `db push` preserva todos los registros existentes siempre que los cambios sean compatibles** (por ejemplo: agregar nuevas tablas, agregar campos opcionales `?`, agregar campos con valor por defecto `@default(...)` o modificar índices).
+
+##### Detección de Cambios Destructivos
+Si realizas un cambio que provocaría pérdida irreversible de datos (por ejemplo, eliminar o renombrar un modelo/columna con registros cargados, o convertir una columna existente en obligatoria sin `@default`):
+1. Prisma **detiene la sincronización inmediatamente**.
+2. Muestra una advertencia en color rojo en la terminal indicando exactamente qué datos se perderían.
+3. Aborta la operación sin modificar la base de datos a menos que se use una bandera explícita.
+
+##### Flags Disponibles:
+```bash
+# 1. Ejecución estándar (segura): se aborta ante cualquier riesgo de pérdida de datos
+npx prisma db push
+
+# 2. Aceptar explícitamente la pérdida de datos (cuando decides descartar una columna o tabla vieja)
+npx prisma db push --accept-data-loss
+
+# 3. Forzar reseteo completo (elimina todas las tablas y datos, recreando el esquema limpio desde cero)
+npx prisma db push --force-reset
+```
+
+> [!TIP]
+> **Paso obligatorio posterior:**  
+> Cada vez que sincronices con `npx prisma db push`, debes actualizar el cliente generado para que tu código JavaScript cuente con los nuevos tipos y modelos:
+> ```bash
+> npx prisma generate
+> ```
+
+---
+
 ## 9. Consumo de Consultas SQL Puras (*Raw SQL*) en Prisma
 
 Aunque Prisma Client resuelve la inmensa mayoría de las consultas mediante sus métodos CRUD, existen escenarios donde se requiere ejecutar **SQL nativo directo**:
@@ -915,4 +980,18 @@ const total = Number(conteo[0].total);
 | `deleteMany()` | Eliminación masiva de registros | Objeto `{ count: n }` | Borra todo si `where: {}` está vacío |
 | `$queryRaw\`...\`` | Ejecuta SQL `SELECT` puro | `[]` (Arreglo vacío) | Protege automáticamente contra SQL Injection |
 | `$executeRaw\`...\`` | Ejecuta SQL `UPDATE/DELETE/INSERT` | `0` (Filas afectadas) | Retorna la cantidad entera de filas modificadas |
+
+---
+
+### Resumen de Comandos de Sincronización y CLI
+
+| Comando CLI | Propósito principal | ¿Preserva datos? | ¿Genera archivos `.sql`? |
+|---|---|:---:|:---:|
+| `npx prisma db push` | Sincroniza directamente el esquema con la base de datos | ✔ Sí (advierte si hay cambios destructivos) | ❌ No |
+| `npx prisma migrate dev --name <nombre>` | Crea y aplica una nueva migración versionada con historial SQL | ✔ Sí | ✔ Sí (`prisma/migrations/`) |
+| `npx prisma migrate dev --create-only` | Genera el archivo SQL para edición manual sin aplicarlo a la B.D. | ✔ Sí (no toca la B.D.) | ✔ Sí |
+| `npx prisma migrate deploy` | Aplica migraciones pendientes en entornos de staging / producción | ✔ Sí | ❌ No (solo lee las existentes) |
+| `npx prisma migrate reset` | Destruye la base de datos y reaplica todas las migraciones desde cero | ❌ **No (Borra todo)** | ❌ No |
+| `npx prisma generate` | Regenera Prisma Client a partir del archivo `schema.prisma` | N/A (no toca la B.D.) | ❌ No |
+| `npx prisma studio` | Abre panel visual interactivo en el navegador (`localhost:5555`) | N/A (interfaz gráfica) | ❌ No |
 
