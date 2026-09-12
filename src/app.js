@@ -6,7 +6,7 @@ import {manejoErrores} from "./middlewares/manejoErrores.js"
 import {rutaNoEncontrada} from "./middlewares/rutaNoEncontrada.js"
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT =  3000;
 app.use(express.json());
 
 /* 1 middleware de informacion */
@@ -46,6 +46,6 @@ app.use(manejoErrores);
 
 
 /* LISTEN */
-app.listen(PORT,'0.0.0.0', () => {
+app.listen(PORT, () => {
     console.log(`servidor iniciado en puerto http://localhost:${PORT}`)
 });
