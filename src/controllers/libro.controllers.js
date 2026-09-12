@@ -5,7 +5,15 @@ import prisma from '../config/prisma.js';
 // GETTERS
 export const getLibros = async (req, res, next) => {
     try {
-        const libros = await prisma.libro.findMany();
+        const libros = await prisma.libro.findMany({
+            include: {
+                categoria: {
+                    select: {
+                        nombre: true
+                    }
+                }
+            }
+        });
         res.json(libros);
     }
     catch (error) {
@@ -27,9 +35,16 @@ export const getLibrosFiltrados = async (req, res, next) => {
                     contains: tituloRecibido,
                     mode: 'insensitive'
                 }
+            },
+            include: {
+                categoria: {
+                    select: {
+                        nombre: true
+                    }
+                }
             }
-        })
-        res.json(libroFiltrado)
+        });
+        res.json(libroFiltrado);
 
     }
     catch (error) {
