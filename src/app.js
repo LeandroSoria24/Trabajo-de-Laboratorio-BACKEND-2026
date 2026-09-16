@@ -1,6 +1,6 @@
 import express from "express";
-import librosRoutes from './routes/libro.routes.js';
-import autoresRoutes from './routes/autor.routes.js';
+import artesanosRoutes from './routes/artesano.routes.js';
+import productosRoutes from './routes/producto.routes.js';
 import { logger } from "./middlewares/logger.js"
 import {manejoErrores} from "./middlewares/manejoErrores.js"
 import {rutaNoEncontrada} from "./middlewares/rutaNoEncontrada.js"
@@ -21,21 +21,19 @@ app.use(logger);
 
 app.get('/', (req, res) => {
     res.json({
-        mensaje: 'Api Laboratorio - Biblioteca'
+        mensaje: 'API Poncho Digital - Fiesta Nacional e Internacional del Poncho'
     });
 })
 app.get('/info', (req, res) => {
     res.json({
-        mensaje: 'Api Laboratorio - Biblioteca',
-        version: '2.0',
+        mensaje: 'API Poncho Digital',
+        version: '1.0',
         estado: 'En desarrollo'
     });
 })
 
-app.use('/libros', librosRoutes);
-
-
-app.use('/autores', autoresRoutes); 
+app.use('/artesanos', artesanosRoutes);
+app.use('/productos', productosRoutes);
 
 
 /* MANEJO DE RUTAS NO ENCONTRADAS (404) */

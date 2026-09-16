@@ -51,9 +51,8 @@ export const AnyNull = runtime.AnyNull
 
 
 export const ModelName = {
-  Autor: 'Autor',
-  Categoria: 'Categoria',
-  Libro: 'Libro'
+  Artesano: 'Artesano',
+  Producto: 'Producto'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -72,36 +71,36 @@ export const TransactionIsolationLevel = runtime.makeStrictEnum({
 export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof typeof TransactionIsolationLevel]
 
 
-export const AutorScalarFieldEnum = {
+export const ArtesanoScalarFieldEnum = {
   id: 'id',
   nombre: 'nombre',
-  nacionalidad: 'nacionalidad',
+  apellido: 'apellido',
+  dni: 'dni',
+  email: 'email',
+  telefono: 'telefono',
+  localidad: 'localidad',
+  rubro: 'rubro',
+  nombreEmprendimiento: 'nombreEmprendimiento',
+  descripcionTrayectoria: 'descripcionTrayectoria',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
-export type AutorScalarFieldEnum = (typeof AutorScalarFieldEnum)[keyof typeof AutorScalarFieldEnum]
+export type ArtesanoScalarFieldEnum = (typeof ArtesanoScalarFieldEnum)[keyof typeof ArtesanoScalarFieldEnum]
 
 
-export const CategoriaScalarFieldEnum = {
+export const ProductoScalarFieldEnum = {
   id: 'id',
-  nombre: 'nombre'
-} as const
-
-export type CategoriaScalarFieldEnum = (typeof CategoriaScalarFieldEnum)[keyof typeof CategoriaScalarFieldEnum]
-
-
-export const LibroScalarFieldEnum = {
-  id: 'id',
-  titulo: 'titulo',
-  autor: 'autor',
-  anio: 'anio',
-  categoriaID: 'categoriaID',
+  nombre: 'nombre',
+  descripcion: 'descripcion',
+  precio: 'precio',
+  stock: 'stock',
+  artesanoId: 'artesanoId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
-export type LibroScalarFieldEnum = (typeof LibroScalarFieldEnum)[keyof typeof LibroScalarFieldEnum]
+export type ProductoScalarFieldEnum = (typeof ProductoScalarFieldEnum)[keyof typeof ProductoScalarFieldEnum]
 
 
 export const SortOrder = {

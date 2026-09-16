@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -12,27 +7,30 @@ datasource db {
   provider = "postgresql"
 }
 
-model Autor {
-  id           Int      @id @default(autoincrement())
-  nombre       String
-  nacionalidad String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
+model Artesano {
+  id                     Int        @id @default(autoincrement())
+  nombre                 String
+  apellido               String
+  dni                    String     @unique
+  email                  String     @unique
+  telefono               String?
+  localidad              String
+  rubro                  String
+  nombreEmprendimiento   String
+  descripcionTrayectoria String?
+  productos              Producto[]
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @default(now()) @updatedAt
 }
 
-model Categoria{
-  id Int @id @default(autoincrement())
-  nombre String  @unique
-  libros Libro[]
-}
-
-model Libro {
-  id          Int       @id @default(autoincrement())
-  titulo      String
-  autor       String
-  anio        Int?
-  categoriaID Int?
-  categoria   Categoria? @relation(fields: [categoriaID], references: [id])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @default(now()) @updatedAt
+model Producto {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  descripcion String?
+  precio      Float
+  stock       Int      @default(0)
+  artesanoId  Int
+  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 }
