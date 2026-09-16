@@ -2,7 +2,7 @@ import { crearError } from "../utils/crearError.js";
 
 //---//
 
-export const validarIds = (req, res, next) => {
+export const validarId = (req, res, next) => {
     const { id } = req.params;
 
     // 1. Validar existencia y tipo base
