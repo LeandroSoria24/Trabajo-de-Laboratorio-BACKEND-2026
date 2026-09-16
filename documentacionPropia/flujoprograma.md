@@ -81,3 +81,45 @@ flowchart TD
 | **`rutaNoEncontrada`** | Middleware 404 | Intercepta peticiones huérfanas y delega un error 404 mediante `next(...)`. |
 | **`manejoErrores`** | Middleware de Errores | Centraliza la respuesta JSON y oculta errores técnicos internos (500). |
 
+---
+
+## 🚀 Flujo Completo de un Endpoint CRUD: `POST /libros`
+
+Este flujo muestra la separación de responsabilidades de la **Unidad 3**: el validador (Zod) detiene entradas inválidas en el middleware, el controlador transfiere los datos limpios como **DTO** y el servicio ejecuta la lógica con Prisma.
+
+```mermaid
+flowchart TD
+    CLI["🌐 1. Cliente envía POST /libros\n{ titulo, autor, anio, categoriaId }"] --> LOG["⏱️ 2. logger"]
+    LOG --> ROUTE["🛣️ 3. libro.routes.js\nrouter.post('/', validarLibro, createLibro)"]
+    
+    ROUTE --> MW["🛡️ 4. validadlibro.js (Middleware Zod)\nsafeParse(req.body)"]
+    
+    MW -->|"❌ Falló validación"| ERR["🚨 next(crearError(..., 400))"]
+    ERR --> HANDLER["🛡️ manejoErrores.js\nres.status(400).json(...)"]
+    HANDLER --> RES_ERR["📬 Cliente recibe 400 Bad Request"]
+    
+    MW -->|"✅ Éxito: req.body = resultado.data"| CTRL["🎮 5. libro.controllers.js\nconst crearLibroDto = req.body"]
+    
+    CTRL --> SERV["⚙️ 6. libro.services.js\ncrearLibro(crearLibroDto)"]
+    
+    SERV -->|"¿Categoría existe?"| PRISMA["🗄️ 7. prisma.libro.create(...)"]
+    SERV -.->|"❌ No existe categoría"| THROW["🚨 throw crearError('...', 400)"]
+    THROW -.->|"catch(error) en controller"| HANDLER
+    
+    PRISMA --> BD[("🐘 PostgreSQL")]
+    BD --> PRISMA
+    PRISMA -->|"Retorna registro creado"| SERV
+    SERV -->|"Retorna nuevoLibro"| CTRL
+    CTRL -->|"res.status(201).json(nuevoLibro)"| RES_OK["📬 Cliente recibe 201 Created"]
+
+    style CLI fill:#38bdf8,stroke:#0284c7,color:#000
+    style LOG fill:#fde047,stroke:#eab308,color:#000
+    style ROUTE fill:#a78bfa,stroke:#7c3aed,color:#000
+    style MW fill:#34d399,stroke:#059669,color:#000
+    style CTRL fill:#fb923c,stroke:#ea580c,color:#000
+    style SERV fill:#f472b6,stroke:#db2777,color:#000
+    style PRISMA fill:#f87171,stroke:#dc2626,color:#fff
+    style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style HANDLER fill:#ef4444,stroke:#dc2626,color:#fff
+```
+

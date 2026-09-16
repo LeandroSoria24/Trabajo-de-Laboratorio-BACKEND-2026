@@ -1,4 +1,4 @@
-import { crearError } from "../utils/crearError.js";
+import { crearError } from "../../utils/crearError.js";
 
 //---//
 
@@ -24,6 +24,6 @@ export const validarId = (req, res, next) => {
 
     // 3. Reasignar el ID limpio para evitar espacios ocultos en los controladores
     req.params.id = idLimpio;
-    
+
     next();
 };

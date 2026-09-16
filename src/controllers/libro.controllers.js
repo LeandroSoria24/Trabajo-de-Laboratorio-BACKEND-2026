@@ -1,6 +1,10 @@
 import { libros } from '../data/libros.data.js';
 import { crearError } from '../utils/crearError.js';
 import prisma from '../config/prisma.js';
+import {
+    crearLibro as crearLibroService,
+    actualizarLibro as actualizarLibroService
+} from '../services/libro.services.js';
 
 // GETTERS
 export const getLibros = async (req, res, next) => {
@@ -83,19 +87,12 @@ export const getLibroPorId =
 // POST
 export const createLibro = async (req, res, next) => {
     try {
-        const { titulo, autor, anio } = req.body;
-
-        const nuevoLibro = await prisma.libro.create({
-            data: {
-                titulo,
-                autor: String(autor),
-                anio: anio ? Number(anio) : null
-            }
-        });
-
-        res.status(201).json(nuevoLibro);
+        // req.body ya contiene los datos validados por el middleware con Zod
+        const crearLibroDto = req.body;
+        const nuevoLibro = await crearLibroService(crearLibroDto);
+        return res.status(201).json(nuevoLibro);
     } catch (error) {
-        next(error);
+        return next(error);
     }
 };
 
@@ -103,34 +100,12 @@ export const createLibro = async (req, res, next) => {
 export const updateLibro = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
-        if (isNaN(id)) {
-            return next(crearError('El ID proporcionado no es válido', 400));
-        }
-
-        const { titulo, autor, anio } = req.body;
-
-        if (!titulo || !autor) {
-            return next(crearError('Faltan datos obligatorios: titulo y autor son requeridos', 400));
-        }
-
-        // Verificar si el libro existe antes de intentar actualizarlo
-        const existeLibro = await prisma.libro.findUnique({ where: { id } });
-        if (!existeLibro) {
-            return next(crearError(`No existe un libro con id ${id}`, 404));
-        }
-
-        const libroActualizado = await prisma.libro.update({
-            where: { id },
-            data: {
-                titulo,
-                autor: String(autor),
-                anio: anio ? Number(anio) : null
-            }
-        });
-
-        res.json(libroActualizado);
+        // req.body ya contiene los datos validados por el middleware con Zod
+        const actualizarLibroDto = req.body;
+        const libroActualizado = await actualizarLibroService(id, actualizarLibroDto);
+        return res.json(libroActualizado);
     } catch (error) {
-        next(error);
+        return next(error);
     }
 };
 

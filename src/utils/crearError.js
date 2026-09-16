@@ -12,8 +12,20 @@
  *   stack: 'Error: Libro no encontrado\n    at crearError (...)\n    at ...' // Pila de llamadas para depurar
  * }
  */
-export const crearError = (mensaje, status) => {
-    const error = new Error(mensaje);
-    error.status = status;
+export const crearError = (mensaje, status = 500) => {
+    // El status debe ser un número entre 400 y 599. Si no, forzamos un 500 (Error de Servidor)
+    const statusCode = (
+        typeof status === 'number' && 
+        status >= 400 && 
+        status < 600
+    ) ? status : 500;
+
+    // El mensaje debe ser un string no vacío. Si no lo es, asignamos un mensaje genérico
+    const message = (typeof mensaje === 'string' && mensaje.trim() !== '') 
+        ? mensaje 
+        : "Ha ocurrido un error interno en el servidor.";
+
+    const error = new Error(message);
+    error.status = statusCode;
     return error;
 };

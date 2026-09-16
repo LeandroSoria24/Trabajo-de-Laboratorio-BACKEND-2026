@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { 
+import {
     getAutores,
     getAutorPorId,
     createAutor,
     updateAutor,
-    deleteAutor 
+    deleteAutor
 } from '../controllers/autor.controllers.js';
-import { validarId } from '../middlewares/validarId.js';
+import { validarId } from '../middlewares/validaciones/validarId.js';
 
 const router = Router();
 

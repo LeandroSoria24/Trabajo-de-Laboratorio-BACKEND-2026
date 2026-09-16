@@ -11,7 +11,8 @@ Este documento explica en profundidad el funcionamiento, la lógica interna y la
 4. [3. Creador de Errores (`crearError.js`)](#3-creador-de-errores-crearerrorjs)
 5. [4. Capturador 404 (`rutaNoEncontrada.js`)](#4-capturador-404-rutanoencontradajs)
 6. [5. Manejador Global de Errores (`manejoErrores.js`)](#5-manejador-global-de-errores-manejoerroresjs)
-7. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
+7. [6. Validador de Libros con Zod (`validadlibro.js`)](#6-validador-de-libros-con-zod-validadlibrojs)
+8. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
 
 ---
 
@@ -104,26 +105,46 @@ export const validarId = (req, res, next) => {
 
 **Ubicación:** `src/utils/crearError.js`  
 **Tipo:** Función Utilitaria (Factory Pattern)  
-**Propósito:** Estandarizar la creación de errores en cualquier parte de la aplicación.
+**Propósito:** Estandarizar la creación de errores en cualquier parte de la aplicación, con validaciones internas para evitar que el programador envíe datos erróneos.
 
 ### Código:
 ```javascript
-export const crearError = (mensaje, status) => {
-    const error = new Error(mensaje);
-    error.status = status;
+export const crearError = (mensaje, status = 500) => {
+    // El status debe ser un número entre 400 y 599. Si no, forzamos un 500 (Error de Servidor)
+    const statusCode = (
+        typeof status === 'number' && 
+        status >= 400 && 
+        status < 600
+    ) ? status : 500;
+
+    // El mensaje debe ser un string no vacío. Si no lo es, asignamos un mensaje genérico
+    const message = (typeof mensaje === 'string' && mensaje.trim() !== '') 
+        ? mensaje 
+        : "Ha ocurrido un error interno en el servidor.";
+
+    const error = new Error(message);
+    error.status = statusCode;
     return error;
 };
 ```
 
 ### ¿Cómo funciona?
-1. **`new Error(mensaje)`**  
-   Crea una instancia nativa de `Error` de JavaScript. Esto le otorga automáticamente:
-   * `error.message`: El texto descriptivo del fallo.
-   * `error.stack`: La traza completa que indica en qué archivo y qué línea exacta ocurrió el error.
-2. **`error.status = status;`**  
-   Agrega una propiedad personalizada llamada `status` para guardar el código HTTP deseado (ej: 400, 404, 401, 403, 500).
-3. **Retorno:**  
-   Devuelve el objeto completo listo para ser lanzado (`throw`) o enviado mediante `next(error)`.
+1. **`status = 500` (valor por defecto):**  
+   Si el programador olvida pasar el código HTTP, se asume `500` automáticamente.
+2. **Validación de `status`:**  
+   El código HTTP debe ser un número entre 400 y 599. Si alguien pasa `200`, `"404"`, o `undefined`, se fuerza a `500`. Esto previene que un error del programador genere un código de respuesta inválido.
+3. **Validación de `mensaje`:**  
+   Si el mensaje no es un `string` o está vacío/solo con espacios, se asigna `"Ha ocurrido un error interno en el servidor."`. Esto evita que el cliente reciba un mensaje vacío o `null`.
+4. **`new Error(message)`:**  
+   Crea una instancia nativa de `Error` de JavaScript, otorgándole:
+   * `error.message`: El texto descriptivo del fallo (ya validado).
+   * `error.stack`: La traza completa que indica en qué archivo y línea ocurrió el error.
+5. **`error.status = statusCode;`:**  
+   Adjunta el código HTTP validado como propiedad personalizada.
+
+> [!TIP]
+> **¿Por qué las validaciones están en `crearError` y no en `manejoErrores`?**  
+> Porque `crearError` es el punto de entrada controlado por el programador. Las validaciones aquí aseguran que cualquier error fabricado manualmente ya nazca con datos correctos, sin necesidad de duplicar lógica en el middleware final.
 
 > [!TIP]
 > **¿Por qué no devolver un objeto plano `{ error: mensaje, status }`?**  
@@ -197,12 +218,97 @@ export const manejoErrores = (err, req, res, next) => {
 
 ---
 
+## 6. Validador de Libros con Zod (`validadlibro.js`)
+
+**Ubicación:** `src/middlewares/validaciones/validadlibro.js`  
+**Esquemas:** `src/validators/libro.schemas.js`  
+**Tipo:** Middleware de Validación con Zod  
+**Posición:** En `libro.routes.js`, antes de `createLibro` (POST) y `updateLibro` (PUT).
+
+### Esquema Zod (`libro.schemas.js`):
+```javascript
+import { z } from "zod";
+
+export const crearLibroSchema = z.object({
+  titulo: z.string().trim().min(1),
+  autor: z.string().trim().min(1),
+  anio: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .nullable(),
+  categoriaId: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .nullable(),
+  categoriaID: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .nullable()
+});
+```
+
+### Middleware (`validadlibro.js`):
+```javascript
+import { crearError } from "../../utils/crearError.js";
+import { crearLibroSchema, actualizarLibroSchema } from "../../validators/libro.schemas.js";
+
+export const validarLibro = (req, res, next) => {
+    const schema = req.method === 'PUT' ? actualizarLibroSchema : crearLibroSchema;
+    const resultado = schema.safeParse(req.body);
+
+    if (!resultado.success) {
+        const issue = resultado.error.issues[0];
+        const campo = issue.path.join('.') || 'body';
+        return next(crearError(`Error en el campo '${campo}': ${issue.message}`, 400));
+    }
+
+    req.body = resultado.data;
+    next();
+};
+```
+
+### ¿Cómo funciona?
+1. **Selección de esquema:** Según `req.method`, elige `crearLibroSchema` (POST) o `actualizarLibroSchema` (PUT).
+2. **`schema.safeParse(req.body)`:** Valida el body sin lanzar excepciones. Devuelve `{ success: true, data }` o `{ success: false, error }`.
+3. **Si falla:** Extrae el primer `issue` de Zod, arma un mensaje descriptivo con el nombre del campo y lo envía como error 400 mediante `crearError`.
+4. **Si pasa:** Reemplaza `req.body` con `resultado.data`, que contiene los datos ya limpios (con `.trim()` aplicado). Esto garantiza que los controladores siempre reciban datos sanitizados.
+
+### Reglas declaradas en el esquema:
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| **`titulo`** | `string` | Obligatorio, se eliminan espacios (`.trim()`), no puede quedar vacío (`.min(1)`) |
+| **`autor`** | `string` | Obligatorio, se eliminan espacios (`.trim()`), no puede quedar vacío (`.min(1)`) |
+| **`anio`** | `number` | Opcional/nullable, debe ser entero positivo |
+| **`categoriaId`** / **`categoriaID`** | `number` | Opcional/nullable, debe ser entero positivo |
+
+### Uso en las rutas:
+```javascript
+router.post('/', validarLibro, createLibro);
+router.put('/:id', validarId, validarLibro, updateLibro);
+```
+
+> [!TIP]
+> **El concepto de DTO en la cátedra (Unidad 3):**  
+> Cuando `validadlibro.js` ejecuta `req.body = resultado.data`, los datos quedan limpios y normalizados. El controlador toma ese `req.body` y lo transfiere directamente a la **capa de servicios** (`src/services/libro.services.js`). A ese objeto plano de transferencia se lo denomina **DTO** (Data Transfer Object).
+
+---
+
 ## Mapa de Relación entre Componentes
 
 | Archivo | Rol | ¿Quién lo invoca o llama? | ¿Qué entrega al siguiente eslabón? |
 |---|---|---|---|
 | **`logger.js`** | Entrada y Salida | Express al recibir cualquier petición | Pasa la petición limpia mediante `next()` |
 | **`validarId.js`** | Validación de parámetros | Rutas `/libros/:id` y `/autores/:id` | Pasa con `next()` o corta con `next(crearError(..., 400))` |
-| **`crearError.js`** | Fabricador de Errores | Controladores, `validarId` y `rutaNoEncontrada` | Un objeto `Error` con `.status` y `.message` |
+| **`validadlibro.js`** | Validación de body (Zod) | Rutas POST y PUT de `/libros` | Pasa con `req.body` limpio (DTO) o corta con `next(crearError(..., 400))` |
+| **`libro.schemas.js`** | Esquemas de validación | `validadlibro.js` los importa | Objetos esquema Zod para usar con `.safeParse()` |
+| **`libro.services.js`** | Lógica de negocio y persistencia | Controladores | El resultado de Prisma o un error lanzado con `throw` |
+| **`crearError.js`** | Fabricador de Errores | Controladores, servicios, middlewares | Un objeto `Error` con `.status` y `.message` validados |
 | **`rutaNoEncontrada.js`** | Detección de rutas 404 | Express cuando ninguna ruta coincide | Envía el error 404 a `next(error)` |
 | **`manejoErrores.js`** | Respuesta final de fallos | Express cuando alguien hace `next(error)` | Responde el JSON final con código HTTP |

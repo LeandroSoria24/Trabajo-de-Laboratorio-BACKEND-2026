@@ -3,6 +3,10 @@
 
 Esta guía recopila todas las formas de pedir, filtrar, ordenar, paginar y modificar datos en PostgreSQL utilizando **Prisma Client**, con ejemplos prácticos aplicados a los modelos de nuestro proyecto (`Autor` y `Libro`).
 
+> [!NOTE]
+> **Evolución Arquitectónica (Unidad 3 de la UNCa):**  
+> En la arquitectura modular por capas del proyecto, las consultas y mutaciones de Prisma aquí documentadas se alojan dentro de la **Capa de Servicios** (`src/services/`), como por ejemplo `src/services/libro.services.js`. Los controladores no hablan directamente con Prisma en las operaciones migradas, sino que delegan la operación al servicio correspondiente entregándole un **DTO**.
+
 ---
 
 ## 📑 Índice

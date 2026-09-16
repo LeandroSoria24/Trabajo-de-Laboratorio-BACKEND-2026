@@ -1,14 +1,14 @@
 import { Router } from "express";
-import { 
-    getLibros, 
-    getLibrosFiltrados, 
-    getLibroPorId, 
-    createLibro, 
-    updateLibro, 
-    deleteLibro 
+import {
+    getLibros,
+    getLibrosFiltrados,
+    getLibroPorId,
+    createLibro,
+    updateLibro,
+    deleteLibro
 } from '../controllers/libro.controllers.js';
-import { validarId } from '../middlewares/validarId.js';
-import { validarLibro } from '../middlewares/validadlibro.js';
+import { validarId } from '../middlewares/validaciones/validarId.js';
+import { validarLibro } from '../middlewares/validaciones/validadlibro.js';
 const router = Router();
 
 router.get('/', getLibros);
