@@ -8,7 +8,7 @@ import {
 // GETTERS
 export const getProductos = async (req, res, next) => {
     try {
-        const productos = await prisma.producto.findMany({
+        const productos = await prisma.producto.findMany({ // hay que agregar la logica de servicios 
             include: {
                 artesano: {
                     select: {
@@ -36,7 +36,7 @@ export const getProductosFiltrados = async (req, res, next) => {
             return next(crearError('Debe especificar el parámetro "nombre" para filtrar', 400));
         }
 
-        const productosFiltrados = await prisma.producto.findMany({
+        const productosFiltrados = await prisma.producto.findMany({ // hay que agregar la logica de servicios 
             where: {
                 nombre: {
                     contains: nombreRecibido,
@@ -64,7 +64,7 @@ export const getProductosFiltrados = async (req, res, next) => {
 export const getProductoPorId = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
-        const producto = await prisma.producto.findUnique({
+        const producto = await prisma.producto.findUnique({ // hay que agregar la logica de servicios 
             where: { id },
             include: {
                 artesano: true
