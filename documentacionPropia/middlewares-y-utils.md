@@ -1,17 +1,18 @@
 # Guía Detallada: Middlewares y Utilidades
+### API Poncho Digital — Cátedra Desarrollo Backend (UNCa)
 
-Este documento explica en profundidad el funcionamiento, la lógica interna y las mejores prácticas de cada uno de los middlewares y utilidades (`utils`) creados para la API de biblioteca.
+Este documento explica en profundidad el funcionamiento, la lógica interna y las mejores prácticas de cada uno de los middlewares y utilidades (`utils`) creados para la API **Poncho Digital**.
 
 ---
 
-## 📑 Índice
+## Índice
 1. [¿Qué es un Middleware en Express?](#qué-es-un-middleware-en-express)
 2. [1. Logger de Peticiones (`logger.js`)](#1-logger-de-peticiones-loggerjs)
 3. [2. Validador de ID (`validarId.js`)](#2-validador-de-id-validaridjs)
 4. [3. Creador de Errores (`crearError.js`)](#3-creador-de-errores-crearerrorjs)
 5. [4. Capturador 404 (`rutaNoEncontrada.js`)](#4-capturador-404-rutanoencontradajs)
 6. [5. Manejador Global de Errores (`manejoErrores.js`)](#5-manejador-global-de-errores-manejoerroresjs)
-7. [6. Validador de Libros con Zod (`validadlibro.js`)](#6-validador-de-libros-con-zod-validadlibrojs)
+7. [6. Validador de Productos con Zod (`validarProducto.js`)](#6-validador-de-productos-con-zod-validarproductojs)
 8. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
 
 ---
@@ -56,14 +57,14 @@ export const logger = (req, res, next) => {
 3. **`const duration = Date.now() - start;`**  
    Calcula la diferencia de tiempo para saber cuántos milisegundos demoró la API en procesar la consulta.
 4. **`req.originalUrl` vs `req.url`**  
-   Se utiliza `req.originalUrl` porque los enrutadores modulares de Express (`libros.routes.js`, etc.) recortan el prefijo en `req.url`. Con `originalUrl` garantizamos ver la ruta completa original (ej: `/libros/1` en lugar de solo `/1`).
+   Se utiliza `req.originalUrl` porque los enrutadores modulares de Express (`artesano.routes.js`, `producto.routes.js`, etc.) recortan el prefijo en `req.url`. Con `originalUrl` garantizamos ver la ruta completa original (ej: `/productos/1` en lugar de solo `/1`).
 5. **`next();`**  
    Indispensable. Permite que la petición continúe su camino hacia los controladores y rutas. Si olvidamos el `next()`, el servidor se quedaría colgado eternamente.
 
 ### Salida de ejemplo en consola:
 ```text
-GET /libros - 200 (3ms)
-POST /libros - 201 (7ms)
+GET /productos - 200 (3ms)
+POST /productos - 201 (7ms)
 GET /ruta-falsa - 404 (1ms)
 ```
 
@@ -71,33 +72,46 @@ GET /ruta-falsa - 404 (1ms)
 
 ## 2. Validador de ID (`validarId.js`)
 
-**Ubicación:** `src/middlewares/validarId.js`  
+**Ubicación:** `src/middlewares/validaciones/validarId.js`  
 **Tipo:** Middleware de Validación a nivel de Ruta  
-**Posición:** En las rutas `libros.routes.js` y `autores.routes.js` antes de cada controlador con parámetro `/:id`.
+**Posición:** En las rutas `artesano.routes.js` y `producto.routes.js` antes de cada controlador con parámetro `/:id`.
 
 ### Código:
 ```javascript
-import { crearError } from "../utils/crearError.js";
+import { crearError } from "../../utils/crearError.js";
 
 export const validarId = (req, res, next) => {
-    const id = Number(req.params.id);
-    const recurso = req.baseUrl.includes('libros') ? 'libro' : 'autor';
+    const { id } = req.params;
 
-    if (!Number.isInteger(id) || id <= 0) {
-        return next(crearError(`El ID del ${recurso} debe ser un número entero positivo`, 400));
+    // 1. Validar existencia y tipo base
+    if (id === undefined || id === null) {
+        return next(crearError("El parámetro ID es obligatorio en la ruta.", 400));
     }
+
+    if (typeof id !== 'string' || id.trim() === '') {
+        return next(crearError("El ID debe ser una cadena de texto válida y no vacía.", 400));
+    }
+
+    const idLimpio = id.trim();
+
+    // 2. Validación estricta de formato numérico entero positivo
+    if (!/^\d+$/.test(idLimpio)) {
+        return next(crearError("Formato de ID inválido. Debe ser un número entero positivo.", 400));
+    }
+
+    // 3. Reasignar el ID limpio para evitar espacios ocultos en los controladores
+    req.params.id = idLimpio;
 
     next();
 };
 ```
 
 ### ¿Cómo funciona?
-1. **`Number(req.params.id)`:** Convierte el parámetro de texto de la URL en un número.
-2. **`req.baseUrl.includes('libros') ? 'libro' : 'autor'`:**  
-   Detecta automáticamente si la petición provino del router de libros (`/libros`) o de autores (`/autores`), permitiendo **reutilizar el mismo middleware** en ambos módulos adaptando el mensaje de error.
-3. **`if (!Number.isInteger(id) || id <= 0)`:**  
-   Si el ID no es un entero positivo (por ejemplo, `abc`, `-5` o `1.5`), corta el flujo llamando a `next(crearError(..., 400))`, derivando el error inmediatamente a `manejoErrores`.
-4. **`next()`:** Si el ID es válido, deja pasar la petición al controlador correspondiente (`getLibroPorId`, `updateLibro`, etc.).
+1. **`const { id } = req.params;`:** Extrae el parámetro de la URL.
+2. **Validación de presencia y tipo string:** Comprueba que no sea nulo ni esté en blanco.
+3. **`!/^\d+$/.test(idLimpio)`:** Valida que contenga exclusivamente dígitos numéricos (un número entero positivo). Si alguien envía `abc`, `-5` o `1.5`, corta el flujo inmediatamente con `next(crearError(..., 400))`.
+4. **`req.params.id = idLimpio;`:** Sanitiza el parámetro quitando espacios en blanco para que los controladores lo conviertan limpiamente con `Number(req.params.id)`.
+5. **`next()`:** Si el ID es válido, deja pasar la petición al controlador correspondiente (`getProductoPorId`, `updateProducto`, etc.).
 
 ---
 
@@ -168,7 +182,7 @@ export const rutaNoEncontrada = (req, res, next) => {
 ```
 
 ### ¿Cómo funciona?
-1. Si un cliente solicita una ruta que no existe (como `GET /usuarios`), Express intentará coincidirla con `/`, `/info`, `/libros`, `/autores` y `/docs`.
+1. Si un cliente solicita una ruta que no existe (como `GET /usuarios`), Express intentará coincidirla con `/`, `/info`, `/artesanos`, `/productos` y `/docs`.
 2. Al no coincidir con ninguna, la petición llega a este middleware.
 3. Invoca la utilidad: `crearError('Ruta no encontrada: GET /usuarios', 404)`.
 4. Llama a **`next(...)` con un argumento**. Al recibir un argumento, Express sabe que ocurrió un fallo y salta directamente al middleware de errores, ignorando cualquier otra función intermedia.
@@ -218,48 +232,33 @@ export const manejoErrores = (err, req, res, next) => {
 
 ---
 
-## 6. Validador de Libros con Zod (`validadlibro.js`)
+## 6. Validador de Productos con Zod (`validarProducto.js`)
 
-**Ubicación:** `src/middlewares/validaciones/validadlibro.js`  
-**Esquemas:** `src/validators/libro.schemas.js`  
+**Ubicación:** `src/middlewares/validaciones/validarProducto.js`  
+**Esquemas:** `src/validators/producto.schemas.js`  
 **Tipo:** Middleware de Validación con Zod  
-**Posición:** En `libro.routes.js`, antes de `createLibro` (POST) y `updateLibro` (PUT).
+**Posición:** En `producto.routes.js`, antes de `createProducto` (POST) y `updateProducto` (PUT).
 
-### Esquema Zod (`libro.schemas.js`):
+### Esquema Zod (`producto.schemas.js`):
 ```javascript
 import { z } from "zod";
 
-export const crearLibroSchema = z.object({
-  titulo: z.string().trim().min(1),
-  autor: z.string().trim().min(1),
-  anio: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .nullable(),
-  categoriaId: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .nullable(),
-  categoriaID: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .nullable()
+export const crearProductoSchema = z.object({
+  nombre: z.string().trim().min(1),
+  descripcion: z.string().trim().min(1).optional().nullable(),
+  precio: z.number().positive(),
+  stock: z.number().int().nonnegative().optional(),
+  artesanoId: z.number().int().positive()
 });
 ```
 
-### Middleware (`validadlibro.js`):
+### Middleware (`validarProducto.js`):
 ```javascript
 import { crearError } from "../../utils/crearError.js";
-import { crearLibroSchema, actualizarLibroSchema } from "../../validators/libro.schemas.js";
+import { crearProductoSchema, actualizarProductoSchema } from "../../validators/producto.schemas.js";
 
-export const validarLibro = (req, res, next) => {
-    const schema = req.method === 'PUT' ? actualizarLibroSchema : crearLibroSchema;
+export const validarProducto = (req, res, next) => {
+    const schema = req.method === 'PUT' ? actualizarProductoSchema : crearProductoSchema;
     const resultado = schema.safeParse(req.body);
 
     if (!resultado.success) {
@@ -274,29 +273,30 @@ export const validarLibro = (req, res, next) => {
 ```
 
 ### ¿Cómo funciona?
-1. **Selección de esquema:** Según `req.method`, elige `crearLibroSchema` (POST) o `actualizarLibroSchema` (PUT).
+1. **Selección de esquema:** Según `req.method`, elige `crearProductoSchema` (POST) o `actualizarProductoSchema` (PUT).
 2. **`schema.safeParse(req.body)`:** Valida el body sin lanzar excepciones. Devuelve `{ success: true, data }` o `{ success: false, error }`.
 3. **Si falla:** Extrae el primer `issue` de Zod, arma un mensaje descriptivo con el nombre del campo y lo envía como error 400 mediante `crearError`.
-4. **Si pasa:** Reemplaza `req.body` con `resultado.data`, que contiene los datos ya limpios (con `.trim()` aplicado). Esto garantiza que los controladores siempre reciban datos sanitizados.
+4. **Si pasa:** Reemplaza `req.body` con `resultado.data`, que contiene los datos ya limpios (con `.trim()` aplicado y tipos convertidos). Esto garantiza que los controladores siempre reciban datos sanitizados.
 
 ### Reglas declaradas en el esquema:
 
 | Campo | Tipo | Reglas |
 |---|---|---|
-| **`titulo`** | `string` | Obligatorio, se eliminan espacios (`.trim()`), no puede quedar vacío (`.min(1)`) |
-| **`autor`** | `string` | Obligatorio, se eliminan espacios (`.trim()`), no puede quedar vacío (`.min(1)`) |
-| **`anio`** | `number` | Opcional/nullable, debe ser entero positivo |
-| **`categoriaId`** / **`categoriaID`** | `number` | Opcional/nullable, debe ser entero positivo |
+| **`nombre`** | `string` | Obligatorio, se eliminan espacios (`.trim()`), no puede quedar vacío (`.min(1)`) |
+| **`descripcion`** | `string` | Opcional/nullable |
+| **`precio`** | `number` | Obligatorio, debe ser número positivo (> 0) |
+| **`stock`** | `number` | Opcional, entero no negativo ($\ge 0$) |
+| **`artesanoId`** | `number` | Obligatorio, ID entero positivo del artesano dueño del producto |
 
 ### Uso en las rutas:
 ```javascript
-router.post('/', validarLibro, createLibro);
-router.put('/:id', validarId, validarLibro, updateLibro);
+router.post('/', validarProducto, createProducto);
+router.put('/:id', validarId, validarProducto, updateProducto);
 ```
 
 > [!TIP]
 > **El concepto de DTO en la cátedra (Unidad 3):**  
-> Cuando `validadlibro.js` ejecuta `req.body = resultado.data`, los datos quedan limpios y normalizados. El controlador toma ese `req.body` y lo transfiere directamente a la **capa de servicios** (`src/services/libro.services.js`). A ese objeto plano de transferencia se lo denomina **DTO** (Data Transfer Object).
+> Cuando `validarProducto.js` ejecuta `req.body = resultado.data`, los datos quedan limpios y normalizados. El controlador toma ese `req.body` y lo transfiere directamente a la **capa de servicios** (`src/services/producto.services.js`). A ese objeto plano de transferencia se lo denomina **DTO** (Data Transfer Object).
 
 ---
 
@@ -305,10 +305,10 @@ router.put('/:id', validarId, validarLibro, updateLibro);
 | Archivo | Rol | ¿Quién lo invoca o llama? | ¿Qué entrega al siguiente eslabón? |
 |---|---|---|---|
 | **`logger.js`** | Entrada y Salida | Express al recibir cualquier petición | Pasa la petición limpia mediante `next()` |
-| **`validarId.js`** | Validación de parámetros | Rutas `/libros/:id` y `/autores/:id` | Pasa con `next()` o corta con `next(crearError(..., 400))` |
-| **`validadlibro.js`** | Validación de body (Zod) | Rutas POST y PUT de `/libros` | Pasa con `req.body` limpio (DTO) o corta con `next(crearError(..., 400))` |
-| **`libro.schemas.js`** | Esquemas de validación | `validadlibro.js` los importa | Objetos esquema Zod para usar con `.safeParse()` |
-| **`libro.services.js`** | Lógica de negocio y persistencia | Controladores | El resultado de Prisma o un error lanzado con `throw` |
+| **`validarId.js`** | Validación de parámetros | Rutas `/productos/:id` y `/artesanos/:id` | Pasa con `next()` o corta con `next(crearError(..., 400))` |
+| **`validarProducto.js`** | Validación de body (Zod) | Rutas POST y PUT de `/productos` | Pasa con `req.body` limpio (DTO) o corta con `next(crearError(..., 400))` |
+| **`producto.schemas.js`** | Esquemas de validación | `validarProducto.js` los importa | Objetos esquema Zod para usar con `.safeParse()` |
+| **`producto.services.js`** | Lógica de negocio y persistencia | Controladores | El resultado de Prisma o un error lanzado con `throw` |
 | **`crearError.js`** | Fabricador de Errores | Controladores, servicios, middlewares | Un objeto `Error` con `.status` y `.message` validados |
 | **`rutaNoEncontrada.js`** | Detección de rutas 404 | Express cuando ninguna ruta coincide | Envía el error 404 a `next(error)` |
 | **`manejoErrores.js`** | Respuesta final de fallos | Express cuando alguien hace `next(error)` | Responde el JSON final con código HTTP |

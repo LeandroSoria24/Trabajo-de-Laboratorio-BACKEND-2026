@@ -1,11 +1,11 @@
-# 🐘 Guía Completa de Prisma ORM (v7) + PostgreSQL
+# Guía Completa de Prisma ORM (v7) + PostgreSQL
 ### Cátedra: Desarrollo Backend — Facultad de Tecnología y Ciencias Aplicadas (UNCa)
 
 Guía técnica, conceptual y paso a paso que recopila todos los comandos, archivos de configuración, definiciones del lenguaje y buenas prácticas utilizadas en el proyecto para integrar **Prisma ORM 7** con **PostgreSQL**.
 
 ---
 
-## 📑 Contenido
+## Contenido
 1. [Flujo General: Del Código a la Base de Datos](#1-flujo-general-del-código-a-la-base-de-datos)
 2. [Instalación de Dependencias](#2-instalación-de-dependencias)
 3. [Inicialización del Entorno Prisma](#3-inicialización-del-entorno-prisma)
@@ -16,7 +16,7 @@ Guía técnica, conceptual y paso a paso que recopila todos los comandos, archiv
    - [Bloques `generator` y `datasource`](#bloques-generator-y-datasource)
    - [Tipos de Datos y Atributos](#tipos-de-datos-y-atributos)
    - [Modelo de Ejemplo de Cátedra (`Evento`)](#modelo-de-ejemplo-de-cátedra-evento)
-   - [Modelos del Proyecto Biblioteca (`Autor` y `Libro`)](#modelos-del-proyecto-biblioteca-autor-y-libro)
+   - [Modelos del Proyecto Poncho Digital (`Artesano` y `Producto`)](#modelos-del-proyecto-poncho-digital-artesano-y-producto)
 7. [Migraciones con Prisma Migrate (`migrate dev`)](#7-migraciones-con-prisma-migrate-migrate-dev)
 8. [Generación de Prisma Client (`generate`)](#8-generación-de-prisma-client-generate)
 9. [Centralización del Cliente (`src/config/prisma.js`)](#9-centralización-del-cliente-srcconfigprismajs)
@@ -219,25 +219,36 @@ model Evento {
 
 ---
 
-### Modelos del Proyecto Biblioteca (`Autor` y `Libro`)
+### Modelos del Proyecto Poncho Digital (`Artesano` y `Producto`)
 Aplicando exactamente las mismas reglas y tipos de datos a los recursos de nuestra API:
 
 ```prisma
-model Autor {
-  id           Int      @id @default(autoincrement())
-  nombre       String
-  nacionalidad String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+model Artesano {
+  id                     Int        @id @default(autoincrement())
+  nombre                 String
+  apellido               String
+  dni                    String     @unique
+  email                  String     @unique
+  telefono               String?
+  localidad              String
+  rubro                  String
+  nombreEmprendimiento   String
+  descripcionTrayectoria String?
+  productos              Producto[]
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @default(now()) @updatedAt
 }
 
-model Libro {
-  id        Int      @id @default(autoincrement())
-  titulo    String
-  autor     String
-  anio      Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Producto {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  descripcion String?
+  precio      Float
+  stock       Int      @default(0)
+  artesanoId  Int
+  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 }
 ```
 
@@ -294,7 +305,7 @@ npx prisma generate
 ### ¿Qué operaciones realiza?
 En base a `schema.prisma`:
 1. Interpreta el bloque `generator client`.
-2. Analiza los modelos definidos (`Autor`, `Libro`, `Evento`).
+2. Analiza los modelos definidos (`Artesano` y `Producto`).
 3. Genera el código tipado adaptado a esos modelos.
 4. Guarda los archivos en la carpeta configurada mediante `output` (`src/generated/prisma`).
 
@@ -364,9 +375,9 @@ Es una interfaz gráfica web de desarrollo que permite visualizar, filtrar, crea
 
 | Comando | Función Principal | ¿Afecta la BD? | ¿Afecta el Código? |
 |---|---|:---:|:---:|
-| `npx prisma init` | Inicializa la estructura de Prisma en el proyecto | ❌ No | ✅ Sí (crea archivos) |
-| `npx prisma validate` | Valida sintaxis y tipos en `schema.prisma` | ❌ No | ❌ No |
-| `npx prisma format` | Alinea e indenta automáticamente `schema.prisma` | ❌ No | ✅ Sí (formatea archivo) |
-| `npx prisma migrate dev --name <nombre>` | Crea el archivo SQL y aplica los cambios estructurales en PostgreSQL | ✅ **Sí (crea/modifica tablas)** | ✅ Sí (dispara `generate`) |
-| `npx prisma generate` | Construye los archivos del cliente en `src/generated/prisma` | ❌ No | ✅ **Sí (compila el cliente)** |
-| `npx prisma studio` | Abre la consola web en el puerto `5555` | ✅ Solo si editas registros | ❌ No |
+| `npx prisma init` | Inicializa la estructura de Prisma en el proyecto | No | Sí (crea archivos) |
+| `npx prisma validate` | Valida sintaxis y tipos en `schema.prisma` | No | No |
+| `npx prisma format` | Alinea e indenta automáticamente `schema.prisma` | No | Sí (formatea archivo) |
+| `npx prisma migrate dev --name <nombre>` | Crea el archivo SQL y aplica los cambios estructurales en PostgreSQL | **Sí (crea/modifica tablas)** | Sí (dispara `generate`) |
+| `npx prisma generate` | Construye los archivos del cliente en `src/generated/prisma` | No | **Sí (compila el cliente)** |
+| `npx prisma studio` | Abre la consola web en el puerto `5555` | Solo si editas registros | No |

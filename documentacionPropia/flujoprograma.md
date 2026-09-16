@@ -5,16 +5,16 @@
 
 ---
 
-## 🗺️ Diagrama de Flujo
+## Diagrama de Flujo
 
 ```mermaid
 flowchart TD
-    A["🌐 1. Cliente envía GET /pokemon"] --> B["⏱️ 2. app.use(logger)"]
-    B -->|"next() (vacío)"| C["🛣️ 3. Rutas (/libros, /autores, /docs)"]
-    C -->|"No hay coincidencias"| D["🚫 4. app.use(rutaNoEncontrada)"]
-    D -->|"next(error) (con argumento)"| E["🛡️ 5. app.use(manejoErrores)"]
-    E -->|"res.status(404).json(...)"| F["📬 6. Cliente recibe respuesta"]
-    E -.->|"Dispara evento finish"| G["📊 7. logger imprime en consola"]
+    A["1. Cliente envía GET /pokemon"] --> B["2. app.use(logger)"]
+    B -->|"next() (vacío)"| C["3. Rutas (/artesanos, /productos, /docs)"]
+    C -->|"No hay coincidencias"| D["4. app.use(rutaNoEncontrada)"]
+    D -->|"next(error) (con argumento)"| E["5. app.use(manejoErrores)"]
+    E -->|"res.status(404).json(...)"| F["6. Cliente recibe respuesta"]
+    E -.->|"Dispara evento finish"| G["7. logger imprime en consola"]
 
     style A fill:#38bdf8,stroke:#0284c7,color:#000
     style B fill:#fde047,stroke:#eab308,color:#000
@@ -25,7 +25,7 @@ flowchart TD
 
 ---
 
-## 🔄 Paso a Paso del Ciclo de Vida
+## Paso a Paso del Ciclo de Vida
 
 ### 1. Entrada y Registro: `app.use(logger)`
 * Inicia el cronómetro: `const start = Date.now();`
@@ -34,11 +34,11 @@ flowchart TD
 
 ### 2. Evaluación de Rutas
 * Express compara la URL solicitada (`/pokemon`) con las rutas registradas:
-  * `/` ❌
-  * `/info` ❌
-  * `/libros` ❌
-  * `/autores` ❌
-  * `/docs` ❌
+  * `/` (No coincide)
+  * `/info` (No coincide)
+  * `/artesanos` (No coincide)
+  * `/productos` (No coincide)
+  * `/docs` (No coincide)
 * Al no coincidir con ninguna, la petición continúa descendiendo por la cadena de middlewares.
 
 ### 3. Captura de Ruta Inexistente: `app.use(rutaNoEncontrada)`
@@ -72,7 +72,7 @@ flowchart TD
 
 ---
 
-## 📋 Resumen de Responsabilidades
+## Resumen de Responsabilidades
 
 | Middleware / Utilidad | Tipo | Responsabilidad Principal |
 |---|---|---|
@@ -83,34 +83,34 @@ flowchart TD
 
 ---
 
-## 🚀 Flujo Completo de un Endpoint CRUD: `POST /libros`
+## Flujo Completo de un Endpoint CRUD: `POST /productos`
 
-Este flujo muestra la separación de responsabilidades de la **Unidad 3**: el validador (Zod) detiene entradas inválidas en el middleware, el controlador transfiere los datos limpios como **DTO** y el servicio ejecuta la lógica con Prisma.
+Este flujo muestra la separación de responsabilidades de la **Unidad 3**: el validador (Zod) detiene entradas inválidas en el middleware, el controlador transfiere los datos limpios como **DTO** y el servicio ejecuta la lógica y persistencia con Prisma.
 
 ```mermaid
 flowchart TD
-    CLI["🌐 1. Cliente envía POST /libros\n{ titulo, autor, anio, categoriaId }"] --> LOG["⏱️ 2. logger"]
-    LOG --> ROUTE["🛣️ 3. libro.routes.js\nrouter.post('/', validarLibro, createLibro)"]
+    CLI["1. Cliente envía POST /productos\n{ nombre, precio, stock, artesanoId }"] --> LOG["2. logger"]
+    LOG --> ROUTE["3. producto.routes.js\nrouter.post('/', validarProducto, createProducto)"]
     
-    ROUTE --> MW["🛡️ 4. validadlibro.js (Middleware Zod)\nsafeParse(req.body)"]
+    ROUTE --> MW["4. validarProducto.js (Middleware Zod)\nsafeParse(req.body)"]
     
-    MW -->|"❌ Falló validación"| ERR["🚨 next(crearError(..., 400))"]
-    ERR --> HANDLER["🛡️ manejoErrores.js\nres.status(400).json(...)"]
-    HANDLER --> RES_ERR["📬 Cliente recibe 400 Bad Request"]
+    MW -->|"[Error] Falló validación"| ERR["next(crearError(..., 400))"]
+    ERR --> HANDLER["manejoErrores.js\nres.status(400).json(...)"]
+    HANDLER --> RES_ERR["Cliente recibe 400 Bad Request"]
     
-    MW -->|"✅ Éxito: req.body = resultado.data"| CTRL["🎮 5. libro.controllers.js\nconst crearLibroDto = req.body"]
+    MW -->|"[OK] Éxito: req.body = resultado.data"| CTRL["5. producto.controllers.js\nconst crearProductoDto = req.body"]
     
-    CTRL --> SERV["⚙️ 6. libro.services.js\ncrearLibro(crearLibroDto)"]
+    CTRL --> SERV["6. producto.services.js\ncrearProducto(crearProductoDto)"]
     
-    SERV -->|"¿Categoría existe?"| PRISMA["🗄️ 7. prisma.libro.create(...)"]
-    SERV -.->|"❌ No existe categoría"| THROW["🚨 throw crearError('...', 400)"]
+    SERV -->|"¿Artesano existe?"| PRISMA["7. prisma.producto.create(...)"]
+    SERV -.->|"[Error] No existe artesano"| THROW["throw crearError('Artesano inexistente.', 400)"]
     THROW -.->|"catch(error) en controller"| HANDLER
     
-    PRISMA --> BD[("🐘 PostgreSQL")]
+    PRISMA --> BD[("PostgreSQL")]
     BD --> PRISMA
     PRISMA -->|"Retorna registro creado"| SERV
-    SERV -->|"Retorna nuevoLibro"| CTRL
-    CTRL -->|"res.status(201).json(nuevoLibro)"| RES_OK["📬 Cliente recibe 201 Created"]
+    SERV -->|"Retorna nuevoProducto"| CTRL
+    CTRL -->|"res.status(201).json(nuevoProducto)"| RES_OK["Cliente recibe 201 Created"]
 
     style CLI fill:#38bdf8,stroke:#0284c7,color:#000
     style LOG fill:#fde047,stroke:#eab308,color:#000
@@ -122,4 +122,5 @@ flowchart TD
     style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
     style HANDLER fill:#ef4444,stroke:#dc2626,color:#fff
 ```
+
 

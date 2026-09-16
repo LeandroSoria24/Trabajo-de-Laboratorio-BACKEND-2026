@@ -1,10 +1,10 @@
 # Guía Completa: Zod — Validación de Datos en JavaScript
 
-Este documento explica qué es Zod, cómo funciona internamente, y cómo lo utilizamos en nuestra API de biblioteca para validar los datos que envía el cliente.
+Este documento explica qué es Zod, cómo funciona internamente, y cómo lo utilizamos en nuestra API Poncho Digital para validar los datos que envía el cliente.
 
 ---
 
-## 📑 Índice
+## Índice
 1. [¿Qué es Zod?](#qué-es-zod)
 2. [¿Por qué usar Zod?](#por-qué-usar-zod)
 3. [Instalación](#instalación)
@@ -15,7 +15,7 @@ Este documento explica qué es Zod, cómo funciona internamente, y cómo lo util
 8. [Esquemas de Objetos (`z.object`)](#esquemas-de-objetos-zobject)
 9. [Validación: `.parse()` vs `.safeParse()`](#validación-parse-vs-safeparse)
 10. [Estructura de Errores de Zod](#estructura-de-errores-de-zod)
-11. [Cómo lo usamos en la API de Biblioteca](#cómo-lo-usamos-en-la-api-de-biblioteca)
+11. [Cómo lo usamos en la API de Poncho Digital](#cómo-lo-usamos-en-la-api-de-biblioteca)
 12. [Referencia Rápida de Métodos](#referencia-rápida-de-métodos)
 13. [Errores Comunes y Soluciones](#errores-comunes-y-soluciones)
 
@@ -40,7 +40,7 @@ Sin Zod:                              Con Zod:
 │ Controlador  │ ← recibe datos       │    ZOD       │ ← valida y limpia
 │ (sin validar)│   crudos/erróneos    │  (esquema)   │   los datos
 └──────────────┘                      └──────┬──────┘
-                                              │ ✅ datos limpios
+                                              │ (datos limpios)
                                               ▼
                                       ┌──────────────┐
                                       │ Controlador  │
@@ -54,19 +54,18 @@ Sin Zod:                              Con Zod:
 
 ### Antes (validación manual):
 ```javascript
-export const validarLibro = (req, res, next) => {
+export const validarProducto = (req, res, next) => {
     if (!req.body || typeof req.body !== 'object') {
         return next(crearError('El cuerpo debe ser un objeto JSON', 400));
     }
-    if (typeof req.body.titulo !== 'string' || req.body.titulo.trim() === '') {
-        return next(crearError('El título es obligatorio', 400));
+    if (typeof req.body.nombre !== 'string' || req.body.nombre.trim() === '') {
+        return next(crearError('El nombre es obligatorio', 400));
     }
-    if (typeof req.body.autor !== 'string' || req.body.autor.trim() === '') {
-        return next(crearError('El autor es obligatorio', 400));
+    if (typeof req.body.precio !== 'number' || req.body.precio <= 0) {
+        return next(crearError('El precio debe ser un número positivo', 400));
     }
     // ... y así con cada campo, anidando if tras if
-    req.body.titulo = req.body.titulo.trim();
-    req.body.autor = req.body.autor.trim();
+    req.body.nombre = req.body.nombre.trim();
     next();
 };
 ```
@@ -74,12 +73,13 @@ export const validarLibro = (req, res, next) => {
 ### Ahora (con Zod):
 ```javascript
 const schema = z.object({
-    titulo: z.string().trim().min(1),
-    autor: z.string().trim().min(1),
+    nombre: z.string().trim().min(1),
+    precio: z.number().positive(),
+    artesanoId: z.number().int().positive()
 });
 
 const resultado = schema.safeParse(req.body);
-// resultado.data ya tiene los datos limpios ✅
+// resultado.data ya tiene los datos limpios
 ```
 
 **Ventajas:**
@@ -116,9 +116,9 @@ Un **esquema** es un contrato que describe la forma exacta que deben tener los d
 const esquema = z.string().min(3);
 
 // safeParse es la VERIFICACIÓN de un dato contra esas reglas
-esquema.safeParse("Hola");    // ✅ { success: true, data: "Hola" }
-esquema.safeParse("Hi");      // ❌ { success: false, error: ... }
-esquema.safeParse(123);       // ❌ { success: false, error: ... }
+esquema.safeParse("Hola");    // [OK] { success: true, data: "Hola" }
+esquema.safeParse("Hi");      // [Error] { success: false, error: ... }
+esquema.safeParse(123);       // [Error] { success: false, error: ... }
 ```
 
 > [!IMPORTANT]
@@ -135,9 +135,9 @@ Zod soporta todos los tipos básicos de JavaScript:
 z.string();   // Solo acepta strings
 
 // Ejemplos:
-z.string().safeParse("Hola");   // ✅
-z.string().safeParse(123);      // ❌ expected string, received number
-z.string().safeParse(null);     // ❌ expected string, received null
+z.string().safeParse("Hola");   // [OK]
+z.string().safeParse(123);      // [Error] expected string, received number
+z.string().safeParse(null);     // [Error] expected string, received null
 ```
 
 ### `z.number()` — Números
@@ -145,9 +145,9 @@ z.string().safeParse(null);     // ❌ expected string, received null
 z.number();   // Solo acepta números (enteros o decimales)
 
 // Ejemplos:
-z.number().safeParse(42);       // ✅
-z.number().safeParse(3.14);     // ✅
-z.number().safeParse("42");     // ❌ expected number, received string
+z.number().safeParse(42);       // [OK]
+z.number().safeParse(3.14);     // [OK]
+z.number().safeParse("42");     // [Error] expected number, received string
 ```
 
 ### `z.boolean()` — Booleanos
@@ -155,8 +155,8 @@ z.number().safeParse("42");     // ❌ expected number, received string
 z.boolean();   // Solo acepta true o false
 
 // Ejemplos:
-z.boolean().safeParse(true);    // ✅
-z.boolean().safeParse("true");  // ❌ expected boolean, received string
+z.boolean().safeParse(true);    // [OK]
+z.boolean().safeParse("true");  // [Error] expected boolean, received string
 ```
 
 ### `z.date()` — Fechas
@@ -164,8 +164,8 @@ z.boolean().safeParse("true");  // ❌ expected boolean, received string
 z.date();   // Solo acepta instancias de Date
 
 // Ejemplo:
-z.date().safeParse(new Date());   // ✅
-z.date().safeParse("2024-01-01"); // ❌ expected date, received string
+z.date().safeParse(new Date());   // [OK]
+z.date().safeParse("2024-01-01"); // [Error] expected date, received string
 ```
 
 ---
@@ -181,8 +181,8 @@ Los métodos se encadenan después del tipo base para agregar reglas adicionales
 | `.trim()` | Elimina espacios al inicio y final | `"  Hola  "` → `"Hola"` |
 | `.min(n)` | Mínimo `n` caracteres (después de trim si se usó) | `.min(1)` → no puede estar vacío |
 | `.max(n)` | Máximo `n` caracteres | `.max(100)` → hasta 100 caracteres |
-| `.email()` | Debe ser un email válido | `"user@mail.com"` ✅ |
-| `.url()` | Debe ser una URL válida | `"https://..."` ✅ |
+| `.email()` | Debe ser un email válido | `"user@mail.com"` [OK] |
+| `.url()` | Debe ser una URL válida | `"https://..."` [OK] |
 | `.regex(pattern)` | Debe cumplir una expresión regular | `.regex(/^[A-Z]/)` |
 | `.includes(str)` | Debe contener el substring | `.includes("@")` |
 | `.startsWith(str)` | Debe empezar con | `.startsWith("http")` |
@@ -191,9 +191,9 @@ Los métodos se encadenan después del tipo base para agregar reglas adicionales
 
 | Método | Qué hace | Ejemplo |
 |---|---|---|
-| `.int()` | Debe ser entero (sin decimales) | `42` ✅, `3.14` ❌ |
-| `.positive()` | Debe ser mayor a 0 | `1` ✅, `0` ❌, `-5` ❌ |
-| `.nonnegative()` | Debe ser 0 o mayor | `0` ✅, `-1` ❌ |
+| `.int()` | Debe ser entero (sin decimales) | `42` [OK], `3.14` [Error] |
+| `.positive()` | Debe ser mayor a 0 | `1` [OK], `0` [Error], `-5` [Error] |
+| `.nonnegative()` | Debe ser 0 o mayor | `0` [OK], `-1` [Error] |
 | `.min(n)` | Valor mínimo | `.min(1000)` → año mínimo |
 | `.max(n)` | Valor máximo | `.max(2026)` → año máximo |
 
@@ -221,9 +221,9 @@ const schema = z.object({
     anio: z.number().optional()
 });
 
-schema.safeParse({});            // ✅ { data: {} }              — sin el campo
-schema.safeParse({ anio: 2024 });// ✅ { data: { anio: 2024 } }  — con el campo
-schema.safeParse({ anio: null });// ❌ — null NO es lo mismo que "no estar"
+schema.safeParse({});            // [OK] { data: {} }              — sin el campo
+schema.safeParse({ anio: 2024 });// [OK] { data: { anio: 2024 } }  — con el campo
+schema.safeParse({ anio: null });// [Error] — null NO es lo mismo que "no estar"
 ```
 
 ### `.nullable()` — El campo puede ser `null`
@@ -232,8 +232,8 @@ const schema = z.object({
     anio: z.number().nullable()
 });
 
-schema.safeParse({ anio: null }); // ✅ { data: { anio: null } }
-schema.safeParse({});             // ❌ — el campo es obligatorio, pero acepta null como valor
+schema.safeParse({ anio: null }); // [OK] { data: { anio: null } }
+schema.safeParse({});             // [Error] — el campo es obligatorio, pero acepta null como valor
 ```
 
 ### `.optional().nullable()` — Puede no existir O ser `null`
@@ -242,11 +242,11 @@ const schema = z.object({
     anio: z.number().int().positive().optional().nullable()
 });
 
-schema.safeParse({});               // ✅ no viene el campo
-schema.safeParse({ anio: null });   // ✅ viene como null
-schema.safeParse({ anio: 2024 });   // ✅ viene con valor válido
-schema.safeParse({ anio: -5 });     // ❌ no es positive
-schema.safeParse({ anio: "2024" }); // ❌ no es number
+schema.safeParse({});               // [OK] no viene el campo
+schema.safeParse({ anio: null });   // [OK] viene como null
+schema.safeParse({ anio: 2024 });   // [OK] viene con valor válido
+schema.safeParse({ anio: -5 });     // [Error] no es positive
+schema.safeParse({ anio: "2024" }); // [Error] no es number
 ```
 
 > [!IMPORTANT]
@@ -262,44 +262,52 @@ schema.safeParse({ anio: "2024" }); // ❌ no es number
 Para validar un body JSON completo, definimos un esquema de objeto:
 
 ```javascript
-const crearLibroSchema = z.object({
-    titulo: z.string().trim().min(1),
-    autor:  z.string().trim().min(1),
-    anio:   z.number().int().positive().optional().nullable()
+const crearProductoSchema = z.object({
+    nombre:      z.string().trim().min(1),
+    descripcion: z.string().trim().min(1).optional().nullable(),
+    precio:      z.number().positive(),
+    stock:       z.number().int().nonnegative().optional(),
+    artesanoId:  z.number().int().positive()
 });
 ```
 
 ### ¿Qué valida esto?
 
 ```javascript
-// ✅ Caso exitoso completo
-crearLibroSchema.safeParse({
-    titulo: "  Cien Años de Soledad  ",
-    autor: "García Márquez",
-    anio: 1967
+// [OK] Caso exitoso completo
+crearProductoSchema.safeParse({
+    nombre: "  Poncho de Vicuña  ",
+    descripcion: "Tejido artesanal tradicional",
+    precio: 450000,
+    stock: 3,
+    artesanoId: 1
 });
-// Resultado: { success: true, data: { titulo: "Cien Años de Soledad", autor: "García Márquez", anio: 1967 } }
-// Nota: "titulo" salió sin espacios gracias al .trim()
+// Resultado: { success: true, data: { nombre: "Poncho de Vicuña", descripcion: "Tejido artesanal tradicional", precio: 450000, stock: 3, artesanoId: 1 } }
+// Nota: "nombre" salió sin espacios gracias al .trim()
 
-// ✅ Sin año (es optional)
-crearLibroSchema.safeParse({
-    titulo: "El Principito",
-    autor: "Saint-Exupéry"
+// [OK] Sin descripción ni stock (son opcionales)
+crearProductoSchema.safeParse({
+    nombre: "Ruanas Norteñas",
+    precio: 85000,
+    artesanoId: 2
 });
-// Resultado: { success: true, data: { titulo: "El Principito", autor: "Saint-Exupéry" } }
+// Resultado: { success: true, data: { nombre: "Ruanas Norteñas", precio: 85000, artesanoId: 2 } }
 
-// ❌ Título vacío
-crearLibroSchema.safeParse({
-    titulo: "   ",
-    autor: "Cervantes"
+// [Error] Nombre vacío
+crearProductoSchema.safeParse({
+    nombre: "   ",
+    precio: 10000,
+    artesanoId: 1
 });
-// Resultado: { success: false, error: { issues: [{ path: ["titulo"], message: "Too small..." }] } }
+// Resultado: { success: false, error: { issues: [{ path: ["nombre"], message: "Too small..." }] } }
 
-// ❌ Sin autor
-crearLibroSchema.safeParse({
-    titulo: "Don Quijote"
+// [Error] Precio inválido o negativo
+crearProductoSchema.safeParse({
+    nombre: "Mate de Palo Santo",
+    precio: -500,
+    artesanoId: 1
 });
-// Resultado: { success: false, error: { issues: [{ path: ["autor"], message: "Invalid input: expected string..." }] } }
+// Resultado: { success: false, error: { issues: [{ path: ["precio"], message: "Number must be greater than 0" }] } }
 ```
 
 ---
@@ -311,10 +319,10 @@ Zod ofrece dos formas de validar datos:
 ### `.parse()` — Lanza una excepción si falla
 ```javascript
 try {
-    const datos = schema.parse(req.body); // ✅ devuelve los datos validados
+    const datos = schema.parse(req.body); // [OK] devuelve los datos validados
     console.log(datos);
 } catch (error) {
-    console.error(error.issues); // ❌ hay que usar try/catch
+    console.error(error.issues); // [Error] hay que usar try/catch
 }
 ```
 
@@ -323,10 +331,10 @@ try {
 const resultado = schema.safeParse(req.body);
 
 if (!resultado.success) {
-    // ❌ resultado.error contiene los detalles
+    // [Error] resultado.error contiene los detalles
     console.log(resultado.error.issues);
 } else {
-    // ✅ resultado.data contiene los datos validados y limpios
+    // [OK] resultado.data contiene los datos validados y limpios
     console.log(resultado.data);
 }
 ```
@@ -341,21 +349,21 @@ if (!resultado.success) {
 Cuando `.safeParse()` falla, `resultado.error` contiene un array de `issues`. Cada issue describe un problema específico:
 
 ```javascript
-const resultado = schema.safeParse({ titulo: "", autor: 123 });
+const resultado = schema.safeParse({ nombre: "", precio: "gratis", artesanoId: 1 });
 
 // resultado.error.issues:
 [
     {
         code: "too_small",        // Tipo de error
         minimum: 1,               // Valor mínimo esperado
-        path: ["titulo"],         // Qué campo falló
+        path: ["nombre"],         // Qué campo falló
         message: "Too small: expected string to have >=1 characters"
     },
     {
         code: "invalid_type",     // Tipo de error
-        expected: "string",       // Qué se esperaba
-        path: ["autor"],          // Qué campo falló
-        message: "Invalid input: expected string, received number"
+        expected: "number",       // Qué se esperaba
+        path: ["precio"],         // Qué campo falló
+        message: "Invalid input: expected number, received string"
     }
 ]
 ```
@@ -365,7 +373,7 @@ const resultado = schema.safeParse({ titulo: "", autor: 123 });
 | Propiedad | Descripción | Ejemplo |
 |---|---|---|
 | `code` | Identificador del tipo de error | `"too_small"`, `"invalid_type"` |
-| `path` | Array con la ruta al campo que falló | `["titulo"]`, `["direccion", "calle"]` |
+| `path` | Array con la ruta al campo que falló | `["nombre"]`, `["precio"]` |
 | `message` | Mensaje descriptivo del error | `"Too small: expected string..."` |
 | `expected` | (En `invalid_type`) El tipo esperado | `"string"`, `"number"` |
 | `minimum` | (En `too_small`) El valor mínimo | `1` |
@@ -373,48 +381,50 @@ const resultado = schema.safeParse({ titulo: "", autor: 123 });
 ### ¿Cómo extraemos un mensaje útil?
 ```javascript
 const issue = resultado.error.issues[0];         // Tomamos el primer error
-const campo = issue.path.join('.') || 'body';     // "titulo", "autor", etc.
+const campo = issue.path.join('.') || 'body';     // "nombre", "precio", etc.
 const mensaje = `Error en '${campo}': ${issue.message}`;
-// → "Error en 'titulo': Too small: expected string to have >=1 characters"
+// → "Error en 'nombre': Too small: expected string to have >=1 characters"
 ```
 
 ---
 
-## Cómo lo usamos en la API de Biblioteca
+## Cómo lo usamos en la API de Poncho Digital
 
-### Paso 1: Definir los esquemas en `src/validators/libro.schemas.js`
+### Paso 1: Definir los esquemas en `src/validators/producto.schemas.js`
 
 Los esquemas van en una carpeta separada (`validators/`) para mantenerlos independientes de Express:
 
 ```javascript
 import { z } from "zod";
 
-export const crearLibroSchema = z.object({
-    titulo: z.string().trim().min(1),
-    autor:  z.string().trim().min(1),
-    anio:   z.number().int().positive().optional().nullable(),
-    categoriaID: z.number().int().positive().optional().nullable()
+export const crearProductoSchema = z.object({
+  nombre: z.string().trim().min(1),
+  descripcion: z.string().trim().min(1).optional().nullable(),
+  precio: z.number().positive(),
+  stock: z.number().int().nonnegative().optional(),
+  artesanoId: z.number().int().positive()
 });
 
-export const actualizarLibroSchema = z.object({
-    titulo: z.string().trim().min(1),
-    autor:  z.string().trim().min(1),
-    anio:   z.number().int().positive().optional().nullable(),
-    categoriaID: z.number().int().positive().optional().nullable()
+export const actualizarProductoSchema = z.object({
+  nombre: z.string().trim().min(1),
+  descripcion: z.string().trim().min(1).optional().nullable(),
+  precio: z.number().positive(),
+  stock: z.number().int().nonnegative().optional(),
+  artesanoId: z.number().int().positive().optional()
 });
 ```
 
-### Paso 2: Crear el middleware en `src/middlewares/validaciones/validadlibro.js`
+### Paso 2: Crear el middleware en `src/middlewares/validaciones/validarProducto.js`
 
 El middleware conecta el esquema de Zod con el flujo de Express:
 
 ```javascript
 import { crearError } from "../../utils/crearError.js";
-import { crearLibroSchema, actualizarLibroSchema } from "../../validators/libro.schemas.js";
+import { crearProductoSchema, actualizarProductoSchema } from "../../validators/producto.schemas.js";
 
-export const validarLibro = (req, res, next) => {
+export const validarProducto = (req, res, next) => {
     // 1. Elegir esquema según el método HTTP
-    const schema = req.method === 'PUT' ? actualizarLibroSchema : crearLibroSchema;
+    const schema = req.method === 'PUT' ? actualizarProductoSchema : crearProductoSchema;
 
     // 2. Validar el body
     const resultado = schema.safeParse(req.body);
@@ -426,32 +436,32 @@ export const validarLibro = (req, res, next) => {
         return next(crearError(`Error en el campo '${campo}': ${issue.message}`, 400));
     }
 
-    // 4. Si pasa, reemplazar req.body con los datos limpios
+    // 4. Si pasa, reemplazar req.body con los datos limpios (DTO)
     req.body = resultado.data;
     next();
 };
 ```
 
-### Paso 3: Conectar en las rutas (`libro.routes.js`)
+### Paso 3: Conectar en las rutas (`producto.routes.js`)
 
 ```javascript
-import { validarLibro } from '../middlewares/validaciones/validadlibro.js';
+import { validarProducto } from '../middlewares/validaciones/validarProducto.js';
 
-router.post('/', validarLibro, createLibro);
-router.put('/:id', validarId, validarLibro, updateLibro);
+router.post('/', validarProducto, createProducto);
+router.put('/:id', validarId, validarProducto, updateProducto);
 ```
 
-### Paso 4: Transferir los datos como DTO al Servicio (`libro.controllers.js` y `libro.services.js`)
+### Paso 4: Transferir los datos como DTO al Servicio (`producto.controllers.js` y `producto.services.js`)
 
 Como el middleware ya sanitizó y validó los datos en `req.body`, el controlador los toma como un **DTO** y delega la operación al servicio:
 
 ```javascript
-// src/controllers/libro.controllers.js
-export const createLibro = async (req, res, next) => {
+// src/controllers/producto.controllers.js
+export const createProducto = async (req, res, next) => {
     try {
-        const crearLibroDto = req.body; // DTO validado por Zod
-        const nuevoLibro = await crearLibroService(crearLibroDto);
-        return res.status(201).json(nuevoLibro);
+        const crearProductoDto = req.body; // DTO validado por Zod
+        const nuevoProducto = await crearProductoService(crearProductoDto);
+        return res.status(201).json(nuevoProducto);
     } catch (error) {
         return next(error);
     }
@@ -459,39 +469,39 @@ export const createLibro = async (req, res, next) => {
 ```
 
 ```javascript
-// src/services/libro.services.js
-export const crearLibro = async (crearLibroDto) => {
+// src/services/producto.services.js
+export const crearProducto = async (crearProductoDto) => {
     // Aplica reglas de negocio y persiste mediante Prisma Client
-    return prisma.libro.create({ data: { ... } });
+    return prisma.producto.create({ data: { ... } });
 };
 ```
 
 ### Flujo completo:
 ```
-Cliente envía POST /libros con body: { titulo: "  El Quijote  ", autor: "Cervantes", anio: 1605 }
+Cliente envía POST /productos con body: { nombre: "  Poncho  ", precio: 150000, artesanoId: 1 }
         │
         ▼
 ┌──────────────────┐
-│  validarLibro    │  ← middleware (Zod)
+│  validarProducto │  ← middleware (Zod)
 │                  │
 │  1. safeParse()  │  ← Comprueba tipos y normaliza con .trim()
 │  2. ¿success?    │
-│     ✅ → next()  │  ← Guarda en req.body los datos limpios: { titulo: "El Quijote", ... }
-│     ❌ → 400     │  ← Corta con next(crearError(...))
+│     [OK] → next()  │  ← Guarda en req.body los datos limpios: { nombre: "Poncho", ... }
+│     [Error] → 400     │  ← Corta con next(crearError(...))
 └────────┬─────────┘
-         │ ✅
+         │ [OK]
          ▼
-┌─────────────────────────┐
-│  createLibro            │  ← controlador (gestiona HTTP)
-│  crearLibroDto=req.body │  ← transfiere datos como DTO
-│  crearLibroService(dto) │
-└────────┬────────────────┘
+┌───────────────────────────┐
+│  createProducto           │  ← controlador (gestiona HTTP)
+│  crearProductoDto=req.body│  ← transfiere datos como DTO
+│  crearProductoService(dto)│
+└────────┬──────────────────┘
          │
          ▼
-┌─────────────────────────┐
-│  crearLibro (servicio)  │  ← servicio (reglas de negocio + persistencia)
-│  prisma.libro.create()  │  ← único componente que habla con Prisma
-└─────────────────────────┘
+┌───────────────────────────┐
+│  crearProducto (servicio) │  ← servicio (reglas de negocio + persistencia)
+│  prisma.producto.create() │  ← único componente que habla con Prisma
+└───────────────────────────┘
 ```
 
 ---
@@ -557,8 +567,8 @@ Cliente envía POST /libros con body: { titulo: "  El Quijote  ", autor: "Cervan
 **Causa:** Se envió `"1605"` (string) en vez de `1605` (número).  
 **Solución:** Asegurate de que el JSON del body tenga el tipo correcto. Si necesitás aceptar strings numéricos, usá `z.coerce.number()` en vez de `z.number()`:
 ```javascript
-// z.coerce.number() convierte "1605" → 1605 automáticamente
-anio: z.coerce.number().int().positive().optional().nullable()
+// z.coerce.number() convierte "450000" → 450000 automáticamente
+precio: z.coerce.number().positive()
 ```
 
 ### 4. "Expected object, received null"
@@ -570,7 +580,7 @@ anio: z.coerce.number().int().positive().optional().nullable()
 **Si querés rechazarlos:** Usá `.strict()`:
 ```javascript
 const schema = z.object({
-    titulo: z.string(),
-    autor: z.string()
-}).strict(); // ❌ rechaza campos que no estén en el esquema
+    nombre: z.string(),
+    precio: z.number()
+}).strict(); // [Error] rechaza campos que no estén en el esquema
 ```

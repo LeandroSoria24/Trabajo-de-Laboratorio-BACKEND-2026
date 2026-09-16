@@ -1,15 +1,15 @@
-# 🔍 Guía de Métodos de Consulta y Operaciones CRUD en Prisma ORM
+# Guía de Métodos de Consulta y Operaciones CRUD en Prisma ORM
 ### Cátedra: Desarrollo Backend — Facultad de Tecnología y Ciencias Aplicadas (UNCa)
 
-Esta guía recopila todas las formas de pedir, filtrar, ordenar, paginar y modificar datos en PostgreSQL utilizando **Prisma Client**, con ejemplos prácticos aplicados a los modelos de nuestro proyecto (`Autor` y `Libro`).
+Esta guía recopila todas las formas de pedir, filtrar, ordenar, paginar y modificar datos en PostgreSQL utilizando **Prisma Client**, con ejemplos prácticos aplicados a los modelos de nuestro proyecto (`Artesano` y `Producto`).
 
 > [!NOTE]
 > **Evolución Arquitectónica (Unidad 3 de la UNCa):**  
-> En la arquitectura modular por capas del proyecto, las consultas y mutaciones de Prisma aquí documentadas se alojan dentro de la **Capa de Servicios** (`src/services/`), como por ejemplo `src/services/libro.services.js`. Los controladores no hablan directamente con Prisma en las operaciones migradas, sino que delegan la operación al servicio correspondiente entregándole un **DTO**.
+> En la arquitectura modular por capas del proyecto, las consultas y mutaciones de Prisma aquí documentadas se alojan dentro de la **Capa de Servicios** (`src/services/`), como por ejemplo `src/services/producto.services.js`. Los controladores no hablan directamente con Prisma en las operaciones con servicios, sino que delegan la operación correspondiente entregándole un **DTO**.
 
 ---
 
-## 📑 Índice
+## Índice
 1. [Concepto Central: Modelos y Delegados](#1-concepto-central-modelos-y-delegados)
 2. [Métodos de Lectura (Consultas)](#2-métodos-de-lectura-consultas)
    - [`findMany`](#a-findmany--obtener-múltiples-registros)
@@ -61,28 +61,37 @@ Esta guía recopila todas las formas de pedir, filtrar, ordenar, paginar y modif
 Cuando defines modelos en `prisma/schema.prisma`:
 
 ```prisma
-model Autor {
-  id           Int      @id @default(autoincrement())
-  nombre       String
-  nacionalidad String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+model Artesano {
+  id                     Int        @id @default(autoincrement())
+  nombre                 String
+  apellido               String
+  dni                    String     @unique
+  email                  String     @unique
+  localidad              String
+  rubro                  String
+  nombreEmprendimiento   String
+  productos              Producto[]
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
 }
 
-model Libro {
-  id        Int      @id @default(autoincrement())
-  titulo    String
-  autor     String
-  anio      Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Producto {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  descripcion String?
+  precio      Float
+  stock       Int      @default(0)
+  artesanoId  Int
+  artesano    Artesano @relation(fields: [artesanoId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 ```
 
 Prisma Client genera automáticamente una propiedad (delegado) en minúscula camelCase dentro de la instancia `prisma`:
 
-* `model Autor` $\rightarrow$ `prisma.autor.<metodo>()`
-* `model Libro` $\rightarrow$ `prisma.libro.<metodo>()`
+* `model Artesano` $\rightarrow$ `prisma.artesano.<metodo>()`
+* `model Producto` $\rightarrow$ `prisma.producto.<metodo>()`
 
 Todas las operaciones hacia la base de datos son **asíncronas** y devuelven una `Promise`, por lo que siempre deben utilizarse con `await` dentro de funciones `async`.
 
@@ -95,14 +104,14 @@ Equivale a una consulta `SELECT * FROM ...`. Devuelve siempre un **arreglo** (`[
 
 #### 1. Traer todos los registros:
 ```javascript
-const todosLosAutores = await prisma.autor.findMany();
+const todosLosArtesanos = await prisma.artesano.findMany();
 ```
 
 #### 2. Traer registros con filtro básico:
 ```javascript
-const autoresArgentinos = await prisma.autor.findMany({
+const artesanosBelen = await prisma.artesano.findMany({
   where: {
-    nacionalidad: 'Argentina'
+    localidad: 'Belén'
   }
 });
 ```
@@ -116,15 +125,23 @@ Busca un único registro utilizando un campo que tenga la restricción `@id` (cl
 * Si no existe: devuelve **`null`**.
 
 ```javascript
-const autor = await prisma.autor.findUnique({
+// Por ID (clave primaria @id):
+const artesano = await prisma.artesano.findUnique({
   where: {
     id: 1
+  }
+});
+
+// Por campo único (@unique, como dni o email):
+const artesanoPorDni = await prisma.artesano.findUnique({
+  where: {
+    dni: '28123456'
   }
 });
 ```
 
 > [!IMPORTANT]
-> `findUnique` **solo permite** buscar por campos marcados como identificadores o únicos en el `schema.prisma`. Si intentas buscar por un campo ordinario (ej. `nacionalidad`), Prisma lanzará un error de validación.
+> `findUnique` **solo permite** buscar por campos marcados como identificadores o únicos en el `schema.prisma`. Si intentas buscar por un campo ordinario (ej. `localidad`), Prisma lanzará un error de validación.
 
 ---
 
@@ -132,10 +149,10 @@ const autor = await prisma.autor.findUnique({
 A diferencia de `findUnique`, `findFirst` permite buscar por **cualquier campo**, sin importar si es único o no. Retorna el primer registro que coincida con el criterio, o `null` si no encuentra ninguno.
 
 ```javascript
-// Buscar el primer autor cuyo nombre sea "Jorge Luis Borges"
-const autor = await prisma.autor.findFirst({
+// Buscar el primer artesano de un rubro específico
+const artesano = await prisma.artesano.findFirst({
   where: {
-    nombre: 'Jorge Luis Borges'
+    rubro: 'Textil'
   }
 });
 ```
@@ -146,12 +163,12 @@ const autor = await prisma.autor.findFirst({
 Devuelve un número entero indicando cuántas filas coinciden con el criterio (equivalente a `SELECT COUNT(*)`).
 
 ```javascript
-// Contar todos los autores
-const total = await prisma.autor.count();
+// Contar todos los artesanos registrados
+const total = await prisma.artesano.count();
 
 // Contar con condiciones
-const totalArgentinos = await prisma.autor.count({
-  where: { nacionalidad: 'Argentina' }
+const totalTextiles = await prisma.artesano.count({
+  where: { rubro: 'Textil' }
 });
 ```
 
@@ -165,28 +182,28 @@ Prisma permite combinar opciones dentro del argumento del método de búsqueda (
 Permite aplicar condiciones lógicas complejas similares a la cláusula `WHERE` de SQL:
 
 ```javascript
-const libros = await prisma.libro.findMany({
+const productos = await prisma.producto.findMany({
   where: {
-    // 1. Comparaciones numéricas
-    anio: {
-      gte: 2000, // Mayor o igual (>=)
-      lte: 2024  // Menor o igual (<=)
-      // gt: 2000  (Mayor estricto >)
-      // lt: 2024  (Menor estricto <)
-      // not: 2010 (Diferente !=)
+    // 1. Comparaciones numéricas sobre el precio o stock
+    precio: {
+      gte: 50000,  // Mayor o igual (>=)
+      lte: 500000  // Menor o igual (<=)
+      // gt: 50000 (Mayor estricto >)
+      // lt: 500000 (Menor estricto <)
+      // not: 100000 (Diferente !=)
     },
 
     // 2. Búsquedas en texto
-    titulo: {
-      contains: 'Quijote',      // Contiene el texto (LIKE %Quijote%)
+    nombre: {
+      contains: 'Poncho',      // Contiene el texto (LIKE %Poncho%)
       mode: 'insensitive'      // Ignora mayúsculas y minúsculas
-      // startsWith: 'Don'     (Comienza con)
-      // endsWith: 'Mancha'    (Termina con)
+      // startsWith: 'Poncho'  (Comienza con)
+      // endsWith: 'Vicuña'    (Termina con)
     },
 
-    // 3. Pertenencia a una lista (IN)
-    autor: {
-      in: ['Cervantes', 'Borges', 'Cortázar']
+    // 3. Pertenencia a una lista (IN) por artesanoId
+    artesanoId: {
+      in: [1, 2, 3]
     }
   }
 });
@@ -194,11 +211,12 @@ const libros = await prisma.libro.findMany({
 
 #### Operadores lógicos (`AND`, `OR`, `NOT`):
 ```javascript
-const autores = await prisma.autor.findMany({
+const artesanos = await prisma.artesano.findMany({
   where: {
     OR: [
-      { nacionalidad: 'Argentina' },
-      { nacionalidad: 'Uruguaya' }
+      { localidad: 'Belén' },
+      { localidad: 'Santa María' },
+      { localidad: 'Antofagasta de la Sierra' }
     ]
   }
 });
@@ -207,14 +225,16 @@ const autores = await prisma.autor.findMany({
 ---
 
 ### `select`: Proyección de columnas
-Permite especificar explícitamente cuáles campos devolver (equivalente a `SELECT id, nombre FROM ...`).
+Permite especificar explícitamente cuáles campos devolver (equivalente a `SELECT id, nombre, rubro FROM ...`).
 
 ```javascript
-const autores = await prisma.autor.findMany({
+const artesanos = await prisma.artesano.findMany({
   select: {
     id: true,
-    nombre: true
-    // nacionalidad, createdAt y updatedAt NO se devuelven
+    nombre: true,
+    apellido: true,
+    rubro: true
+    // dni, email, telefono, etc. NO se devuelven
   }
 });
 ```
@@ -229,17 +249,17 @@ Equivale a la cláusula `ORDER BY` de SQL. Permite ordenar por uno o varios camp
 
 ```javascript
 // Orden ascendente (A-Z o de menor a mayor)
-const autoresPorNombre = await prisma.autor.findMany({
+const artesanosPorNombre = await prisma.artesano.findMany({
   orderBy: {
     nombre: 'asc' // o 'desc' para descendente
   }
 });
 
-// Orden múltiple
-const librosOrdenados = await prisma.libro.findMany({
+// Orden múltiple en productos
+const productosOrdenados = await prisma.producto.findMany({
   orderBy: [
-    { anio: 'desc' },
-    { titulo: 'asc' }
+    { precio: 'desc' },
+    { nombre: 'asc' }
   ]
 });
 ```
@@ -253,9 +273,9 @@ Permite limitar la cantidad de resultados devueltos (`LIMIT`) y saltar un númer
 const limite = 5;
 const pagina = 2;
 
-const librosPaginados = await prisma.libro.findMany({
+const productosPaginados = await prisma.producto.findMany({
   skip: (pagina - 1) * limite, // Salta los primeros 5
-  take: limite                  // Toma los siguientes 5
+  take: limite                 // Toma los siguientes 5
 });
 ```
 
@@ -267,10 +287,17 @@ const librosPaginados = await prisma.libro.findMany({
 Inserta una nueva fila en la base de datos y devuelve el registro recién creado (incluyendo `id` autogenerado y marcas de tiempo).
 
 ```javascript
-const nuevoAutor = await prisma.autor.create({
+const nuevoArtesano = await prisma.artesano.create({
   data: {
-    nombre: 'Gabriel García Márquez',
-    nacionalidad: 'Colombiana'
+    nombre: 'María',
+    apellido: 'Gómez',
+    dni: '28123456',
+    email: 'maria.gomez@gmail.com',
+    telefono: '3834123456',
+    localidad: 'Belén',
+    rubro: 'Textil',
+    nombreEmprendimiento: 'Tejidos del Valle',
+    descripcionTrayectoria: 'Maestra tejedora con más de 25 años de oficio'
   }
 });
 ```
@@ -281,12 +308,12 @@ const nuevoAutor = await prisma.autor.create({
 Modifica un registro localizado mediante un campo único en `where`. Devuelve el objeto actualizado.
 
 ```javascript
-const autorActualizado = await prisma.autor.update({
+const artesanoActualizado = await prisma.artesano.update({
   where: {
     id: 1
   },
   data: {
-    nacionalidad: 'Argentina'
+    telefono: '3834999888'
   }
 });
 ```
@@ -300,7 +327,7 @@ const autorActualizado = await prisma.autor.update({
 Elimina un registro localizado por campo único en `where`. Devuelve el objeto que acaba de ser eliminado.
 
 ```javascript
-const autorEliminado = await prisma.autor.delete({
+const artesanoEliminado = await prisma.artesano.delete({
   where: {
     id: 1
   }
@@ -316,14 +343,19 @@ const autorEliminado = await prisma.autor.delete({
 Si el registro existe lo actualiza, y si no existe lo inserta en una sola operación atómica.
 
 ```javascript
-const autor = await prisma.autor.upsert({
-  where: { id: 1 },
+const artesano = await prisma.artesano.upsert({
+  where: { dni: '28123456' },
   update: {
-    nombre: 'Nombre Modificado'
+    telefono: '3834555444'
   },
   create: {
-    nombre: 'Nombre Nuevo',
-    nacionalidad: 'Chilena'
+    nombre: 'María',
+    apellido: 'Gómez',
+    dni: '28123456',
+    email: 'maria.gomez@gmail.com',
+    localidad: 'Belén',
+    rubro: 'Textil',
+    nombreEmprendimiento: 'Tejidos del Valle'
   }
 });
 ```
@@ -335,10 +367,26 @@ Para manipular múltiples registros a la vez:
 
 * **`createMany`**: Inserta varios registros a partir de una lista.
   ```javascript
-  await prisma.autor.createMany({
+  await prisma.artesano.createMany({
     data: [
-      { nombre: 'Julio Cortázar', nacionalidad: 'Argentina' },
-      { nombre: 'Mario Vargas Llosa', nacionalidad: 'Peruana' }
+      {
+        nombre: 'María',
+        apellido: 'Gómez',
+        dni: '28123456',
+        email: 'maria@gmail.com',
+        localidad: 'Belén',
+        rubro: 'Textil',
+        nombreEmprendimiento: 'Tejidos Belén'
+      },
+      {
+        nombre: 'Carlos',
+        apellido: 'Rodríguez',
+        dni: '30456789',
+        email: 'carlos@gmail.com',
+        localidad: 'Santa María',
+        rubro: 'Cerámica',
+        nombreEmprendimiento: 'Alfarería Santa María'
+      }
     ]
   });
   ```
@@ -349,15 +397,15 @@ Para manipular múltiples registros a la vez:
 
 ## 5. Mapeo Práctico: De Memoria a Prisma en los Controladores
 
-Así es como se transforman los métodos del controlador `src/controllers/autores.controllers.js`:
+Así es como se transforman los métodos del controlador `src/controllers/artesano.controllers.js`:
 
 | Acción HTTP | Ruta | En Memoria (JavaScript) | Con Prisma ORM |
 | :--- | :--- | :--- | :--- |
-| **GET** | `/autores` | `autores` | `await prisma.autor.findMany()` |
-| **GET** | `/autores/:id` | `autores.find(a => a.id === id)` | `await prisma.autor.findUnique({ where: { id } })` |
-| **POST** | `/autores` | `autores.push(nuevoAutor)` | `await prisma.autor.create({ data: { nombre, nacionalidad } })` |
-| **PUT** | `/autores/:id` | `autor.nombre = ...` | `await prisma.autor.update({ where: { id }, data: { ... } })` |
-| **DELETE** | `/autores/:id` | `autores.splice(indice, 1)` | `await prisma.autor.delete({ where: { id } })` |
+| **GET** | `/artesanos` | `artesanos` | `await prisma.artesano.findMany()` |
+| **GET** | `/artesanos/:id` | `artesanos.find(a => a.id === id)` | `await prisma.artesano.findUnique({ where: { id } })` |
+| **POST** | `/artesanos` | `artesanos.push(nuevoArtesano)` | `await prisma.artesano.create({ data: { ... } })` |
+| **PUT** | `/artesanos/:id` | `artesano.nombre = ...` | `await prisma.artesano.update({ where: { id }, data: { ... } })` |
+| **DELETE** | `/artesanos/:id` | `artesanos.splice(indice, 1)` | `await prisma.artesano.delete({ where: { id } })` |
 
 ---
 
@@ -372,21 +420,21 @@ Al usar Prisma en controladores Express:
    ```
 
 2. **Diferencia entre `findUnique` y `update`/`delete` ante registros inexistentes:**
-   * `findUnique`: Si el registro no existe, retorna **`null`**. Puedes hacer `if (!autor) return next(crearError('...', 404));`.
+   * `findUnique`: Si el registro no existe, retorna **`null`**. Puedes hacer `if (!artesano) return next(crearError('...', 404));`.
    * `update` / `delete`: Si el registro no existe, lanza un **error de Prisma** (`Record to update not found`). Puedes verificar primero con `findUnique` o capturar el código `error.code === 'P2025'` en el `catch`.
 
 3. **Estructura recomendada en controlador:**
    ```javascript
-   export const getAutorPorId = async (req, res, next) => {
+   export const getArtesanoPorId = async (req, res, next) => {
        try {
            const id = Number(req.params.id);
-           const autor = await prisma.autor.findUnique({ where: { id } });
+           const artesano = await prisma.artesano.findUnique({ where: { id } });
 
-           if (!autor) {
-               return next(crearError(`No existe un autor con id ${id}`, 404));
+           if (!artesano) {
+               return next(crearError(`No existe un artesano con id ${id}`, 404));
            }
 
-           res.json(autor);
+           res.json(artesano);
        } catch (error) {
            next(error);
        }
@@ -448,29 +496,34 @@ model ConfiguracionEvento {
 
 Un registro del modelo **A** puede tener asociados múltiples registros del modelo **B**, pero cada registro de **B** pertenece a un único registro de **A**.
 
-* **Ejemplos:**
-  - Una `Categoria` tiene muchos `Evento`s (`libros Libro[]`).
-  - Cada `Evento` pertenece a una única `Categoria`.
+* **Ejemplo central de nuestro proyecto (Poncho Digital):**
+  - Un `Artesano` registra muchos `Producto`s (`productos Producto[]`).
+  - Cada `Producto` pertenece a un único `Artesano` (`artesano Artesano`).
 
 ```prisma
-model Categoria {
-  id      Int      @id @default(autoincrement())
-  nombre  String   @unique
-  eventos Evento[] // Campo virtual: lista de eventos vinculados
+model Artesano {
+  id        Int        @id @default(autoincrement())
+  nombre    String
+  apellido  String
+  dni       String     @unique
+  email     String     @unique
+  productos Producto[] // Campo virtual: lista de productos vinculados
 }
 
-model Evento {
-  id          Int       @id @default(autoincrement())
+model Producto {
+  id          Int      @id @default(autoincrement())
   nombre      String
+  precio      Float
+  stock       Int      @default(0)
   
-  // Clave foránea física:
-  categoriaId Int
-  categoria   Categoria @relation(fields: [categoriaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  // Clave foránea física en la BD:
+  artesanoId  Int
+  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
 }
 ```
 
 > [!TIP]
-> En la relación 1 a N, el lado "Muchos" (`Evento`) contiene el campo escalar `categoriaId` y el `@relation`. El lado "Uno" (`Categoria`) únicamente declara la lista `Evento[]`.
+> En la relación 1 a N, el lado "Muchos" (`Producto`) contiene el campo escalar `artesanoId` y el `@relation`. El lado "Uno" (`Artesano`) únicamente declara la lista `Producto[]`.
 
 ---
 
@@ -481,7 +534,7 @@ Un registro de **A** puede relacionarse con muchos de **B**, y un registro de **
 #### 1. Relación N:M Implícita (Manejada automáticamente por Prisma)
 Se utiliza cuando **no necesitas guardar datos extra** en la tabla intermedia (como fecha de unión, rol o estado).
 
-* **Ejemplo (UNCa):** Un `Evento` puede estar respaldado por varias `Institucion`es, y una `Institucion` respalda varios `Evento`s.
+* **Ejemplo conceptual de cátedra (UNCa):** Un `Evento` puede estar respaldado por varias `Institucion`es, y una `Institucion` respalda varios `Evento`s.
 
 ```prisma
 model Evento {
@@ -543,11 +596,11 @@ Por defecto, Prisma no trae las entidades relacionadas para mantener las consult
 
 #### 1. Obtener registro individual con su objeto relacionado:
 ```javascript
-// GET /eventos/:id con su Categoría
-const evento = await prisma.evento.findUnique({
+// GET /productos/:id con los datos de su Artesano
+const producto = await prisma.producto.findUnique({
   where: { id: 1 },
   include: {
-    categoria: true // Incluye el objeto { id, nombre } de la categoría
+    artesano: true // Incluye el objeto { id, nombre, apellido, localidad, ... } del artesano
   }
 });
 ```
@@ -556,39 +609,44 @@ Resultado retornado:
 ```json
 {
   "id": 1,
-  "nombre": "Congreso de Tecnología",
-  "categoriaId": 1,
-  "categoria": {
+  "nombre": "Poncho de Vicuña",
+  "descripcion": "Tejido artesanal fino",
+  "precio": 450000,
+  "stock": 3,
+  "artesanoId": 1,
+  "artesano": {
     "id": 1,
-    "nombre": "Jornada"
+    "nombre": "María",
+    "apellido": "Gómez",
+    "localidad": "Belén",
+    "rubro": "Textil"
   }
 }
 ```
 
-#### 2. Inclusiones múltiples y anidadas en profundidad:
+#### 2. Obtener un artesano con todos sus productos elaborados:
 ```javascript
-const eventosDetallados = await prisma.evento.findMany({
+// GET /artesanos/:id con la lista completa de sus productos
+const artesanoConProductos = await prisma.artesano.findUnique({
+  where: { id: 1 },
   include: {
-    categoria: true,
-    configuracion: true,
-    inscripciones: {
-      include: {
-        participante: true // Join anidado: Evento -> Inscripcion -> Participante
-      }
-    }
+    productos: true // Incluye el arreglo [ { id, nombre, precio, stock, ... }, ... ]
   }
 });
 ```
 
 #### 3. Proyección precisa con `select`:
 ```javascript
-const eventosCompactos = await prisma.evento.findMany({
+const productosCompactos = await prisma.producto.findMany({
   select: {
     id: true,
     nombre: true,
-    categoria: {
+    precio: true,
+    artesano: {
       select: {
-        nombre: true // Trae solo el nombre de la categoría sin su ID
+        nombre: true,
+        apellido: true,
+        localidad: true
       }
     }
   }
@@ -597,21 +655,21 @@ const eventosCompactos = await prisma.evento.findMany({
 
 #### 4. Filtrar por propiedades del modelo relacionado:
 ```javascript
-// Buscar todos los eventos que pertenecen a la categoría "Jornada"
-const jornadas = await prisma.evento.findMany({
+// Buscar todos los productos elaborados por artesanos de "Belén"
+const productosDeBelen = await prisma.producto.findMany({
   where: {
-    categoria: {
-      nombre: 'Jornada'
+    artesano: {
+      localidad: 'Belén'
     }
   }
 });
 
-// En listas 1:N o N:M: filtrar con 'some', 'every' o 'none'
-const categoriasConEventos = await prisma.categoria.findMany({
+// En listas 1:N: artesanos que tengan al menos un producto con la palabra 'Poncho'
+const artesanosConPonchos = await prisma.artesano.findMany({
   where: {
-    eventos: {
+    productos: {
       some: {
-        nombre: { contains: 'Node.js' }
+        nombre: { contains: 'Poncho', mode: 'insensitive' }
       }
     }
   }
@@ -626,27 +684,39 @@ Prisma permite vincular o crear registros relacionados dentro de la misma operac
 
 #### 1. `connect`: Asociar a un registro padre ya existente
 ```javascript
-// Crear un evento y asociarlo a una categoría existente con ID 2
-const nuevoEvento = await prisma.evento.create({
+// Crear un producto y asociarlo a un artesano existente con ID 1
+const nuevoProducto = await prisma.producto.create({
   data: {
-    nombre: 'Workshop de Node.js',
-    categoria: {
-      connect: { id: 2 } // O cualquier campo @unique como: connect: { nombre: 'Taller' }
+    nombre: 'Poncho de Vicuña',
+    precio: 450000,
+    stock: 2,
+    artesano: {
+      connect: { id: 1 }
     }
   }
 });
 ```
 
-#### 2. `create`: Crear padre e hijo en una sola transacción
+#### 2. `create`: Crear padre e hijos en una sola transacción
 ```javascript
-// Crear un evento y a su vez una nueva categoría al vuelo
-const nuevoEvento = await prisma.evento.create({
+// Crear un artesano y a su vez su primer producto en la misma operación
+const nuevoArtesanoConProducto = await prisma.artesano.create({
   data: {
-    nombre: 'Seminario de Cloud Computing',
-    categoria: {
-      create: {
-        nombre: 'Seminarios'
-      }
+    nombre: 'Carlos',
+    apellido: 'Rodríguez',
+    dni: '30456789',
+    email: 'carlos@gmail.com',
+    localidad: 'Santa María',
+    rubro: 'Cerámica',
+    nombreEmprendimiento: 'Alfarería Santa María',
+    productos: {
+      create: [
+        {
+          nombre: 'Vasija Diaguita',
+          precio: 25000,
+          stock: 10
+        }
+      ]
     }
   }
 });
@@ -683,7 +753,7 @@ Imaginemos la situación inicial antes de migrar:
   ```bash
   npx prisma migrate dev --name incorporar-relaciones
   ```
-  ❌ **Prisma bloquea la migración con un error crítico:**
+  **Prisma bloquea la migración con un error crítico:**
   Intenta agregar la columna `categoriaId` con la restricción `NOT NULL` a una tabla que ya posee filas. Al no tener un valor por defecto (`@default`), PostgreSQL no sabe qué valor asignar a los registros 1 y 2, violando la integridad de datos.
 
 ---
@@ -768,11 +838,11 @@ npx prisma generate
    Compara los archivos de migración locales con el registro histórico de la tabla interna `_prisma_migrations` de PostgreSQL. Debe indicar que todas las migraciones están aplicadas y sincronizadas.
 
 2. **Checklist de verificación de datos resultantes:**
-   * ✔ Existe la tabla `Categoria` en PostgreSQL.
-   * ✔ Se creó el registro semilla `"Jornada"`.
-   * ✔ Todos los eventos previos (`Congreso de Tecnología`, `Workshop de Node.js`) ahora poseen `categoriaId = 1`.
-   * ✔ Las nuevas tablas secundarias (`ConfiguracionEvento`, `Institucion`, `Participante`, `Inscripcion`, `_EventoToInstitucion`) se crearon satisfactoriamente.
-   * ✔ No se perdió ningún dato histórico de la tabla `Evento`.
+   * Existe la tabla `Categoria` en PostgreSQL.
+   * Se creó el registro semilla `"Jornada"`.
+   * Todos los eventos previos (`Congreso de Tecnología`, `Workshop de Node.js`) ahora poseen `categoriaId = 1`.
+   * Las nuevas tablas secundarias (`ConfiguracionEvento`, `Institucion`, `Participante`, `Inscripcion`, `_EventoToInstitucion`) se crearon satisfactoriamente.
+   * No se perdió ningún dato histórico de la tabla `Evento`.
 
 ---
 
@@ -800,10 +870,10 @@ npx prisma db push
 |---|---|---|
 | **Archivos generados** | Ninguno (no genera SQL ni carpetas de historial). | Genera carpetas versionadas con `migration.sql`. |
 | **Tabla `_prisma_migrations`** | No la consulta ni la modifica. | Registra cada migración aplicada y calcula su checksum. |
-| **Velocidad de iteración** | ⚡ Ultrarrápido: ideal para iterar modelos y probar relaciones. | ⏱️ Más formal: requiere nombrar cada migración (`--name`). |
+| **Velocidad de iteración** | Ultrarrápido: ideal para iterar modelos y probar relaciones. | Más formal: requiere nombrar cada migración (`--name`). |
 | **Bases de datos en la nube (ej. Supabase)** | Excelente para prototipado rápido y entornos de desarrollo personal. | Recomendado para sincronizar cambios estructurados entre miembros de equipo. |
-| **Scripts SQL manuales** | ❌ No permite insertar SQL personalizado en el proceso de migración. | ✔ Permite editar el `migration.sql` (ej. con `--create-only`) para poblar datos. |
-| **Entornos de Producción** | ❌ No recomendado (no hay trazabilidad ni control estricto). | ✔ Se despliega con `npx prisma migrate deploy`. |
+| **Scripts SQL manuales** | No permite insertar SQL personalizado en el proceso de migración. | Permite editar el `migration.sql` (ej. con `--create-only`) para poblar datos. |
+| **Entornos de Producción** | No recomendado (no hay trazabilidad ni control estricto). | Se despliega con `npx prisma migrate deploy`. |
 
 ---
 
@@ -883,7 +953,7 @@ Una de las mayores ventajas de `$queryRaw` en Prisma es el uso de **Tagged Templ
 ```javascript
 const nombreUsuario = req.query.nombre; // Posible input malicioso
 
-// ✅ 100% SEGURO: Prisma NO concatena strings
+// 100% SEGURO: Prisma NO concatena strings
 const resultado = await prisma.$queryRaw`
   SELECT * FROM "Evento" WHERE nombre = ${nombreUsuario}
 `;
@@ -925,7 +995,7 @@ console.log(`Se actualizaron ${filasAfectadas} eventos.`);
 Prisma también provee `$queryRawUnsafe` y `$executeRawUnsafe`. Estas funciones reciben un `string` plano en lugar de un template literal:
 
 ```javascript
-// ⚠️ RIESGOSO si se concatena manualmente:
+// RIESGOSO si se concatena manualmente:
 const consulta = `SELECT * FROM "Evento" WHERE id = ` + req.params.id; // ¡VULNERABLE A SQL INJECTION!
 const resultado = await prisma.$queryRawUnsafe(consulta);
 ```
@@ -991,11 +1061,11 @@ const total = Number(conteo[0].total);
 
 | Comando CLI | Propósito principal | ¿Preserva datos? | ¿Genera archivos `.sql`? |
 |---|---|:---:|:---:|
-| `npx prisma db push` | Sincroniza directamente el esquema con la base de datos | ✔ Sí (advierte si hay cambios destructivos) | ❌ No |
-| `npx prisma migrate dev --name <nombre>` | Crea y aplica una nueva migración versionada con historial SQL | ✔ Sí | ✔ Sí (`prisma/migrations/`) |
-| `npx prisma migrate dev --create-only` | Genera el archivo SQL para edición manual sin aplicarlo a la B.D. | ✔ Sí (no toca la B.D.) | ✔ Sí |
-| `npx prisma migrate deploy` | Aplica migraciones pendientes en entornos de staging / producción | ✔ Sí | ❌ No (solo lee las existentes) |
-| `npx prisma migrate reset` | Destruye la base de datos y reaplica todas las migraciones desde cero | ❌ **No (Borra todo)** | ❌ No |
-| `npx prisma generate` | Regenera Prisma Client a partir del archivo `schema.prisma` | N/A (no toca la B.D.) | ❌ No |
-| `npx prisma studio` | Abre panel visual interactivo en el navegador (`localhost:5555`) | N/A (interfaz gráfica) | ❌ No |
+| `npx prisma db push` | Sincroniza directamente el esquema con la base de datos | Sí (advierte si hay cambios destructivos) | No |
+| `npx prisma migrate dev --name <nombre>` | Crea y aplica una nueva migración versionada con historial SQL | Sí | Sí (`prisma/migrations/`) |
+| `npx prisma migrate dev --create-only` | Genera el archivo SQL para edición manual sin aplicarlo a la B.D. | Sí (no toca la B.D.) | Sí |
+| `npx prisma migrate deploy` | Aplica migraciones pendientes en entornos de staging / producción | Sí | No (solo lee las existentes) |
+| `npx prisma migrate reset` | Destruye la base de datos y reaplica todas las migraciones desde cero | **No (Borra todo)** | No |
+| `npx prisma generate` | Regenera Prisma Client a partir del archivo `schema.prisma` | N/A (no toca la B.D.) | No |
+| `npx prisma studio` | Abre panel visual interactivo en el navegador (`localhost:5555`) | N/A (interfaz gráfica) | No |
 
