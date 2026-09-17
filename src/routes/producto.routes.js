@@ -1,7 +1,6 @@
 import { Router } from "express";
 import {
     getProductos,
-    getProductosFiltrados,
     getProductoPorId,
     createProducto,
     updateProducto,
@@ -10,11 +9,11 @@ import {
 } from '../controllers/producto.controllers.js';
 import { validarId } from '../middlewares/validaciones/validarId.js';
 import { validarProducto } from '../middlewares/validaciones/validarProducto.js';
+import { validarConsultaProductos } from '../middlewares/validaciones/validarQuerys.js';
 
 const router = Router();
 
-router.get('/', getProductos);/* 🟥 */
-router.get('/filtrados', getProductosFiltrados);/* 🟥 */
+router.get('/', validarConsultaProductos, getProductos);/* 🟩 */
 router.get('/:id', validarId, getProductoPorId);/* 🟩 */
 router.post('/', validarProducto, createProducto);/* 🟩 */
 router.put('/:id', validarId, validarProducto, updateProducto);/* 🟩 */

@@ -3,66 +3,23 @@ import prisma from '../config/prisma.js';
 import {
     crearProducto,
     actualizarProducto,
+    obtenerProductos,
     obtenerProductoPorId ,
     eliminarProducto,
     deleteLogico
 } from '../services/producto.services.js';
 
 // GETTERS
-export const getProductos = async (req, res, next) => {  /* 🟥 */
+export const getProductos = async (req, res, next) => {  /* 🟩 */
     try {
-        const productos = await prisma.producto.findMany({ // hay que agregar la logica de servicios 
-            include: {
-                artesano: {
-                    select: {
-                        nombre: true,
-                        apellido: true,
-                        localidad: true,
-                        rubro: true,
-                        nombreEmprendimiento: true
-                    }
-                }
-            }
-        });
-        res.json(productos);
+        const resultado = await obtenerProductos(req.consultaProductos);
+        res.json(resultado);
     }
     catch (error) {
         next(error);
     }
 };
 
-export const getProductosFiltrados = async (req, res, next) => {  /* 🟥 */
-    try {
-        const nombreRecibido = req.query.nombre;
-
-        if (!nombreRecibido) {
-            return next(crearError('Debe especificar el parámetro "nombre" para filtrar', 400));
-        }
-
-        const productosFiltrados = await prisma.producto.findMany({ // hay que agregar la logica de servicios 
-            where: {
-                nombre: {
-                    contains: nombreRecibido,
-                    mode: 'insensitive'
-                }
-            },
-            include: {
-                artesano: {
-                    select: {
-                        nombre: true,
-                        apellido: true,
-                        localidad: true,
-                        rubro: true
-                    }
-                }
-            }
-        });
-        res.json(productosFiltrados);
-    }
-    catch (error) {
-        next(error);
-    }
-};
 
 //GET POR ID 🟩-- 
 export const getProductoPorId = async (req, res, next) => {
