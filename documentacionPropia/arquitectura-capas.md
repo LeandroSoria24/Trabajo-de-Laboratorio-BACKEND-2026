@@ -101,6 +101,7 @@ router.get('/:id', validarId, getProductoPorId);
 router.post('/', validarProducto, createProducto);
 router.put('/:id', validarId, validarProducto, updateProducto);
 router.delete('/:id', validarId, deleteProducto);
+router.patch('/:id', validarId, deleteProductoLogico);
 ```
 
 ---
@@ -110,8 +111,8 @@ router.delete('/:id', validarId, deleteProducto);
 **Responsabilidad:** Interceptar y procesar la petición antes o después de los controladores.
 
 * **`logger.js`**: Mide con precisión milisegundos y status HTTP al completarse la respuesta (`res.on('finish')`).
-* **`validarId.js`**: Comprueba que el parámetro `:id` sea un entero positivo.
-* **`validarProducto.js`**: Evalúa el método mediante un `switch` y ejecuta `safeParse(...)` con Zod sobre `req.body` o `req.query`. Si es válido, reemplaza los datos con `resultado.data` (DTO limpio).
+* **`validarId.js`**: Comprueba y sanitiza el parámetro `:id` en la URL utilizando Zod (`FiltrarProductoPorIDSchema`) y lo castea a tipo `Number`.
+* **`validarProducto.js`**: Evalúa el método mediante un `switch` (`POST` y `PUT`) y ejecuta `safeParse(...)` con Zod sobre `req.body ?? {}`. Si es válido, reemplaza los datos con `resultado.data` (DTO limpio). Si falla, acumula todos los mensajes de error.
 * **`rutaNoEncontrada.js`**: Captura URLs que no coincidan con ninguna ruta registrada y arroja 404.
 * **`manejoErrores.js`**: Middleware final de 4 parámetros `(err, req, res, next)` que estandariza las respuestas de error en formato JSON.
 
@@ -120,15 +121,26 @@ router.delete('/:id', validarId, deleteProducto);
 ## Capa 4: Validadores (`validators/`)
 
 **Archivo:** `src/validators/producto.schemas.js`  
-**Responsabilidad:** Declarar los contratos formales que debe cumplir el cuerpo de la petición.
+**Responsabilidad:** Declarar los contratos formales que debe cumplir el cuerpo de la petición y los parámetros de ruta usando **Zod 4**.
 
 ```javascript
 export const crearProductoSchema = z.object({
-  nombre: z.string().trim().min(1),
+  nombre: z.string("El campo 'nombre' es obligatorio")
+    .trim()
+    .min(1, "El nombre no puede estar vacío"),
   descripcion: z.string().trim().min(1).optional().nullable(),
-  precio: z.number().positive(),
-  stock: z.number().int().nonnegative().optional(),
-  artesanoId: z.number().int().positive()
+  precio: z.coerce.number("El campo 'precio' es obligatorio")
+    .positive("El precio debe ser mayor a 0"),
+  stock: z.coerce.number().int().nonnegative().optional().default(0),
+  artesanoId: z.coerce.number("El 'artesanoId' es obligatorio para asociar el producto")
+    .int()
+    .positive()
+});
+
+export const FiltrarProductoPorIDSchema = z.object({
+  id: z.coerce.number("El ID debe ser un número")
+    .int("El ID debe ser un número entero")
+    .positive("El ID debe ser un número entero positivo")
 });
 ```
 
@@ -138,12 +150,22 @@ export const crearProductoSchema = z.object({
 
 **Archivos:** `src/controllers/artesano.controllers.js`, `src/controllers/producto.controllers.js`  
 **Responsabilidad:** Coordinar el flujo HTTP.
-* Recibe los datos validados desde `req.body` como un **DTO**.
+* Recibe los datos validados desde `req.body` como un **DTO** o el `id` desde `req.params`.
 * Invoca a la capa de servicios:
   ```javascript
   const crearProductoDto = req.body;
   const nuevoProducto = await crearProducto(crearProductoDto);
   return res.status(201).json(nuevoProducto);
+  ```
+* Para borrado físico y lógico:
+  ```javascript
+  // Borrado físico:
+  await eliminarProducto(id);
+  res.status(200).send("Producto eliminado exitosamente");
+
+  // Borrado lógico:
+  await deleteLogico(id);
+  res.status(200).json({ message: "Producto eliminado logicamente" });
   ```
 * En caso de error, el bloque `try/catch` lo remite a `next(error)`.
 
@@ -154,20 +176,13 @@ export const crearProductoSchema = z.object({
 **Archivo:** `src/services/producto.services.js`  
 **Responsabilidad:** Contener la lógica de negocio y comunicarse directamente con Prisma Client.
 
-* **Desacoplado de Express:** No recibe `req`, `res` ni `next`. Trabaja únicamente con objetos planos (DTOs). Si ocurre un fallo de negocio, lanza excepciones mediante `throw crearError(...)` que el controlador captura en su bloque `catch`.
-* **Reglas de negocio y persistencia limpia:** Comprueba que las entidades existan antes de modificar o crear relaciones:
-  ```javascript
-  const artesano = await prisma.artesano.findUnique({ where: { id: artesanoId } });
-  if (!artesano) {
-      throw crearError("Artesano inexistente.", 400);
-  }
-  return prisma.producto.update({
-      where: { id },
-      data: { nombre, descripcion, precio, stock, artesanoId },
-      include: { artesano: true }
-  });
-  ```
-* **Exportaciones directas:** Las funciones de servicio se exportan de forma nominal y directa (`crearProducto`, `actualizarProducto`), sin alias redundantes.
+* **Desacoplado de Express:** No recibe `req`, `res` ni `next`. Trabaja únicamente con tipos primitivos y DTOs planos. Si ocurre un fallo de negocio, lanza excepciones mediante `throw crearError(...)` que el controlador captura en su bloque `catch`.
+* **Reglas de negocio y persistencia limpia:**
+  - `crearProducto`: comprueba la existencia previa del artesano.
+  - `actualizarProducto`: valida existencia del producto y del artesano si se envía.
+  - `obtenerProductoPorId`: busca el producto y lanza 404 si no existe.
+  - `eliminarProducto`: verifica existencia previa y elimina definitivamente el registro con `prisma.producto.delete`.
+  - `deleteLogico`: verifica existencia y actualiza el flag `eliminado: true` con `prisma.producto.update`.
 
 ---
 

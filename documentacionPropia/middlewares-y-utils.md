@@ -70,48 +70,42 @@ GET /ruta-falsa - 404 (1ms)
 
 ---
 
-## 2. Validador de ID (`validarId.js`)
+## 2. Validador de ID con Zod (`validarId.js`)
 
 **Ubicación:** `src/middlewares/validaciones/validarId.js`  
-**Tipo:** Middleware de Validación a nivel de Ruta  
+**Tipo:** Middleware de Validación a nivel de Ruta con Zod  
 **Posición:** En las rutas `artesano.routes.js` y `producto.routes.js` antes de cada controlador con parámetro `/:id`.
 
 ### Código:
 ```javascript
 import { crearError } from "../../utils/crearError.js";
+import { FiltrarProductoPorIDSchema } from "../../validators/producto.schemas.js";
 
 export const validarId = (req, res, next) => {
-    const { id } = req.params;
-
-    // 1. Validar existencia y tipo base
-    if (id === undefined || id === null) {
-        return next(crearError("El parámetro ID es obligatorio en la ruta.", 400));
+    // 1. Validamos req.params con Zod (donde viene { id: "15" })
+    const resultado = FiltrarProductoPorIDSchema.safeParse(req.params);
+      
+    // 2. Si falla, agrupamos todos los mensajes de error
+    if (!resultado.success) {
+        const mensajeCompleto = resultado.error.issues
+            .map(issue => issue.message)
+            .join(' | ');
+        return next(crearError(mensajeCompleto, 400));
     }
-
-    if (typeof id !== 'string' || id.trim() === '') {
-        return next(crearError("El ID debe ser una cadena de texto válida y no vacía.", 400));
-    }
-
-    const idLimpio = id.trim();
-
-    // 2. Validación estricta de formato numérico entero positivo
-    if (!/^\d+$/.test(idLimpio)) {
-        return next(crearError("Formato de ID inválido. Debe ser un número entero positivo.", 400));
-    }
-
-    // 3. Reasignar el ID limpio para evitar espacios ocultos en los controladores
-    req.params.id = idLimpio;
-
+    
+    // 3. Asignamos el ID ya sanitizado y casteado a tipo Number
+    req.params.id = resultado.data.id;
+    
     next();
 };
 ```
 
 ### ¿Cómo funciona?
-1. **`const { id } = req.params;`:** Extrae el parámetro de la URL.
-2. **Validación de presencia y tipo string:** Comprueba que no sea nulo ni esté en blanco.
-3. **`!/^\d+$/.test(idLimpio)`:** Valida que contenga exclusivamente dígitos numéricos (un número entero positivo). Si alguien envía `abc`, `-5` o `1.5`, corta el flujo inmediatamente con `next(crearError(..., 400))`.
-4. **`req.params.id = idLimpio;`:** Sanitiza el parámetro quitando espacios en blanco para que los controladores lo conviertan limpiamente con `Number(req.params.id)`.
-5. **`next()`:** Si el ID es válido, deja pasar la petición al controlador correspondiente (`getProductoPorId`, `updateProducto`, etc.).
+1. **`FiltrarProductoPorIDSchema.safeParse(req.params)`:** Pasa los parámetros de la URL directamente a Zod.
+2. **Coerción y validación numérica automática:** Zod aplica `z.coerce.number().int().positive()`. Si el ID es texto inválido (`"abc"`), decimal (`"1.5"`) o negativo (`"-3"`), Zod genera el error correspondiente.
+3. **Mensajes detallados en español:** Recorre `resultado.error.issues` y los une con `' | '` para enviarlos al cliente mediante `crearError(..., 400)`.
+4. **`req.params.id = resultado.data.id`:** Sobrescribe el parámetro con el valor ya transformado a `Number` limpio. De este modo, los controladores y servicios reciben un número entero garantizado.
+5. **`next()`:** Pasa el control al siguiente middleware o controlador.
 
 ---
 
@@ -239,16 +233,35 @@ export const manejoErrores = (err, req, res, next) => {
 **Tipo:** Middleware de Validación con Zod  
 **Posición:** En `producto.routes.js`, antes de `createProducto` (POST) y `updateProducto` (PUT).
 
-### Esquema Zod (`producto.schemas.js`):
+### Esquemas Zod (`producto.schemas.js`):
 ```javascript
 import { z } from "zod";
 
 export const crearProductoSchema = z.object({
-  nombre: z.string().trim().min(1),
+  nombre: z.string("El campo 'nombre' es obligatorio")
+    .trim()
+    .min(1, "El nombre no puede estar vacío"),
   descripcion: z.string().trim().min(1).optional().nullable(),
-  precio: z.number().positive(),
-  stock: z.number().int().nonnegative().optional(),
-  artesanoId: z.number().int().positive()
+  precio: z.coerce.number("El campo 'precio' es obligatorio")
+    .positive("El precio debe ser mayor a 0"),
+  stock: z.coerce.number().int().nonnegative().optional().default(0),
+  artesanoId: z.coerce.number("El 'artesanoId' es obligatorio para asociar el producto")
+    .int()
+    .positive()
+});
+
+export const actualizarProductoSchema = z.object({
+  nombre: z.string("El campo 'nombre' es obligatorio")
+    .trim()
+    .min(1, "El nombre no puede estar vacío"),
+  descripcion: z.string().trim().min(1).optional().nullable(),
+  precio: z.coerce.number("El campo 'precio' es obligatorio")
+    .positive("El precio debe ser mayor a 0"),
+  stock: z.coerce.number().int().nonnegative("El stock no puede ser negativo").optional(),
+  artesanoId: z.coerce.number("El 'artesanoId' debe ser un número válido")
+    .int()
+    .positive()
+    .optional()
 });
 ```
 
@@ -259,7 +272,7 @@ import { crearProductoSchema, actualizarProductoSchema } from "../../validators/
 
 export const validarProducto = (req, res, next) => {
     let schema;
-    let datosAValidar = req.body;
+    let datosAValidar = req.body ?? {};
 
     switch (req.method) {
         case 'POST':
@@ -268,13 +281,6 @@ export const validarProducto = (req, res, next) => {
         case 'PUT':
             schema = actualizarProductoSchema;
             break;
-        case 'PATCH':
-            schema = parchearProductoSchema;
-            break;
-        case 'GET':
-            schema = filtroProductoSchema;
-            datosAValidar = req.query; // En GET se validan los query params
-            break;
         default:
             return next();
     }
@@ -282,37 +288,34 @@ export const validarProducto = (req, res, next) => {
     const resultado = schema.safeParse(datosAValidar);
 
     if (!resultado.success) {
-        const issue = resultado.error.issues[0];
-        const campo = issue.path.join('.') || 'datos';
-        return next(crearError(`Error en el campo '${campo}': ${issue.message}`, 400));
+        const mensajeCompleto = resultado.error.issues
+            .map(issue => issue.message)
+            .join(' | ');
+        return next(crearError(mensajeCompleto, 400));
     }
 
-    // Sobrescribimos con los datos ya parseados y casteados por Zod
-    if (req.method === 'GET') {
-        req.query = resultado.data;
-    } else {
-        req.body = resultado.data;
-    }
-
+    // Sobrescribimos req.body con los datos parseados y validados por Zod (DTO)
+    req.body = resultado.data;
     next();
 };
 ```
 
 ### ¿Cómo funciona?
-1. **Selección de esquema y origen de datos (`switch`):** Evalúa el método HTTP (`req.method`). Para `POST`, `PUT` o `PATCH` selecciona su esquema correspondiente y valida `req.body`. Para `GET`, selecciona el esquema de filtros y cambia el origen a `req.query`. Cualquier otro método no contemplado pasa directo mediante `default: return next()`.
-2. **`schema.safeParse(datosAValidar)`:** Ejecuta la validación de Zod sin arrojar excepciones en tiempo de ejecución. Devuelve `{ success: true, data }` o `{ success: false, error }`.
-3. **Manejo del objeto `ZodError`:** Si falla (`!resultado.success`), extrae el primer problema de la lista `issues[0]`. Con `issue.path.join('.')` obtiene el nombre exacto del campo afectado y con `issue.message` su detalle, enviando un error 400 a través de `crearError`.
-4. **Sanitización y reemplazo:** Si la validación es exitosa, reemplaza `req.body` o `req.query` con `resultado.data` (datos limpios, tipados y desprovistos de campos no autorizados), transfiriendo un DTO confiable al controlador.
+1. **Blindaje ante `undefined` (`let datosAValidar = req.body ?? {}`):** Utiliza el operador de coalescencia nula para que si la petición no incluye body o se omite el header JSON en el cliente, Zod evalúe un objeto vacío `{}` y reporte todos los campos faltantes de forma limpia.
+2. **Selección de esquema (`switch`):** Asigna `crearProductoSchema` en `POST` o `actualizarProductoSchema` en `PUT`.
+3. **Validación segura (`safeParse`):** Evalúa el payload contra el esquema sin lanzar excepciones no controladas.
+4. **Acumulación de mensajes de error:** Si falla (`!resultado.success`), reúne todos los mensajes de los campos inválidos mediante `.issues.map(issue => issue.message).join(' | ')` y delega a `next(crearError(mensajeCompleto, 400))`.
+5. **Sanitización y generación del DTO:** En caso de éxito, sobrescribe `req.body = resultado.data`, garantizando al controlador datos tipados, limpios y transformados.
 
 ### Reglas declaradas en el esquema:
 
 | Campo | Tipo | Reglas |
 |---|---|---|
-| **`nombre`** | `string` | Obligatorio, se eliminan espacios (`.trim()`), no puede quedar vacío (`.min(1)`) |
-| **`descripcion`** | `string` | Opcional/nullable |
-| **`precio`** | `number` | Obligatorio, debe ser número positivo (> 0) |
-| **`stock`** | `number` | Opcional, entero no negativo ($\ge 0$) |
-| **`artesanoId`** | `number` | Obligatorio, ID entero positivo del artesano dueño del producto |
+| **`nombre`** | `string` | Obligatorio con mensaje personalizado, elimina espacios (`.trim()`), no vacío (`.min(1)`) |
+| **`descripcion`** | `string` | Opcional / nullable |
+| **`precio`** | `number` | Obligatorio con coerción (`z.coerce.number`), positivo (> 0) |
+| **`stock`** | `number` | Opcional, entero no negativo ($\ge 0$), valor por defecto `0` |
+| **`artesanoId`** | `number` | Obligatorio en POST (opcional en PUT), entero positivo referenciando al artesano |
 
 ### Uso en las rutas:
 ```javascript

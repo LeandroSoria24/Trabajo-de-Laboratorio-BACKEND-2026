@@ -392,39 +392,55 @@ const mensaje = `Error en '${campo}': ${issue.message}`;
 
 ### Paso 1: Definir los esquemas en `src/validators/producto.schemas.js`
 
-Los esquemas van en una carpeta separada (`validators/`) para mantenerlos independientes de Express:
+Los esquemas van en una carpeta separada (`validators/`) para mantenerlos independientes de Express, aprovechando la sintaxis moderna de **Zod 4**:
 
 ```javascript
 import { z } from "zod";
 
 export const crearProductoSchema = z.object({
-  nombre: z.string().trim().min(1),
+  nombre: z.string("El campo 'nombre' es obligatorio")
+    .trim()
+    .min(1, "El nombre no puede estar vacío"),
   descripcion: z.string().trim().min(1).optional().nullable(),
-  precio: z.number().positive(),
-  stock: z.number().int().nonnegative().optional(),
-  artesanoId: z.number().int().positive()
+  precio: z.coerce.number("El campo 'precio' es obligatorio")
+    .positive("El precio debe ser mayor a 0"),
+  stock: z.coerce.number().int().nonnegative().optional().default(0),
+  artesanoId: z.coerce.number("El 'artesanoId' es obligatorio para asociar el producto")
+    .int()
+    .positive()
 });
 
 export const actualizarProductoSchema = z.object({
-  nombre: z.string().trim().min(1),
+  nombre: z.string("El campo 'nombre' es obligatorio")
+    .trim()
+    .min(1, "El nombre no puede estar vacío"),
   descripcion: z.string().trim().min(1).optional().nullable(),
-  precio: z.number().positive(),
-  stock: z.number().int().nonnegative().optional(),
-  artesanoId: z.number().int().positive().optional()
+  precio: z.coerce.number("El campo 'precio' es obligatorio")
+    .positive("El precio debe ser mayor a 0"),
+  stock: z.coerce.number().int().nonnegative("El stock no puede ser negativo").optional(),
+  artesanoId: z.coerce.number("El 'artesanoId' debe ser un número válido")
+    .int()
+    .positive()
+    .optional()
+});
+
+export const FiltrarProductoPorIDSchema = z.object({
+  id: z.coerce.number("El ID debe ser un número")
+    .int("El ID debe ser un número entero")
+    .positive("El ID debe ser un número entero positivo")
 });
 ```
 
-### Paso 2: Crear el middleware en `src/middlewares/validaciones/validarProducto.js`
+### Paso 2: Crear los middlewares de validación
 
-El middleware conecta el esquema de Zod con el flujo de Express:
-
+#### A) Validación de cuerpo (`src/middlewares/validaciones/validarProducto.js`):
 ```javascript
 import { crearError } from "../../utils/crearError.js";
 import { crearProductoSchema, actualizarProductoSchema } from "../../validators/producto.schemas.js";
 
 export const validarProducto = (req, res, next) => {
     let schema;
-    let datosAValidar = req.body;
+    let datosAValidar = req.body ?? {};
 
     switch (req.method) {
         case 'POST':
@@ -433,13 +449,6 @@ export const validarProducto = (req, res, next) => {
         case 'PUT':
             schema = actualizarProductoSchema;
             break;
-        case 'PATCH':
-            schema = parchearProductoSchema;
-            break;
-        case 'GET':
-            schema = filtroProductoSchema;
-            datosAValidar = req.query; // En GET se validan query params
-            break;
         default:
             return next();
     }
@@ -447,17 +456,33 @@ export const validarProducto = (req, res, next) => {
     const resultado = schema.safeParse(datosAValidar);
 
     if (!resultado.success) {
-        const issue = resultado.error.issues[0];
-        const campo = issue.path.join('.') || 'datos';
-        return next(crearError(`Error en el campo '${campo}': ${issue.message}`, 400));
+        const mensajeCompleto = resultado.error.issues
+            .map(issue => issue.message)
+            .join(' | ');
+        return next(crearError(mensajeCompleto, 400));
     }
 
-    if (req.method === 'GET') {
-        req.query = resultado.data;
-    } else {
-        req.body = resultado.data;
-    }
+    req.body = resultado.data;
+    next();
+};
+```
 
+#### B) Validación de parámetros en URL (`src/middlewares/validaciones/validarId.js`):
+```javascript
+import { crearError } from "../../utils/crearError.js";
+import { FiltrarProductoPorIDSchema } from "../../validators/producto.schemas.js";
+
+export const validarId = (req, res, next) => {
+    const resultado = FiltrarProductoPorIDSchema.safeParse(req.params);
+      
+    if (!resultado.success) {
+        const mensajeCompleto = resultado.error.issues
+            .map(issue => issue.message)
+            .join(' | ');
+        return next(crearError(mensajeCompleto, 400));
+    }
+    
+    req.params.id = resultado.data.id;
     next();
 };
 ```
@@ -465,10 +490,14 @@ export const validarProducto = (req, res, next) => {
 ### Paso 3: Conectar en las rutas (`producto.routes.js`)
 
 ```javascript
+import { validarId } from '../middlewares/validaciones/validarId.js';
 import { validarProducto } from '../middlewares/validaciones/validarProducto.js';
 
+router.get('/:id', validarId, getProductoPorId);
 router.post('/', validarProducto, createProducto);
 router.put('/:id', validarId, validarProducto, updateProducto);
+router.delete('/:id', validarId, deleteProducto);
+router.patch('/:id', validarId, deleteProductoLogico);
 ```
 
 ### Paso 4: Transferir los datos como DTO al Servicio (`producto.controllers.js` y `producto.services.js`)
