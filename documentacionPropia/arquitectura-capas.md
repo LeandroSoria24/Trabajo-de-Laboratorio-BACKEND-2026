@@ -111,7 +111,7 @@ router.delete('/:id', validarId, deleteProducto);
 
 * **`logger.js`**: Mide con precisión milisegundos y status HTTP al completarse la respuesta (`res.on('finish')`).
 * **`validarId.js`**: Comprueba que el parámetro `:id` sea un entero positivo.
-* **`validarProducto.js`**: Ejecuta `safeParse(req.body)` con Zod. Si es válido, reemplaza `req.body = resultado.data` (DTO limpio).
+* **`validarProducto.js`**: Evalúa el método mediante un `switch` y ejecuta `safeParse(...)` con Zod sobre `req.body` o `req.query`. Si es válido, reemplaza los datos con `resultado.data` (DTO limpio).
 * **`rutaNoEncontrada.js`**: Captura URLs que no coincidan con ninguna ruta registrada y arroja 404.
 * **`manejoErrores.js`**: Middleware final de 4 parámetros `(err, req, res, next)` que estandariza las respuestas de error en formato JSON.
 
@@ -142,7 +142,7 @@ export const crearProductoSchema = z.object({
 * Invoca a la capa de servicios:
   ```javascript
   const crearProductoDto = req.body;
-  const nuevoProducto = await crearProductoService(crearProductoDto);
+  const nuevoProducto = await crearProducto(crearProductoDto);
   return res.status(201).json(nuevoProducto);
   ```
 * En caso de error, el bloque `try/catch` lo remite a `next(error)`.
@@ -154,15 +154,20 @@ export const crearProductoSchema = z.object({
 **Archivo:** `src/services/producto.services.js`  
 **Responsabilidad:** Contener la lógica de negocio y comunicarse directamente con Prisma Client.
 
-* **Desacoplado de Express:** No recibe `req`, `res` ni `next`. Trabaja únicamente con objetos planos (DTOs).
-* **Reglas de negocio:** Comprueba que el artesano exista antes de crear o asociar un producto:
+* **Desacoplado de Express:** No recibe `req`, `res` ni `next`. Trabaja únicamente con objetos planos (DTOs). Si ocurre un fallo de negocio, lanza excepciones mediante `throw crearError(...)` que el controlador captura en su bloque `catch`.
+* **Reglas de negocio y persistencia limpia:** Comprueba que las entidades existan antes de modificar o crear relaciones:
   ```javascript
   const artesano = await prisma.artesano.findUnique({ where: { id: artesanoId } });
   if (!artesano) {
       throw crearError("Artesano inexistente.", 400);
   }
-  return prisma.producto.create({ data: ... });
+  return prisma.producto.update({
+      where: { id },
+      data: { nombre, descripcion, precio, stock, artesanoId },
+      include: { artesano: true }
+  });
   ```
+* **Exportaciones directas:** Las funciones de servicio se exportan de forma nominal y directa (`crearProducto`, `actualizarProducto`), sin alias redundantes.
 
 ---
 

@@ -123,4 +123,64 @@ flowchart TD
     style HANDLER fill:#ef4444,stroke:#dc2626,color:#fff
 ```
 
+---
+
+## Flujo Completo de Actualización: `PUT /productos/:id`
+
+Este flujo describe paso a paso el recorrido desde el cliente hasta la persistencia y respuesta:
+
+```mermaid
+flowchart TD
+    A["1. app.js\napp.use('/productos', productoRoutes)"] --> B["2. producto.routes.js\nrouter.put('/:id', validarId, validarProducto, updateProducto)"]
+    B --> C["3. validarId.js\nValida que :id sea entero positivo"]
+    C --> D["4. validarProducto.js\nswitch(req.method) -> case 'PUT'\nactualizarProductoSchema.safeParse(req.body)"]
+    
+    D -->|"[Error] !resultado.success"| E["next(crearError(..., 400))"]
+    E --> F["manejoErrores.js\nres.status(400).json(...)"]
+    
+    D -->|"[OK] resultado.success"| G["req.body = resultado.data (DTO)\nnext()"]
+    G --> H["5. producto.controllers.js (updateProducto)\nconst id = Number(req.params.id)\nconst actualizarProductoDto = req.body"]
+    
+    H --> I["6. producto.services.js (actualizarProducto)\nactualizarProducto(id, actualizarProductoDto)"]
+    
+    I -->|"Paso 6.1"| J{"findUnique producto por id"}
+    J -->|"No existe"| K["throw crearError(..., 404)"]
+    K -.->|"catch en controller"| F
+    
+    J -->|"Existe"| L{"¿Se envió artesanoId?"}
+    L -->|"Sí y no existe artesano"| M["throw crearError('Artesano inexistente.', 400)"]
+    M -.->|"catch en controller"| F
+    
+    L -->|"Válido"| N["7. prisma.producto.update({\n  where: { id },\n  data: { nombre, descripcion, precio, stock, artesanoId },\n  include: { artesano: true }\n})"]
+    
+    N --> O[("PostgreSQL")]
+    O -->|"Actualiza y retorna el registro actualizado"| N
+    N -->|"Retorna productoActualizado"| I
+    I -->|"Retorna al controller"| H
+    H --> P["8. res.json(productoActualizado)\nCliente recibe 200 OK con el objeto"]
+
+    style A fill:#38bdf8,stroke:#0284c7,color:#000
+    style B fill:#a78bfa,stroke:#7c3aed,color:#000
+    style C fill:#34d399,stroke:#059669,color:#000
+    style D fill:#34d399,stroke:#059669,color:#000
+    style H fill:#fb923c,stroke:#ea580c,color:#000
+    style I fill:#f472b6,stroke:#db2777,color:#000
+    style N fill:#f87171,stroke:#dc2626,color:#fff
+    style O fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style F fill:#ef4444,stroke:#dc2626,color:#fff
+    style P fill:#4ade80,stroke:#16a34a,color:#000
+```
+
+### Detalle de las 8 etapas del flujo:
+1. **Entrada al servidor (`app.js`):** La petición HTTP `PUT /productos/:id` ingresa y es derivada al enrutador `productoRoutes`.
+2. **Definición de ruta y tubería (`producto.routes.js`):** Se encadenan los middlewares `validarId`, `validarProducto` y el controlador `updateProducto`.
+3. **Validación de identificador (`validarId.js`):** Comprueba que `:id` sea convertible a entero positivo.
+4. **Validación de datos con Zod (`validarProducto.js`):** Mediante un `switch`, selecciona `actualizarProductoSchema` y ejecuta `safeParse(req.body)`. Si falla, corta la ejecución con error 400. Si aprueba, almacena los datos limpios en `req.body` y continúa con `next()`.
+5. **Controlador (`updateProducto`):** Extrae los datos preparados (`id` numérico y `actualizarProductoDto`) y convoca a la capa de servicios mediante `await actualizarProducto(...)`.
+6. **Lógica de negocio (`producto.services.js`):**
+   - Comprueba la existencia previa del producto mediante `findUnique` (si no existe, lanza un error 404 con `throw crearError(...)`).
+   - Comprueba la validez de `artesanoId` si fue provisto (si no existe el artesano, lanza un error 400).
+7. **Persistencia con Prisma ORM (`prisma.producto.update`):** Envía el objeto de actualización con los campos correspondientes e incluye la relación `artesano: true`. PostgreSQL ejecuta la actualización y devuelve en una sola operación el registro modificado junto con los datos del artesano.
+8. **Respuesta al cliente:** El controlador recibe el objeto del producto actualizado y responde con `res.json(productoActualizado)` (código HTTP 200).
+
 

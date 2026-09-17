@@ -258,25 +258,51 @@ import { crearError } from "../../utils/crearError.js";
 import { crearProductoSchema, actualizarProductoSchema } from "../../validators/producto.schemas.js";
 
 export const validarProducto = (req, res, next) => {
-    const schema = req.method === 'PUT' ? actualizarProductoSchema : crearProductoSchema;
-    const resultado = schema.safeParse(req.body);
+    let schema;
+    let datosAValidar = req.body;
+
+    switch (req.method) {
+        case 'POST':
+            schema = crearProductoSchema;
+            break;
+        case 'PUT':
+            schema = actualizarProductoSchema;
+            break;
+        case 'PATCH':
+            schema = parchearProductoSchema;
+            break;
+        case 'GET':
+            schema = filtroProductoSchema;
+            datosAValidar = req.query; // En GET se validan los query params
+            break;
+        default:
+            return next();
+    }
+
+    const resultado = schema.safeParse(datosAValidar);
 
     if (!resultado.success) {
         const issue = resultado.error.issues[0];
-        const campo = issue.path.join('.') || 'body';
+        const campo = issue.path.join('.') || 'datos';
         return next(crearError(`Error en el campo '${campo}': ${issue.message}`, 400));
     }
 
-    req.body = resultado.data;
+    // Sobrescribimos con los datos ya parseados y casteados por Zod
+    if (req.method === 'GET') {
+        req.query = resultado.data;
+    } else {
+        req.body = resultado.data;
+    }
+
     next();
 };
 ```
 
 ### ¿Cómo funciona?
-1. **Selección de esquema:** Según `req.method`, elige `crearProductoSchema` (POST) o `actualizarProductoSchema` (PUT).
-2. **`schema.safeParse(req.body)`:** Valida el body sin lanzar excepciones. Devuelve `{ success: true, data }` o `{ success: false, error }`.
-3. **Si falla:** Extrae el primer `issue` de Zod, arma un mensaje descriptivo con el nombre del campo y lo envía como error 400 mediante `crearError`.
-4. **Si pasa:** Reemplaza `req.body` con `resultado.data`, que contiene los datos ya limpios (con `.trim()` aplicado y tipos convertidos). Esto garantiza que los controladores siempre reciban datos sanitizados.
+1. **Selección de esquema y origen de datos (`switch`):** Evalúa el método HTTP (`req.method`). Para `POST`, `PUT` o `PATCH` selecciona su esquema correspondiente y valida `req.body`. Para `GET`, selecciona el esquema de filtros y cambia el origen a `req.query`. Cualquier otro método no contemplado pasa directo mediante `default: return next()`.
+2. **`schema.safeParse(datosAValidar)`:** Ejecuta la validación de Zod sin arrojar excepciones en tiempo de ejecución. Devuelve `{ success: true, data }` o `{ success: false, error }`.
+3. **Manejo del objeto `ZodError`:** Si falla (`!resultado.success`), extrae el primer problema de la lista `issues[0]`. Con `issue.path.join('.')` obtiene el nombre exacto del campo afectado y con `issue.message` su detalle, enviando un error 400 a través de `crearError`.
+4. **Sanitización y reemplazo:** Si la validación es exitosa, reemplaza `req.body` o `req.query` con `resultado.data` (datos limpios, tipados y desprovistos de campos no autorizados), transfiriendo un DTO confiable al controlador.
 
 ### Reglas declaradas en el esquema:
 

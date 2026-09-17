@@ -58,17 +58,14 @@ export const actualizarProducto = async (id, actualizarProductoDto) => {
     return prisma.producto.update({
         where: { id },
         data: {
-            ...(nombre !== undefined ? { nombre } : {}),
-            ...(descripcion !== undefined ? { descripcion } : {}),
-            ...(precio !== undefined ? { precio: Number(precio) } : {}),
-            ...(stock !== undefined ? { stock: Number(stock) } : {}),
-            ...(artesanoId !== undefined ? { artesanoId } : {})
+            nombre,
+            descripcion,
+            precio,
+            stock,
+            artesanoId
         },
         include: {
             artesano: true
         }
-    });
+    }); // buenisimo porque esta actualizando y a la vez devolviendo datos para la respuesta .JSON
 };
-
-export const crearProductoService = crearProducto;
-export const actualizarProductoService = actualizarProducto;

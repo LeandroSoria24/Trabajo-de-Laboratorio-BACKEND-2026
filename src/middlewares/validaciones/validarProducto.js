@@ -5,43 +5,64 @@ import { crearProductoSchema, actualizarProductoSchema } from "../../validators/
  * Middleware para validar datos de productos en POST y PUT utilizando Zod.
  */
 export const validarProducto = (req, res, next) => {
-    const schema = req.method === 'PUT' ? actualizarProductoSchema : crearProductoSchema;
-    const resultado = schema.safeParse(req.body);
-
+    let schema;
+    let datosAValidar = req.body;
+    switch (req.method) {
+        case 'POST':
+            schema = crearProductoSchema;
+            break;
+        case 'PUT':
+            schema = actualizarProductoSchema;
+            break;
+        case 'PATCH':
+           /*  schema = parchearProductoSchema; */
+            break;
+        case 'GET':
+            /* schema = filtroProductoSchema;
+            datosAValidar = req.query; */     // En GET se validan los query params
+            break;
+        default:
+            return next();
+    }
+    const resultado = schema.safeParse(datosAValidar);
     if (!resultado.success) {
         const issue = resultado.error.issues[0];
-        const campo = issue.path.join('.') || 'body';
+        const campo = issue.path.join('.') || 'datos';
         return next(crearError(`Error en el campo '${campo}': ${issue.message}`, 400));
     }
 
-    req.body = resultado.data;
-    next();
-};
+    /* Retorna { success: true, data } si el dato es correcto.
+    Retorna { success: false, error } si el dato es incorrecto */
 
-export const validarCrearProducto = (req, res, next) => {
-    const resultado = crearProductoSchema.safeParse(req.body);
-
-    if (!resultado.success) {
-        const issue = resultado.error.issues[0];
-        const campo = issue.path.join('.') || 'body';
-        return next(crearError(`Error en el campo '${campo}': ${issue.message}`, 400));
+    /* Estructura de .error en zod
+    {
+  "name": "ZodError",
+  "issues": [
+    {
+      "code": "invalid_type",
+      "expected": "string",
+      "received": "number",
+      "path": ["nombre(es un ejemplo"],
+      "message": "Expected string, received number"
+    },
+    {
+      "code": "too_small",
+      "minimum": 1,
+      "type": "number",
+      "inclusive": true,
+      "exact": false,
+      "path": ["precio(es un ejemplo)"],
+      "message": "El precio debe ser mayor a 0"
     }
+  ]
+} */
 
-    req.body = resultado.data;
-    next();
-};
-
-export const validarActualizarProducto = (req, res, next) => {
-    const resultado = actualizarProductoSchema.safeParse(req.body);
-
-    if (!resultado.success) {
-        const issue = resultado.error.issues[0];
-        const campo = issue.path.join('.') || 'body';
-        return next(crearError(`Error en el campo '${campo}': ${issue.message}`, 400));
+    // Sobrescribimos con los datos ya parseados y casteados por Zod
+    if (req.method === 'GET') {
+        req.query = resultado.data;
+    } else {
+        req.body = resultado.data;
     }
-
-    req.body = resultado.data;
     next();
 };
 
-export { crearProductoSchema, actualizarProductoSchema };

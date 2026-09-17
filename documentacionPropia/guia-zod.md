@@ -423,21 +423,41 @@ import { crearError } from "../../utils/crearError.js";
 import { crearProductoSchema, actualizarProductoSchema } from "../../validators/producto.schemas.js";
 
 export const validarProducto = (req, res, next) => {
-    // 1. Elegir esquema según el método HTTP
-    const schema = req.method === 'PUT' ? actualizarProductoSchema : crearProductoSchema;
+    let schema;
+    let datosAValidar = req.body;
 
-    // 2. Validar el body
-    const resultado = schema.safeParse(req.body);
+    switch (req.method) {
+        case 'POST':
+            schema = crearProductoSchema;
+            break;
+        case 'PUT':
+            schema = actualizarProductoSchema;
+            break;
+        case 'PATCH':
+            schema = parchearProductoSchema;
+            break;
+        case 'GET':
+            schema = filtroProductoSchema;
+            datosAValidar = req.query; // En GET se validan query params
+            break;
+        default:
+            return next();
+    }
 
-    // 3. Si falla, enviar error 400
+    const resultado = schema.safeParse(datosAValidar);
+
     if (!resultado.success) {
         const issue = resultado.error.issues[0];
-        const campo = issue.path.join('.') || 'body';
+        const campo = issue.path.join('.') || 'datos';
         return next(crearError(`Error en el campo '${campo}': ${issue.message}`, 400));
     }
 
-    // 4. Si pasa, reemplazar req.body con los datos limpios (DTO)
-    req.body = resultado.data;
+    if (req.method === 'GET') {
+        req.query = resultado.data;
+    } else {
+        req.body = resultado.data;
+    }
+
     next();
 };
 ```
@@ -460,7 +480,7 @@ Como el middleware ya sanitizó y validó los datos en `req.body`, el controlado
 export const createProducto = async (req, res, next) => {
     try {
         const crearProductoDto = req.body; // DTO validado por Zod
-        const nuevoProducto = await crearProductoService(crearProductoDto);
+        const nuevoProducto = await crearProducto(crearProductoDto);
         return res.status(201).json(nuevoProducto);
     } catch (error) {
         return next(error);

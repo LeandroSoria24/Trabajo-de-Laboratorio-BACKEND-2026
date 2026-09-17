@@ -1,8 +1,8 @@
 import { crearError } from '../utils/crearError.js';
 import prisma from '../config/prisma.js';
 import {
-    crearProducto as crearProductoService,
-    actualizarProducto as actualizarProductoService
+    crearProducto,
+    actualizarProducto
 } from '../services/producto.services.js';
 
 // GETTERS
@@ -87,7 +87,7 @@ export const createProducto = async (req, res, next) => {
     try {
         // req.body ya contiene los datos validados por el middleware Zod (DTO)
         const crearProductoDto = req.body;
-        const nuevoProducto = await crearProductoService(crearProductoDto);
+        const nuevoProducto = await crearProducto(crearProductoDto);
         return res.status(201).json(nuevoProducto);
     } catch (error) {
         return next(error);
@@ -99,7 +99,7 @@ export const updateProducto = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
         const actualizarProductoDto = req.body;
-        const productoActualizado = await actualizarProductoService(id, actualizarProductoDto);
+        const productoActualizado = await actualizarProducto(id, actualizarProductoDto);
         return res.json(productoActualizado);
     } catch (error) {
         return next(error);
