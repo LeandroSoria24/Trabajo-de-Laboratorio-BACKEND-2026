@@ -1,4 +1,4 @@
-export const logger = (req, res, next) => {
+export const logger = (req, res, next) => { /* 🟩 */
     const start = Date.now();
 
     res.on('finish', () => { /* res.on() sirve para "quedarse escuchando" y avisarte cuando

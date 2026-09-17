@@ -4,7 +4,7 @@ import { crearProductoSchema, actualizarProductoSchema, } from "../../validators
 
 
 
-export const validarProducto = (req, res, next) => {
+export const validarProducto = (req, res, next) => {  /* 🟩 */
     let schema;
     let datosAValidar = req.body ?? {};
     switch (req.method) {

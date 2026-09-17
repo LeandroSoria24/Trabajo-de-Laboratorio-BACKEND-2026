@@ -13,12 +13,12 @@ import { validarProducto } from '../middlewares/validaciones/validarProducto.js'
 
 const router = Router();
 
-router.get('/', getProductos);
-router.get('/filtrados', getProductosFiltrados);
-router.get('/:id', validarId, getProductoPorId);
-router.post('/', validarProducto, createProducto);
-router.put('/:id', validarId, validarProducto, updateProducto);
-router.delete('/:id', validarId, deleteProducto);
-router.patch('/:id', validarId, deleteProductoLogico);
+router.get('/', getProductos);/* 🟥 */
+router.get('/filtrados', getProductosFiltrados);/* 🟥 */
+router.get('/:id', validarId, getProductoPorId);/* 🟩 */
+router.post('/', validarProducto, createProducto);/* 🟩 */
+router.put('/:id', validarId, validarProducto, updateProducto);/* 🟩 */
+router.delete('/:id', validarId, deleteProducto);/* 🟩 */
+router.patch('/:id', validarId, deleteProductoLogico);/* 🟩 */
 
 export default router;

@@ -9,7 +9,7 @@ import {
 } from '../services/producto.services.js';
 
 // GETTERS
-export const getProductos = async (req, res, next) => {
+export const getProductos = async (req, res, next) => {  /* 🟥 */
     try {
         const productos = await prisma.producto.findMany({ // hay que agregar la logica de servicios 
             include: {
@@ -31,7 +31,7 @@ export const getProductos = async (req, res, next) => {
     }
 };
 
-export const getProductosFiltrados = async (req, res, next) => {
+export const getProductosFiltrados = async (req, res, next) => {  /* 🟥 */
     try {
         const nombreRecibido = req.query.nombre;
 

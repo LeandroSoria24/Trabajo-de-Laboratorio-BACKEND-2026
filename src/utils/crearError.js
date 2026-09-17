@@ -12,7 +12,7 @@
  *   stack: 'Error: Producto no encontrado\n    at crearError (...)\n    at ...' // Pila de llamadas para depurar
  * }
  */
-export const crearError = (mensaje, status = 500) => {
+export const crearError = (mensaje, status = 500) => { /* 🟩 */
     // El status debe ser un número entre 400 y 599. Si no, forzamos un 500 (Error de Servidor)
     const statusCode = (
         typeof status === 'number' && 

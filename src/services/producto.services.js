@@ -141,7 +141,7 @@ export const eliminarProducto = async (id) => {
     return producto;
 };
 
-/* servicio para eliminar un producto logicamente */
+/* servicio para eliminar un producto logicamente  🟩*/
 
 export const deleteLogico = async (id) => {
         const producto = await prisma.producto.findUnique({

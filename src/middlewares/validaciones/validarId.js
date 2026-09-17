@@ -1,7 +1,7 @@
 import { crearError } from "../../utils/crearError.js";
 import { FiltrarProductoPorIDSchema } from "../../validators/producto.schemas.js";
 
-export const validarId = (req, res, next) => {
+export const validarId = (req, res, next) => {  /* 🟩 */
       const resultado = FiltrarProductoPorIDSchema.safeParse(req.params);
       
       if (!resultado.success) {
@@ -17,7 +17,7 @@ export const validarId = (req, res, next) => {
   id: z.coerce.number("El ID debe ser un número")
     .int("El ID debe ser un número entero")
     .positive("El ID debe ser un número entero positivo")
-}); 🟩
+}); 
  */
     next();
 }
