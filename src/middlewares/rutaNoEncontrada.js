@@ -9,5 +9,12 @@ export const rutaNoEncontrada = (req, res, next) => {
     // Al pasarle un objeto Error a next(), Express salta directamente
     // al middleware global de manejo de errores (manejoErrores.js)
     next(crearError(`Ruta no encontrada: ${req.method} ${req.originalUrl}`, 404));
+
+    if(!resultado.success){
+        const detalles = detallarErroresZod(resultado.error);
+        return next(crearError('Los datos del libro son invalidos', 400, detalles));
+    }
 };
+
+
 

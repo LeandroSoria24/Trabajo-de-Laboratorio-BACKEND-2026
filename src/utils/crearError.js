@@ -28,4 +28,12 @@ export const crearError = (mensaje, status = 500) => {
     const error = new Error(message);
     error.status = statusCode;
     return error;
+
+
 };
+
+    export const detallarErroresZod = (errorZod) => {
+        errorZod.issues.map((issue) => ({
+            campo: issue.path.join("_") || null, 
+        }))    
+    }

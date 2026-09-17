@@ -1,3 +1,5 @@
+import { crearError, detallarErroresZod } from "../utils/crearError";
+
 export const logger = (req, res, next) => {
     const start = Date.now();
 
@@ -8,4 +10,9 @@ export const logger = (req, res, next) => {
     }); // importante poner originalUrl, asi no se recorte la peticion
 
     next();
+
+    if(!resultado.success){
+        const detalles = detallarErroresZod(resultado.error);
+        return next(crearError('Los datos del libro son invalidos', 400, detalles));
+    }
 };
