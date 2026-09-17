@@ -4,7 +4,7 @@ import { crearError } from '../utils/crearError.js';
 /**
  * Servicio para la creación de un producto.
  * Recibe el DTO (los datos validados por Zod desde req.body),
- * comprueba la regla de negocio (que el artesano exista) y persiste con Prisma.
+ * comprueba la regla de negocio (que el artesano exista) y persiste con Prisma. 🟩
  */
 export const crearProducto = async (crearProductoDto) => {
     const { nombre, descripcion, precio, stock, artesanoId } = crearProductoDto;
@@ -34,7 +34,7 @@ export const crearProducto = async (crearProductoDto) => {
 /**
  * Servicio para la actualización de un producto.
  * Recibe el id y el DTO con los datos a actualizar.
- * Comprueba que el producto exista y que el artesano sea válido si se envía.
+ * Comprueba que el producto exista y que el artesano sea válido si se envía. 🟩
  */
 export const actualizarProducto = async (id, actualizarProductoDto) => {
     const producto = await prisma.producto.findUnique({
@@ -72,7 +72,7 @@ export const actualizarProducto = async (id, actualizarProductoDto) => {
 
 /**
  * Servicio para obtener la lista de productos.
- * Recibe el DTO con los parámetros de consulta (paginación y filtros).
+ * Recibe el DTO con los parámetros de consulta (paginación y filtros). 🟥
  */
 export const obtenerProductos = async (obtenerProductosDto) => {
     const { page, limit, nombre } = obtenerProductosDto;
@@ -104,7 +104,7 @@ export const obtenerProductos = async (obtenerProductosDto) => {
 
 /**
  * Servicio para obtener un producto específico por su ID.
- * Recibe el ID validado y lanza un error si no existe.
+ * Recibe el ID validado y lanza un error si no existe. 🟩
  */
 export const obtenerProductoPorId = async (id) => {
     const producto = await prisma.producto.findUnique({
@@ -121,7 +121,7 @@ export const obtenerProductoPorId = async (id) => {
 
 /**
  * Servicio para eliminar un producto por su ID.
- * Comprueba que el producto exista antes de eliminarlo.
+ * Comprueba que el producto exista antes de eliminarlo. 🟩
  */
 export const eliminarProducto = async (id) => {
     // Primero verificar que el producto exista

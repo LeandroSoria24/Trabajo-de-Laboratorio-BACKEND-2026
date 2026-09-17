@@ -2,7 +2,9 @@ import { crearError } from '../utils/crearError.js';
 import prisma from '../config/prisma.js';
 import {
     crearProducto,
-    actualizarProducto
+    actualizarProducto,
+    obtenerProductoPorId ,
+    eliminarProducto
 } from '../services/producto.services.js';
 
 // GETTERS
@@ -61,20 +63,11 @@ export const getProductosFiltrados = async (req, res, next) => {
     }
 };
 
+//GET POR ID 🟩-- 
 export const getProductoPorId = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
-        const producto = await prisma.producto.findUnique({ // hay que agregar la logica de servicios 
-            where: { id },
-            include: {
-                artesano: true
-            }
-        });
-
-        if (!producto) {
-            return next(crearError(`No existe un producto con id ${id}`, 404));
-        }
-
+        const producto = await obtenerProductoPorId(id)
         res.json(producto);
     }
     catch (error) {
@@ -82,7 +75,7 @@ export const getProductoPorId = async (req, res, next) => {
     }
 };
 
-// POST
+// POST 🟩-- 
 export const createProducto = async (req, res, next) => {
     try {
         // req.body ya contiene los datos validados por el middleware Zod (DTO)
@@ -94,7 +87,7 @@ export const createProducto = async (req, res, next) => {
     }
 };
 
-// PUT
+// PUT 🟩-- 
 export const updateProducto = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -106,18 +99,13 @@ export const updateProducto = async (req, res, next) => {
     }
 };
 
-// DELETE
+// DELETE  🟩-- 
 export const deleteProducto = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
+        await eliminarProducto(id) 
 
-        const existeProducto = await prisma.producto.findUnique({ where: { id } });
-        if (!existeProducto) {
-            return next(crearError(`No existe un producto con id ${id}`, 404));
-        }
-
-        await prisma.producto.delete({ where: { id } });
-        res.status(204).send();
+        res.status(200).send("Producto eliminado exitosamente");
     } catch (error) {
         next(error);
     }
