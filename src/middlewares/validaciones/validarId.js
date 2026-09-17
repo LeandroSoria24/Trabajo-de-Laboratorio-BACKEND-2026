@@ -1,8 +1,8 @@
 import { crearError } from "../../utils/crearError.js";
-import { eliminarProductoSchema } from "../../validators/producto.schemas.js";
+import { FiltrarProductoPorIDSchema } from "../../validators/producto.schemas.js";
 
 export const validarId = (req, res, next) => {
-      const resultado = eliminarProductoSchema.safeParse(req.params);
+      const resultado = FiltrarProductoPorIDSchema.safeParse(req.params);
       
       if (!resultado.success) {
          const mensajeCompleto = resultado.error.issues
@@ -13,7 +13,7 @@ export const validarId = (req, res, next) => {
     
     req.params.id = resultado.data.id
 
-/*  export const eliminarProductoSchema = z.object({
+/*  export const FiltrarProductoPorIDSchema = z.object({
   id: z.coerce.number("El ID debe ser un número")
     .int("El ID debe ser un número entero")
     .positive("El ID debe ser un número entero positivo")

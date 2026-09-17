@@ -1,12 +1,6 @@
 import { z } from "zod";
 
-/**
- * Esquema de validación para obtener un producto por ID (GET /productos/:id) 🟩
- * Valida los parámetros de la ruta (req.params)
- */
-export const obtenerProductoPorIdSchema = z.object({
-  id: z.coerce.number().int().positive("El ID debe ser un número entero positivo")
-});
+
 
 /**
  * Esquema de validación para crear un producto (POST /productos) 🟩
@@ -42,10 +36,11 @@ export const actualizarProductoSchema = z.object({
 });
 
 /**
- * Esquema de validación para eliminar un producto (DELETE /productos/:id) 🟩
+ * Esquema de validación para eliminar un producto (DELETE /productos/:id)
+ * y para validar que exista un producto por ID (GET /productos/:id) 🟩
  * Valida el ID en los parámetros de ruta (req.params) 
  */
-export const eliminarProductoSchema = z.object({
+export const FiltrarProductoPorIDSchema = z.object({
   id: z.coerce.number("El ID debe ser un número")
     .int("El ID debe ser un número entero")
     .positive("El ID debe ser un número entero positivo")
