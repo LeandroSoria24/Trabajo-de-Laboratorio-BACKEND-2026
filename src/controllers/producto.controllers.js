@@ -4,7 +4,8 @@ import {
     crearProducto,
     actualizarProducto,
     obtenerProductoPorId ,
-    eliminarProducto
+    eliminarProducto,
+    deleteLogico
 } from '../services/producto.services.js';
 
 // GETTERS
@@ -110,3 +111,14 @@ export const deleteProducto = async (req, res, next) => {
         next(error);
     }
 };
+
+/* DELETE LOGICO  🟩*/
+export const deleteProductoLogico= async (req, res,next)=>{
+    try{
+        const id = Number(req.params.id);
+        await deleteLogico(id)
+        res.status(200).json({ message: "Producto eliminado logicamente" });
+    }catch (error){
+        next(error)
+    }
+}

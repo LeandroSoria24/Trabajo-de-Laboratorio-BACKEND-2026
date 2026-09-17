@@ -47,6 +47,7 @@ export type ProductoMinAggregateOutputType = {
   precio: number | null
   stock: number | null
   artesanoId: number | null
+  eliminado: boolean | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -58,6 +59,7 @@ export type ProductoMaxAggregateOutputType = {
   precio: number | null
   stock: number | null
   artesanoId: number | null
+  eliminado: boolean | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -69,6 +71,7 @@ export type ProductoCountAggregateOutputType = {
   precio: number
   stock: number
   artesanoId: number
+  eliminado: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -96,6 +99,7 @@ export type ProductoMinAggregateInputType = {
   precio?: true
   stock?: true
   artesanoId?: true
+  eliminado?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -107,6 +111,7 @@ export type ProductoMaxAggregateInputType = {
   precio?: true
   stock?: true
   artesanoId?: true
+  eliminado?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -118,6 +123,7 @@ export type ProductoCountAggregateInputType = {
   precio?: true
   stock?: true
   artesanoId?: true
+  eliminado?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -216,6 +222,7 @@ export type ProductoGroupByOutputType = {
   precio: number
   stock: number
   artesanoId: number
+  eliminado: boolean
   createdAt: Date
   updatedAt: Date
   _count: ProductoCountAggregateOutputType | null
@@ -250,6 +257,7 @@ export type ProductoWhereInput = {
   precio?: Prisma.FloatFilter<"Producto"> | number
   stock?: Prisma.IntFilter<"Producto"> | number
   artesanoId?: Prisma.IntFilter<"Producto"> | number
+  eliminado?: Prisma.BoolFilter<"Producto"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Producto"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Producto"> | Date | string
   artesano?: Prisma.XOR<Prisma.ArtesanoScalarRelationFilter, Prisma.ArtesanoWhereInput>
@@ -262,6 +270,7 @@ export type ProductoOrderByWithRelationInput = {
   precio?: Prisma.SortOrder
   stock?: Prisma.SortOrder
   artesanoId?: Prisma.SortOrder
+  eliminado?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   artesano?: Prisma.ArtesanoOrderByWithRelationInput
@@ -277,6 +286,7 @@ export type ProductoWhereUniqueInput = Prisma.AtLeast<{
   precio?: Prisma.FloatFilter<"Producto"> | number
   stock?: Prisma.IntFilter<"Producto"> | number
   artesanoId?: Prisma.IntFilter<"Producto"> | number
+  eliminado?: Prisma.BoolFilter<"Producto"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Producto"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Producto"> | Date | string
   artesano?: Prisma.XOR<Prisma.ArtesanoScalarRelationFilter, Prisma.ArtesanoWhereInput>
@@ -289,6 +299,7 @@ export type ProductoOrderByWithAggregationInput = {
   precio?: Prisma.SortOrder
   stock?: Prisma.SortOrder
   artesanoId?: Prisma.SortOrder
+  eliminado?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.ProductoCountOrderByAggregateInput
@@ -308,6 +319,7 @@ export type ProductoScalarWhereWithAggregatesInput = {
   precio?: Prisma.FloatWithAggregatesFilter<"Producto"> | number
   stock?: Prisma.IntWithAggregatesFilter<"Producto"> | number
   artesanoId?: Prisma.IntWithAggregatesFilter<"Producto"> | number
+  eliminado?: Prisma.BoolWithAggregatesFilter<"Producto"> | boolean
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Producto"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Producto"> | Date | string
 }
@@ -317,6 +329,7 @@ export type ProductoCreateInput = {
   descripcion?: string | null
   precio: number
   stock?: number
+  eliminado?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
   artesano: Prisma.ArtesanoCreateNestedOneWithoutProductosInput
@@ -329,6 +342,7 @@ export type ProductoUncheckedCreateInput = {
   precio: number
   stock?: number
   artesanoId: number
+  eliminado?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -338,6 +352,7 @@ export type ProductoUpdateInput = {
   descripcion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   precio?: Prisma.FloatFieldUpdateOperationsInput | number
   stock?: Prisma.IntFieldUpdateOperationsInput | number
+  eliminado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   artesano?: Prisma.ArtesanoUpdateOneRequiredWithoutProductosNestedInput
@@ -350,6 +365,7 @@ export type ProductoUncheckedUpdateInput = {
   precio?: Prisma.FloatFieldUpdateOperationsInput | number
   stock?: Prisma.IntFieldUpdateOperationsInput | number
   artesanoId?: Prisma.IntFieldUpdateOperationsInput | number
+  eliminado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -361,6 +377,7 @@ export type ProductoCreateManyInput = {
   precio: number
   stock?: number
   artesanoId: number
+  eliminado?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -370,6 +387,7 @@ export type ProductoUpdateManyMutationInput = {
   descripcion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   precio?: Prisma.FloatFieldUpdateOperationsInput | number
   stock?: Prisma.IntFieldUpdateOperationsInput | number
+  eliminado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -381,6 +399,7 @@ export type ProductoUncheckedUpdateManyInput = {
   precio?: Prisma.FloatFieldUpdateOperationsInput | number
   stock?: Prisma.IntFieldUpdateOperationsInput | number
   artesanoId?: Prisma.IntFieldUpdateOperationsInput | number
+  eliminado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -402,6 +421,7 @@ export type ProductoCountOrderByAggregateInput = {
   precio?: Prisma.SortOrder
   stock?: Prisma.SortOrder
   artesanoId?: Prisma.SortOrder
+  eliminado?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -420,6 +440,7 @@ export type ProductoMaxOrderByAggregateInput = {
   precio?: Prisma.SortOrder
   stock?: Prisma.SortOrder
   artesanoId?: Prisma.SortOrder
+  eliminado?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -431,6 +452,7 @@ export type ProductoMinOrderByAggregateInput = {
   precio?: Prisma.SortOrder
   stock?: Prisma.SortOrder
   artesanoId?: Prisma.SortOrder
+  eliminado?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -492,11 +514,16 @@ export type FloatFieldUpdateOperationsInput = {
   divide?: number
 }
 
+export type BoolFieldUpdateOperationsInput = {
+  set?: boolean
+}
+
 export type ProductoCreateWithoutArtesanoInput = {
   nombre: string
   descripcion?: string | null
   precio: number
   stock?: number
+  eliminado?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -507,6 +534,7 @@ export type ProductoUncheckedCreateWithoutArtesanoInput = {
   descripcion?: string | null
   precio: number
   stock?: number
+  eliminado?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -547,6 +575,7 @@ export type ProductoScalarWhereInput = {
   precio?: Prisma.FloatFilter<"Producto"> | number
   stock?: Prisma.IntFilter<"Producto"> | number
   artesanoId?: Prisma.IntFilter<"Producto"> | number
+  eliminado?: Prisma.BoolFilter<"Producto"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Producto"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Producto"> | Date | string
 }
@@ -557,6 +586,7 @@ export type ProductoCreateManyArtesanoInput = {
   descripcion?: string | null
   precio: number
   stock?: number
+  eliminado?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -566,6 +596,7 @@ export type ProductoUpdateWithoutArtesanoInput = {
   descripcion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   precio?: Prisma.FloatFieldUpdateOperationsInput | number
   stock?: Prisma.IntFieldUpdateOperationsInput | number
+  eliminado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -576,6 +607,7 @@ export type ProductoUncheckedUpdateWithoutArtesanoInput = {
   descripcion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   precio?: Prisma.FloatFieldUpdateOperationsInput | number
   stock?: Prisma.IntFieldUpdateOperationsInput | number
+  eliminado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -586,6 +618,7 @@ export type ProductoUncheckedUpdateManyWithoutArtesanoInput = {
   descripcion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   precio?: Prisma.FloatFieldUpdateOperationsInput | number
   stock?: Prisma.IntFieldUpdateOperationsInput | number
+  eliminado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -599,6 +632,7 @@ export type ProductoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   precio?: boolean
   stock?: boolean
   artesanoId?: boolean
+  eliminado?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   artesano?: boolean | Prisma.ArtesanoDefaultArgs<ExtArgs>
@@ -611,6 +645,7 @@ export type ProductoSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   precio?: boolean
   stock?: boolean
   artesanoId?: boolean
+  eliminado?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   artesano?: boolean | Prisma.ArtesanoDefaultArgs<ExtArgs>
@@ -623,6 +658,7 @@ export type ProductoSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   precio?: boolean
   stock?: boolean
   artesanoId?: boolean
+  eliminado?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   artesano?: boolean | Prisma.ArtesanoDefaultArgs<ExtArgs>
@@ -635,11 +671,12 @@ export type ProductoSelectScalar = {
   precio?: boolean
   stock?: boolean
   artesanoId?: boolean
+  eliminado?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type ProductoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "nombre" | "descripcion" | "precio" | "stock" | "artesanoId" | "createdAt" | "updatedAt", ExtArgs["result"]["producto"]>
+export type ProductoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "nombre" | "descripcion" | "precio" | "stock" | "artesanoId" | "eliminado" | "createdAt" | "updatedAt", ExtArgs["result"]["producto"]>
 export type ProductoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   artesano?: boolean | Prisma.ArtesanoDefaultArgs<ExtArgs>
 }
@@ -662,6 +699,7 @@ export type $ProductoPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     precio: number
     stock: number
     artesanoId: number
+    eliminado: boolean
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["producto"]>
@@ -1094,6 +1132,7 @@ export interface ProductoFieldRefs {
   readonly precio: Prisma.FieldRef<"Producto", 'Float'>
   readonly stock: Prisma.FieldRef<"Producto", 'Int'>
   readonly artesanoId: Prisma.FieldRef<"Producto", 'Int'>
+  readonly eliminado: Prisma.FieldRef<"Producto", 'Boolean'>
   readonly createdAt: Prisma.FieldRef<"Producto", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Producto", 'DateTime'>
 }

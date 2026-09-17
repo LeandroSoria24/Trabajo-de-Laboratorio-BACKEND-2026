@@ -5,7 +5,8 @@ import {
     getProductoPorId,
     createProducto,
     updateProducto,
-    deleteProducto
+    deleteProducto,
+    deleteProductoLogico
 } from '../controllers/producto.controllers.js';
 import { validarId } from '../middlewares/validaciones/validarId.js';
 import { validarProducto } from '../middlewares/validaciones/validarProducto.js';
@@ -18,5 +19,6 @@ router.get('/:id', validarId, getProductoPorId);
 router.post('/', validarProducto, createProducto);
 router.put('/:id', validarId, validarProducto, updateProducto);
 router.delete('/:id', validarId, deleteProducto);
+router.patch('/:id', validarId, deleteProductoLogico);
 
 export default router;

@@ -140,3 +140,23 @@ export const eliminarProducto = async (id) => {
 
     return producto;
 };
+
+/* servicio para eliminar un producto logicamente */
+
+export const deleteLogico = async (id) => {
+        const producto = await prisma.producto.findUnique({
+        where: { id }
+    });
+    if (!producto) {
+        throw crearError(`No existe un producto con id ${id}`, 404);
+    }
+
+    return prisma.producto.update({
+        where: { id },
+        data: {
+            eliminado: true
+        }
+    });
+
+}
+
