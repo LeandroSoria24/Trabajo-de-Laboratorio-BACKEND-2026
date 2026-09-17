@@ -2,6 +2,10 @@ import { z } from "zod";
 
 
 
+
+
+
+
 /**
  * Esquema de validación para crear un producto (POST /productos) 🟩
  */

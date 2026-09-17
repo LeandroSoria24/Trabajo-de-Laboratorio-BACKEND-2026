@@ -46,7 +46,7 @@ export const validarProducto = (req, res, next) => {  /* 🟩 */
 
     const resultado = schema.safeParse(datosAValidar);
 
-    if (!resultado.success) {
+    if (!resultado.success) { /* modificar utils para no tener que programar esto dos veces 🟥*/
         const mensajeCompleto = resultado.error.issues
             .map(issue => issue.message)
             .join(' | ');
