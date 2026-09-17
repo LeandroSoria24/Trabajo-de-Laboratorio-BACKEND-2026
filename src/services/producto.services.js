@@ -69,3 +69,74 @@ export const actualizarProducto = async (id, actualizarProductoDto) => {
         }
     }); // buenisimo porque esta actualizando y a la vez devolviendo datos para la respuesta .JSON
 };
+
+/**
+ * Servicio para obtener la lista de productos.
+ * Recibe el DTO con los parámetros de consulta (paginación y filtros).
+ */
+export const obtenerProductos = async (obtenerProductosDto) => {
+    const { page, limit, nombre } = obtenerProductosDto;
+    
+    // Cálculo para la paginación de Prisma
+    const skip = (page - 1) * limit;
+    
+    // Filtro dinámico: si viene un nombre, busca coincidencias
+    const where = nombre ? { nombre: { contains: nombre } } : {};
+
+    // Ejecuta el conteo total y la búsqueda de forma concurrente
+    const [total, productos] = await prisma.$transaction([
+        prisma.producto.count({ where }),
+        prisma.producto.findMany({
+            where,
+            skip,
+            take: limit,
+            include: { artesano: true }
+        })
+    ]);
+
+    return {
+        total,
+        page,
+        limit,
+        productos
+    };
+};
+
+/**
+ * Servicio para obtener un producto específico por su ID.
+ * Recibe el ID validado y lanza un error si no existe.
+ */
+export const obtenerProductoPorId = async (id) => {
+    const producto = await prisma.producto.findUnique({
+        where: { id },
+        include: { artesano: true }
+    });
+
+    if (!producto) {
+        throw crearError(`No existe un producto con id ${id}`, 404);
+    }
+
+    return producto;
+};
+
+/**
+ * Servicio para eliminar un producto por su ID.
+ * Comprueba que el producto exista antes de eliminarlo.
+ */
+export const eliminarProducto = async (id) => {
+    // Primero verificar que el producto exista
+    const producto = await prisma.producto.findUnique({
+        where: { id }
+    });
+    
+    if (!producto) {
+        throw crearError(`No existe un producto con id ${id}`, 404);
+    }
+
+
+    await prisma.producto.delete({ // Para eliminar un producto se va anecesitar su id
+        where: { id }
+    });
+
+    return producto;
+};
