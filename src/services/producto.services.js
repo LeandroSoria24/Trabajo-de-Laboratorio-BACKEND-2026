@@ -23,7 +23,8 @@ export const crearProducto = async (crearProductoDto) => {
             descripcion: descripcion ?? null,
             precio: Number(precio),
             stock: stock !== undefined ? Number(stock) : 0,
-            artesanoId
+            artesanoId,
+            eliminado: false
         },
         include: {
             artesano: true

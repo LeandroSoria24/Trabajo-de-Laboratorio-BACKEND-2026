@@ -17,6 +17,11 @@ export const crearProductoSchema = z.object({
   precio: z.coerce.number("El campo 'precio' es obligatorio")
     .positive("El precio debe ser mayor a 0"),
   stock: z.coerce.number().int().nonnegative().optional().default(0),
+  eliminado: z.preprocess(val => {
+    if (val === 'true') return true;
+    if (val === 'false') return false;
+    return val;
+  }, z.boolean().optional()).default(false),
   artesanoId: z.coerce.number("El 'artesanoId' es obligatorio para asociar el producto")
     .int()
     .positive()
@@ -33,6 +38,11 @@ export const actualizarProductoSchema = z.object({
   precio: z.coerce.number("El campo 'precio' es obligatorio")
     .positive("El precio debe ser mayor a 0"),
   stock: z.coerce.number().int().nonnegative("El stock no puede ser negativo").optional(),
+  eliminado: z.preprocess(val => {
+    if (val === 'true') return true;
+    if (val === 'false') return false;
+    return val;
+  }, z.boolean().optional()).default(false),
   artesanoId: z.coerce.number("El 'artesanoId' debe ser un número válido")
     .int()
     .positive()
