@@ -53,10 +53,23 @@ export const FiltrarProductoPorIDSchema = z.object({
 
 /**
  * Esquema de validación para listar productos (GET /productos)
- * Valida los parámetros de consulta (req.query) para paginación y filtros 🟥
+ * Valida los parámetros de consulta (req.query) para paginación y filtros 🟩
  */
 export const obtenerProductosSchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(100).default(10),
-  nombre: z.string().trim().optional()
+  id: z.coerce.number().int().positive().optional(),
+  nombre: z.string().trim().min(1).optional(),
+  descripcion: z.string().trim().min(1).optional().nullable(),
+  precio: z.coerce.number().positive().optional(),
+  stock: z.coerce.number().int().nonnegative().optional(),
+  artesanoId: z.coerce.number().int().positive().optional(),
+  eliminado: z.preprocess(val => {
+    if (val === 'true') return true;
+    if (val === 'false') return false;
+    return val;
+  }, z.boolean().optional()),
+  ordenarPor: z.enum(["id", "nombre", "precio", "stock", "artesanoId"]).default("nombre"),
+  direccion: z.enum(["asc", "desc"]).default("asc"),
+  pagina: z.coerce.number().int().positive().default(1),
+  limite: z.coerce.number().int().min(1).max(50).default(10)
 });
+

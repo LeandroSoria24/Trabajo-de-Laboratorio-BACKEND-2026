@@ -72,33 +72,81 @@ export const actualizarProducto = async (id, actualizarProductoDto) => {
 
 /**
  * Servicio para obtener la lista de productos.
- * Recibe el DTO con los parámetros de consulta (paginación y filtros). 🟥
+ * Recibe el DTO con los parámetros de consulta (paginación y filtros). 🟩
  */
-export const obtenerProductos = async (obtenerProductosDto) => {
-    const { page, limit, nombre } = obtenerProductosDto;
+export const obtenerProductos = async (criterios = {}) => {
+    const { 
+        id,
+        nombre,
+        descripcion,
+        precio,
+        stock,
+        artesanoId,
+        eliminado,
+
+
+        ordenarPor = 'nombre',
+        direccion = 'asc',
+        pagina = 1,
+        limite = 10
+
+
+    } = criterios;
+    
+    const where = {};
+
+    if (id !== undefined) {
+        where.id = id;
+    }
+
+    if (nombre !== undefined) {
+        where.nombre = { contains: nombre, mode: 'insensitive' };
+    }
+
+    if (descripcion !== undefined) {
+        where.descripcion = { contains: descripcion, mode: 'insensitive' };
+    }
+
+    if (precio !== undefined) {
+        where.precio = precio;
+    }
+
+    if (stock !== undefined) {
+        where.stock = stock;
+    }
+
+    if (artesanoId !== undefined) {
+        where.artesanoId = artesanoId;
+    }
+
+    if (eliminado !== undefined) {
+        where.eliminado = eliminado;
+    }
     
     // Cálculo para la paginación de Prisma
-    const skip = (page - 1) * limit;
-    
-    // Filtro dinámico: si viene un nombre, busca coincidencias
-    const where = nombre ? { nombre: { contains: nombre } } : {};
+    const desplazamiento = (pagina - 1) * limite;
 
-    // Ejecuta el conteo total y la búsqueda de forma concurrente
-    const [total, productos] = await prisma.$transaction([
-        prisma.producto.count({ where }),
+    const [productos, total] = await prisma.$transaction([
         prisma.producto.findMany({
             where,
-            skip,
-            take: limit,
+            orderBy: [{ [ordenarPor]: direccion }, { id: 'asc' }],
+            skip: desplazamiento,
+            take: limite,
             include: { artesano: true }
+        }),
+        prisma.producto.count({
+            where
         })
     ]);
 
     return {
-        total,
-        page,
-        limit,
-        productos
+        productos,
+        paginacion: {
+            pagina,
+            limite,
+            total,
+            totalPaginas: Math.ceil(total / limite)
+        }
     };
 };
 
