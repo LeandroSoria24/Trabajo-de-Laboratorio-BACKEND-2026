@@ -77,9 +77,13 @@ flowchart TD
 | Middleware / Utilidad | Tipo | Responsabilidad Principal |
 |---|---|---|
 | **`logger`** | Informativo | Cronometra y registra en consola el resultado final de cada petición. |
-| **`crearError`** | Utilidad (`utils`) | Estandariza la creación de objetos `Error` adjuntando un `status` HTTP. |
+| **`validarId`** | Middleware Zod | Valida y sanitiza parámetros de ruta (`:id`) transformándolos a `Number`. |
+| **`validarQuerys`** | Middleware Zod | Valida filtros, orden y paginación en `req.query` (`obtenerProductosSchema`). |
+| **`validarProducto`** | Middleware Zod | Valida payloads en `POST` y `PUT` generando DTOs limpios en `req.body`. |
+| **`ErroresZod`** | Utilidad (`utils`) | Transforma `issues` de Zod 4 en un array estructurado `[{ path, message }]`. |
+| **`crearError`** | Utilidad (`utils`) | Estandariza objetos `Error` adjuntando `status` HTTP y `details` opcionales. |
 | **`rutaNoEncontrada`** | Middleware 404 | Intercepta peticiones huérfanas y delega un error 404 mediante `next(...)`. |
-| **`manejoErrores`** | Middleware de Errores | Centraliza la respuesta JSON y oculta errores técnicos internos (500). |
+| **`manejoErrores`** | Middleware de Errores | Centraliza la respuesta JSON `{ error, details? }` y oculta fallos técnicos (500). |
 
 ---
 

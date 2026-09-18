@@ -50,10 +50,11 @@ src/
 │   ├── rutaNoEncontrada.js         ← Captura de 404
 │   └── validaciones/
 │       ├── validarId.js            ← Validación de parámetros URL (:id)
-│       └── validarProducto.js      ← Validación de body con Zod (entrega DTO)
+│       ├── validarProducto.js      ← Validación de body con Zod (entrega DTO)
+│       └── validarQuerys.js        ← Validación de query string con Zod (filtros y paginación)
 │
 ├── validators/                     ← Capa de Esquemas de Validación (Zod)
-│   └── producto.schemas.js         ← Contratos de entrada
+│   └── producto.schemas.js         ← Contratos de entrada (body, params y querys)
 │
 ├── controllers/                    ← Capa de Controladores (gestión HTTP y delegación DTO)
 │   ├── artesano.controllers.js
@@ -66,7 +67,8 @@ src/
 │   └── prisma.js                  ← Instancia compartida de Prisma Client con adapter-pg
 │
 ├── utils/                          ← Utilidades transversales
-│   └── crearError.js              ← Fábrica de errores HTTP
+│   ├── crearError.js              ← Fábrica de errores HTTP con status y details
+│   └── ErroresZod.js              ← Formateador estructurado de errores Zod { path, message }
 │
 └── generated/prisma/               ← Cliente generado por Prisma ORM
 ```
@@ -91,12 +93,11 @@ app.use(manejoErrores);
 
 **Archivos:** `src/routes/artesano.routes.js`, `src/routes/producto.routes.js`  
 **Responsabilidad:** Declarar los endpoints y establecer el orden de ejecución:
-1. Validaciones previas (`validarId`, `validarProducto`).
+1. Validaciones previas (`validarId`, `validarProducto`, `validarConsultaProductos`).
 2. Controlador final.
 
 ```javascript
-router.get('/', getProductos);
-router.get('/filtrados', getProductosFiltrados);
+router.get('/', validarConsultaProductos, getProductos);
 router.get('/:id', validarId, getProductoPorId);
 router.post('/', validarProducto, createProducto);
 router.put('/:id', validarId, validarProducto, updateProducto);
@@ -112,36 +113,23 @@ router.patch('/:id', validarId, deleteProductoLogico);
 
 * **`logger.js`**: Mide con precisión milisegundos y status HTTP al completarse la respuesta (`res.on('finish')`).
 * **`validarId.js`**: Comprueba y sanitiza el parámetro `:id` en la URL utilizando Zod (`FiltrarProductoPorIDSchema`) y lo castea a tipo `Number`.
-* **`validarProducto.js`**: Evalúa el método mediante un `switch` (`POST` y `PUT`) y ejecuta `safeParse(...)` con Zod sobre `req.body ?? {}`. Si es válido, reemplaza los datos con `resultado.data` (DTO limpio). Si falla, acumula todos los mensajes de error.
+* **`validarQuerys.js`**: Evalúa parámetros de consulta (`req.query`) con `obtenerProductosSchema` para filtros, ordenamiento y paginación, inyectando `req.consultaProductos`.
+* **`validarProducto.js`**: Evalúa el método mediante un `switch` (`POST` y `PUT`) y ejecuta `safeParse(...)` con Zod sobre `req.body ?? {}`. Si es válido, reemplaza los datos con `resultado.data` (DTO limpio). Si falla, delega a `detallarErroresZod` y `crearError`.
 * **`rutaNoEncontrada.js`**: Captura URLs que no coincidan con ninguna ruta registrada y arroja 404.
-* **`manejoErrores.js`**: Middleware final de 4 parámetros `(err, req, res, next)` que estandariza las respuestas de error en formato JSON.
+* **`manejoErrores.js`**: Middleware final de 4 parámetros `(err, req, res, next)` que estandariza las respuestas de error en formato JSON homogéneo `{ error, details? }`.
 
 ---
 
 ## Capa 4: Validadores (`validators/`)
 
 **Archivo:** `src/validators/producto.schemas.js`  
-**Responsabilidad:** Declarar los contratos formales que debe cumplir el cuerpo de la petición y los parámetros de ruta usando **Zod 4**.
+**Responsabilidad:** Declarar los contratos formales que debe cumplir el cuerpo de la petición, los parámetros de ruta y los query strings usando **Zod 4**.
 
 ```javascript
-export const crearProductoSchema = z.object({
-  nombre: z.string("El campo 'nombre' es obligatorio")
-    .trim()
-    .min(1, "El nombre no puede estar vacío"),
-  descripcion: z.string().trim().min(1).optional().nullable(),
-  precio: z.coerce.number("El campo 'precio' es obligatorio")
-    .positive("El precio debe ser mayor a 0"),
-  stock: z.coerce.number().int().nonnegative().optional().default(0),
-  artesanoId: z.coerce.number("El 'artesanoId' es obligatorio para asociar el producto")
-    .int()
-    .positive()
-});
-
-export const FiltrarProductoPorIDSchema = z.object({
-  id: z.coerce.number("El ID debe ser un número")
-    .int("El ID debe ser un número entero")
-    .positive("El ID debe ser un número entero positivo")
-});
+export const crearProductoSchema = z.object({ ... });
+export const actualizarProductoSchema = z.object({ ... });
+export const FiltrarProductoPorIDSchema = z.object({ ... });
+export const obtenerProductosSchema = z.object({ ... });
 ```
 
 ---

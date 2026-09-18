@@ -8,12 +8,14 @@ Este documento explica en profundidad el funcionamiento, la lógica interna y la
 ## Índice
 1. [¿Qué es un Middleware en Express?](#qué-es-un-middleware-en-express)
 2. [1. Logger de Peticiones (`logger.js`)](#1-logger-de-peticiones-loggerjs)
-3. [2. Validador de ID (`validarId.js`)](#2-validador-de-id-validaridjs)
-4. [3. Creador de Errores (`crearError.js`)](#3-creador-de-errores-crearerrorjs)
-5. [4. Capturador 404 (`rutaNoEncontrada.js`)](#4-capturador-404-rutanoencontradajs)
-6. [5. Manejador Global de Errores (`manejoErrores.js`)](#5-manejador-global-de-errores-manejoerroresjs)
-7. [6. Validador de Productos con Zod (`validarProducto.js`)](#6-validador-de-productos-con-zod-validarproductojs)
-8. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
+3. [2. Validador de ID con Zod (`validarId.js`)](#2-validador-de-id-con-zod-validaridjs)
+4. [3. Validador de Parámetros de Consulta (`validarQuerys.js`)](#3-validador-de-parámetros-de-consulta-validarquerysjs)
+5. [4. Validador de Productos con Zod (`validarProducto.js`)](#4-validador-de-productos-con-zod-validarproductojs)
+6. [5. Creador de Errores HTTP (`crearError.js`)](#5-creador-de-errores-http-crearerrorjs)
+7. [6. Formateador de Errores Zod (`ErroresZod.js`)](#6-formateador-de-errores-zod-erroreszodjs)
+8. [7. Capturador 404 (`rutaNoEncontrada.js`)](#7-capturador-404-rutanoencontradajs)
+9. [8. Manejador Global Centralizado (`manejoErrores.js`)](#8-manejador-global-centralizado-manejoerroresjs)
+10. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
 
 ---
 
@@ -59,7 +61,7 @@ export const logger = (req, res, next) => {
 4. **`req.originalUrl` vs `req.url`**  
    Se utiliza `req.originalUrl` porque los enrutadores modulares de Express (`artesano.routes.js`, `producto.routes.js`, etc.) recortan el prefijo en `req.url`. Con `originalUrl` garantizamos ver la ruta completa original (ej: `/productos/1` en lugar de solo `/1`).
 5. **`next();`**  
-   Indispensable. Permite que la petición continúe su camino hacia los controladores y rutas. Si olvidamos el `next()`, el servidor se quedaría colgado eternamente.
+   Indispensable. Permite que la petición continúe su camino hacia los controladores y rutas.
 
 ### Salida de ejemplo en consola:
 ```text
@@ -80,195 +82,74 @@ GET /ruta-falsa - 404 (1ms)
 ```javascript
 import { crearError } from "../../utils/crearError.js";
 import { FiltrarProductoPorIDSchema } from "../../validators/producto.schemas.js";
+import { detallarErroresZod } from "../../utils/ErroresZod.js";
 
 export const validarId = (req, res, next) => {
-    // 1. Validamos req.params con Zod (donde viene { id: "15" })
     const resultado = FiltrarProductoPorIDSchema.safeParse(req.params);
       
-    // 2. Si falla, agrupamos todos los mensajes de error
-    if (!resultado.success) {
-        const mensajeCompleto = resultado.error.issues
-            .map(issue => issue.message)
-            .join(' | ');
-        return next(crearError(mensajeCompleto, 400));
+    if (!resultado.success) { 
+        const detalles = detallarErroresZod(resultado.error);
+        return next(crearError('Error en los parámetros del ID del producto', 400, detalles));
     }
     
-    // 3. Asignamos el ID ya sanitizado y casteado a tipo Number
     req.params.id = resultado.data.id;
-    
     next();
 };
 ```
 
 ### ¿Cómo funciona?
-1. **`FiltrarProductoPorIDSchema.safeParse(req.params)`:** Pasa los parámetros de la URL directamente a Zod.
-2. **Coerción y validación numérica automática:** Zod aplica `z.coerce.number().int().positive()`. Si el ID es texto inválido (`"abc"`), decimal (`"1.5"`) o negativo (`"-3"`), Zod genera el error correspondiente.
-3. **Mensajes detallados en español:** Recorre `resultado.error.issues` y los une con `' | '` para enviarlos al cliente mediante `crearError(..., 400)`.
-4. **`req.params.id = resultado.data.id`:** Sobrescribe el parámetro con el valor ya transformado a `Number` limpio. De este modo, los controladores y servicios reciben un número entero garantizado.
-5. **`next()`:** Pasa el control al siguiente middleware o controlador.
+1. **`FiltrarProductoPorIDSchema.safeParse(req.params)`:** Pasa los parámetros de la URL directamente a Zod (`{ id: "15" }`).
+2. **Coerción y validación numérica:** Zod aplica `z.coerce.number().int().positive()`. Si el ID es texto inválido (`"abc"`), decimal (`"1.5"`) o negativo (`"-3"`), Zod detecta el fallo.
+3. **Formateo con `detallarErroresZod`:** Transforma los `issues` de Zod en un array limpio `[{ path: "id", message: "..." }]`.
+4. **Delegación a `crearError`:** Envía a Express el error 400 acompañado de los detalles estructurados.
+5. **`req.params.id = resultado.data.id`:** Asigna el ID ya convertido a tipo `Number` para que el controlador lo reciba limpio.
 
 ---
 
-## 3. Creador de Errores (`crearError.js`)
+## 3. Validador de Parámetros de Consulta (`validarQuerys.js`)
 
-**Ubicación:** `src/utils/crearError.js`  
-**Tipo:** Función Utilitaria (Factory Pattern)  
-**Propósito:** Estandarizar la creación de errores en cualquier parte de la aplicación, con validaciones internas para evitar que el programador envíe datos erróneos.
-
-### Código:
-```javascript
-export const crearError = (mensaje, status = 500) => {
-    // El status debe ser un número entre 400 y 599. Si no, forzamos un 500 (Error de Servidor)
-    const statusCode = (
-        typeof status === 'number' && 
-        status >= 400 && 
-        status < 600
-    ) ? status : 500;
-
-    // El mensaje debe ser un string no vacío. Si no lo es, asignamos un mensaje genérico
-    const message = (typeof mensaje === 'string' && mensaje.trim() !== '') 
-        ? mensaje 
-        : "Ha ocurrido un error interno en el servidor.";
-
-    const error = new Error(message);
-    error.status = statusCode;
-    return error;
-};
-```
-
-### ¿Cómo funciona?
-1. **`status = 500` (valor por defecto):**  
-   Si el programador olvida pasar el código HTTP, se asume `500` automáticamente.
-2. **Validación de `status`:**  
-   El código HTTP debe ser un número entre 400 y 599. Si alguien pasa `200`, `"404"`, o `undefined`, se fuerza a `500`. Esto previene que un error del programador genere un código de respuesta inválido.
-3. **Validación de `mensaje`:**  
-   Si el mensaje no es un `string` o está vacío/solo con espacios, se asigna `"Ha ocurrido un error interno en el servidor."`. Esto evita que el cliente reciba un mensaje vacío o `null`.
-4. **`new Error(message)`:**  
-   Crea una instancia nativa de `Error` de JavaScript, otorgándole:
-   * `error.message`: El texto descriptivo del fallo (ya validado).
-   * `error.stack`: La traza completa que indica en qué archivo y línea ocurrió el error.
-5. **`error.status = statusCode;`:**  
-   Adjunta el código HTTP validado como propiedad personalizada.
-
-> [!TIP]
-> **¿Por qué las validaciones están en `crearError` y no en `manejoErrores`?**  
-> Porque `crearError` es el punto de entrada controlado por el programador. Las validaciones aquí aseguran que cualquier error fabricado manualmente ya nazca con datos correctos, sin necesidad de duplicar lógica en el middleware final.
-
-> [!TIP]
-> **¿Por qué no devolver un objeto plano `{ error: mensaje, status }`?**  
-> Porque un objeto nativo `Error` preserva la traza (`stack trace`). Si ocurre un fallo imprevisto, la consola puede decirnos con exactitud la línea de código donde se generó.
-
----
-
-## 3. Capturador 404 (`rutaNoEncontrada.js`)
-
-**Ubicación:** `src/middlewares/rutaNoEncontrada.js`  
-**Tipo:** Middleware de Enrutamiento / Ruta Comodín  
-**Posición en `app.js`:** Después de todas las rutas válidas, pero antes de `manejoErrores`.
+**Ubicación:** `src/middlewares/validaciones/validarQuerys.js`  
+**Tipo:** Middleware de Validación para Query Strings (`req.query`)  
+**Posición:** En `GET /productos` antes de `getProductos`.
 
 ### Código:
 ```javascript
-import { crearError } from "../utils/crearError.js";
+import { crearError } from "../../utils/crearError.js";
+import { obtenerProductosSchema } from "../../validators/producto.schemas.js";
+import { detallarErroresZod } from "../../utils/ErroresZod.js";
 
-export const rutaNoEncontrada = (req, res, next) => {
-    next(crearError(`Ruta no encontrada: ${req.method} ${req.originalUrl}`, 404));
-};
-```
+export const validarConsultaProductos = (req, res, next) => {
+    const resultado = obtenerProductosSchema.safeParse(req.query);
 
-### ¿Cómo funciona?
-1. Si un cliente solicita una ruta que no existe (como `GET /usuarios`), Express intentará coincidirla con `/`, `/info`, `/artesanos`, `/productos` y `/docs`.
-2. Al no coincidir con ninguna, la petición llega a este middleware.
-3. Invoca la utilidad: `crearError('Ruta no encontrada: GET /usuarios', 404)`.
-4. Llama a **`next(...)` con un argumento**. Al recibir un argumento, Express sabe que ocurrió un fallo y salta directamente al middleware de errores, ignorando cualquier otra función intermedia.
-
----
-
-## 4. Manejador Global de Errores (`manejoErrores.js`)
-
-**Ubicación:** `src/middlewares/manejoErrores.js`  
-**Tipo:** Middleware de Errores (Error Handling Middleware)  
-**Posición en `app.js`:** En la última posición absoluta de la aplicación.
-
-### Código:
-```javascript
-export const manejoErrores = (err, req, res, next) => {
-    const estado = err.status || 500;
-
-    if (estado >= 500) {
-        console.error(err);
-        return res.status(500).json({
-            mensaje: 'Error interno del servidor'
-        });
+    if (!resultado.success) {
+        const detalles = detallarErroresZod(resultado.error);
+        return next(crearError('Error en los parámetros de la consulta de Productos', 400, detalles));
     }
 
-    res.status(estado).json({ error: err.message });
+    req.consultaProductos = resultado.data;
+    return next();
 };
 ```
 
-### Aspectos Clave:
-* **Los 4 Parámetros `(err, req, res, next)`:**  
-  Express detecta la cantidad de argumentos. Si una función tiene **4 parámetros**, la clasifica como manejador de errores. Si tuviera 3, no recibiría los errores.
-* **`const estado = err.status || 500;`**  
-  Si el error provino de `crearError('...', 404)`, `err.status` valdrá 404. Si fue un error inesperado de JavaScript (ej. un `TypeError` o variable indefinida), no tendrá `status` y asumirá automáticamente `500`.
-
-### Lógica de Bifurcación (Seguridad vs Claridad):
-1. **Errores del Servidor (`estado >= 500`):**
-   * Se muestra `console.error(err)` en la terminal para que los desarrolladores puedan depurarlo.
-   * Al cliente se le responde un mensaje genérico: `{ "mensaje": "Error interno del servidor" }`.  
-     *(Principio de seguridad: nunca exponer al público librerías, versiones, rutas de carpetas o consultas SQL).*
-2. **Errores del Cliente (`estado < 500`, como 400 o 404):**
-   * Es seguro y necesario informar al usuario qué hizo mal:  
-     `res.status(estado).json({ error: err.message });`
-
-> [!IMPORTANT]
-> **¿Por qué NO lleva `next()`?**  
-> Porque `res.json()` ya envía la respuesta HTTP y cierra la conexión automáticamente. Llamar a `next()` después de haber respondido intentaría seguir procesando una petición ya finalizada.
+### ¿Cómo funciona?
+1. **Evalúa `req.query`:** Valida filtros (`nombre`, `precio`, `artesanoId`, `eliminado`), ordenamiento (`ordenarPor`, `direccion`) y paginación (`pagina`, `limite`).
+2. **Coerción y valores por defecto:** Por ejemplo, `pagina` y `limite` llegan como strings desde la URL (`?pagina=2&limite=5`) y Zod los transforma automáticamente a números enteros con valores por defecto (`pagina=1`, `limite=10`).
+3. **Inyección en `req.consultaProductos`:** Almacena el objeto validado en la petición para que el controlador y el servicio lo consuman directamente sin tener que volver a parsear la URL.
 
 ---
 
-## 6. Validador de Productos con Zod (`validarProducto.js`)
+## 4. Validador de Productos con Zod (`validarProducto.js`)
 
 **Ubicación:** `src/middlewares/validaciones/validarProducto.js`  
 **Esquemas:** `src/validators/producto.schemas.js`  
 **Tipo:** Middleware de Validación con Zod  
 **Posición:** En `producto.routes.js`, antes de `createProducto` (POST) y `updateProducto` (PUT).
 
-### Esquemas Zod (`producto.schemas.js`):
-```javascript
-import { z } from "zod";
-
-export const crearProductoSchema = z.object({
-  nombre: z.string("El campo 'nombre' es obligatorio")
-    .trim()
-    .min(1, "El nombre no puede estar vacío"),
-  descripcion: z.string().trim().min(1).optional().nullable(),
-  precio: z.coerce.number("El campo 'precio' es obligatorio")
-    .positive("El precio debe ser mayor a 0"),
-  stock: z.coerce.number().int().nonnegative().optional().default(0),
-  artesanoId: z.coerce.number("El 'artesanoId' es obligatorio para asociar el producto")
-    .int()
-    .positive()
-});
-
-export const actualizarProductoSchema = z.object({
-  nombre: z.string("El campo 'nombre' es obligatorio")
-    .trim()
-    .min(1, "El nombre no puede estar vacío"),
-  descripcion: z.string().trim().min(1).optional().nullable(),
-  precio: z.coerce.number("El campo 'precio' es obligatorio")
-    .positive("El precio debe ser mayor a 0"),
-  stock: z.coerce.number().int().nonnegative("El stock no puede ser negativo").optional(),
-  artesanoId: z.coerce.number("El 'artesanoId' debe ser un número válido")
-    .int()
-    .positive()
-    .optional()
-});
-```
-
-### Middleware (`validarProducto.js`):
+### Código:
 ```javascript
 import { crearError } from "../../utils/crearError.js";
 import { crearProductoSchema, actualizarProductoSchema } from "../../validators/producto.schemas.js";
+import { detallarErroresZod } from "../../utils/ErroresZod.js";
 
 export const validarProducto = (req, res, next) => {
     let schema;
@@ -287,11 +168,9 @@ export const validarProducto = (req, res, next) => {
 
     const resultado = schema.safeParse(datosAValidar);
 
-    if (!resultado.success) {
-        const mensajeCompleto = resultado.error.issues
-            .map(issue => issue.message)
-            .join(' | ');
-        return next(crearError(mensajeCompleto, 400));
+    if (!resultado.success) { 
+        const detalles = detallarErroresZod(resultado.error);
+        return next(crearError('Error en los parámetros del producto', 400, detalles));
     }
 
     // Sobrescribimos req.body con los datos parseados y validados por Zod (DTO)
@@ -301,31 +180,128 @@ export const validarProducto = (req, res, next) => {
 ```
 
 ### ¿Cómo funciona?
-1. **Blindaje ante `undefined` (`let datosAValidar = req.body ?? {}`):** Utiliza el operador de coalescencia nula para que si la petición no incluye body o se omite el header JSON en el cliente, Zod evalúe un objeto vacío `{}` y reporte todos los campos faltantes de forma limpia.
-2. **Selección de esquema (`switch`):** Asigna `crearProductoSchema` en `POST` o `actualizarProductoSchema` en `PUT`.
-3. **Validación segura (`safeParse`):** Evalúa el payload contra el esquema sin lanzar excepciones no controladas.
-4. **Acumulación de mensajes de error:** Si falla (`!resultado.success`), reúne todos los mensajes de los campos inválidos mediante `.issues.map(issue => issue.message).join(' | ')` y delega a `next(crearError(mensajeCompleto, 400))`.
-5. **Sanitización y generación del DTO:** En caso de éxito, sobrescribe `req.body = resultado.data`, garantizando al controlador datos tipados, limpios y transformados.
+1. **Blindaje ante `undefined` (`req.body ?? {}`):** Previene caídas si el cliente omite el body o el header `Content-Type: application/json`.
+2. **Selección polimórfica de esquema:** En `POST` exige todos los campos obligatorios (`crearProductoSchema`); en `PUT` permite campos opcionales para modificaciones parciales (`actualizarProductoSchema`).
+3. **Validación segura (`safeParse`):** No lanza excepciones no controladas.
+4. **Captura de errores estructurados:** Usa `detallarErroresZod(resultado.error)` para extraer los campos con error.
+5. **Sanitización y generación del DTO:** En caso de éxito, `req.body = resultado.data` entrega al controlador un DTO limpio, tipado y sin propiedades no deseadas.
 
-### Reglas declaradas en el esquema:
+---
 
-| Campo | Tipo | Reglas |
-|---|---|---|
-| **`nombre`** | `string` | Obligatorio con mensaje personalizado, elimina espacios (`.trim()`), no vacío (`.min(1)`) |
-| **`descripcion`** | `string` | Opcional / nullable |
-| **`precio`** | `number` | Obligatorio con coerción (`z.coerce.number`), positivo (> 0) |
-| **`stock`** | `number` | Opcional, entero no negativo ($\ge 0$), valor por defecto `0` |
-| **`artesanoId`** | `number` | Obligatorio en POST (opcional en PUT), entero positivo referenciando al artesano |
+## 5. Creador de Errores HTTP (`crearError.js`)
 
-### Uso en las rutas:
+**Ubicación:** `src/utils/crearError.js`  
+**Tipo:** Función Utilitaria (Factory Pattern)  
+**Propósito:** Estandarizar la creación de instancias nativas de `Error`, adjuntando `status` HTTP y detalles opcionales.
+
+### Código:
 ```javascript
-router.post('/', validarProducto, createProducto);
-router.put('/:id', validarId, validarProducto, updateProducto);
+/**
+ * Estructura interna del objeto devuelto:
+ * {
+ *   name: 'Error',
+ *   message: 'Producto no encontrado',   
+ *   status: 404,                        
+ *   details: [...],                     
+ *   stack: 'Error: Producto no encontrado\n    at crearError (...)\n    at ...' 
+ * }
+ */
+export const crearError = (mensaje, status = 500, details = null) => {
+    const error = new Error(mensaje);
+    error.status = status;
+
+    if (details) {
+        error.details = details;
+    }
+
+    return error;
+};
 ```
 
-> [!TIP]
-> **El concepto de DTO en la cátedra (Unidad 3):**  
-> Cuando `validarProducto.js` ejecuta `req.body = resultado.data`, los datos quedan limpios y normalizados. El controlador toma ese `req.body` y lo transfiere directamente a la **capa de servicios** (`src/services/producto.services.js`). A ese objeto plano de transferencia se lo denomina **DTO** (Data Transfer Object).
+### ¿Cómo funciona?
+1. **Instancia nativa `Error`:** Preserva el `stack trace` completo para depuración en desarrollo.
+2. **Propiedad `status`:** Asigna el código de respuesta HTTP correspondiente (ej: `400`, `404`, `500`).
+3. **Propiedad opcional `details`:** Permite adjuntar arrays con el detalle de los errores de validación sin acoplar la función a ninguna librería específica.
+
+---
+
+## 6. Formateador de Errores Zod (`ErroresZod.js`)
+
+**Ubicación:** `src/utils/ErroresZod.js`  
+**Tipo:** Utilidad especializada de formateo para Zod  
+**Propósito:** Transformar la estructura interna de `ZodError` en un formato estándar consumible por clientes frontend.
+
+### Código:
+```javascript
+export const detallarErroresZod = (ZodError) =>
+    ZodError.issues.map((issue) => ({
+        path: issue.path.join('.') || null,
+        message: issue.message,
+    }));
+```
+
+### ¿Cómo funciona?
+1. **`ZodError.issues`:** Recorre la lista de todas las reglas del esquema que no se cumplieron.
+2. **`issue.path.join('.')`:** Convierte la ruta de la propiedad a texto legible (ej: `["precio"]` $\rightarrow$ `"precio"`, o `["direccion", "calle"]` $\rightarrow$ `"direccion.calle"`). Si es una validación global, retorna `null`.
+3. **`issue.message`:** Extrae el mensaje explicativo definido en el esquema.
+4. **Retorno:** Un array de objetos `{ path, message }` listo para inyectar en `crearError(..., 400, detalles)`.
+
+---
+
+## 7. Capturador 404 (`rutaNoEncontrada.js`)
+
+**Ubicación:** `src/middlewares/rutaNoEncontrada.js`  
+**Tipo:** Middleware de Enrutamiento / Ruta Comodín  
+**Posición en `app.js`:** Después de todas las rutas válidas, pero antes de `manejoErrores`.
+
+### Código:
+```javascript
+import { crearError } from "../utils/crearError.js";
+
+export const rutaNoEncontrada = (req, res, next) => {
+    next(crearError(`Ruta no encontrada: ${req.method} ${req.originalUrl}`, 404));
+};
+```
+
+### ¿Cómo funciona?
+1. Si una petición no coincide con ningún endpoint registrado (`/`, `/info`, `/artesanos`, `/productos`), cae automáticamente en este middleware.
+2. Invoca `crearError` con código `404`.
+3. Al llamar a **`next(error)` con argumento**, Express salta directamente al middleware global de manejo de errores.
+
+---
+
+## 8. Manejador Global Centralizado (`manejoErrores.js`)
+
+**Ubicación:** `src/middlewares/manejoErrores.js`  
+**Tipo:** Middleware de Errores (Error Handling Middleware)  
+**Posición en `app.js`:** En la última posición absoluta de la aplicación.
+
+### Código:
+```javascript
+export const manejoErrores = (err, req, res, next) => {
+    const estado = err.status || 500;
+
+    if (estado >= 500) {
+        console.error(err);
+        return res.status(500).json({
+            error: 'Error interno del servidor'
+        });
+    }
+
+    const cuerpo = { error: err.message };
+
+    if (err.details) {
+        cuerpo.details = err.details;
+    }
+
+    res.status(estado).json(cuerpo);
+};
+```
+
+### Aspectos Clave:
+* **Firma de 4 Parámetros `(err, req, res, next)`:** Obligatoria en Express para que la función sea reconocida como capturadora de errores.
+* **Seguridad en errores 500:** Registra `err` en consola para los desarrolladores, pero responde un mensaje genérico `{ "error": "Error interno del servidor" }` para no filtrar datos sensibles al cliente.
+* **Respuesta unificada en errores 4xx:** Devuelve `{ error: err.message }` y, si contiene `err.details`, incluye el desglose de validaciones en la propiedad `details`.
 
 ---
 
@@ -333,11 +309,12 @@ router.put('/:id', validarId, validarProducto, updateProducto);
 
 | Archivo | Rol | ¿Quién lo invoca o llama? | ¿Qué entrega al siguiente eslabón? |
 |---|---|---|---|
-| **`logger.js`** | Entrada y Salida | Express al recibir cualquier petición | Pasa la petición limpia mediante `next()` |
-| **`validarId.js`** | Validación de parámetros | Rutas `/productos/:id` y `/artesanos/:id` | Pasa con `next()` o corta con `next(crearError(..., 400))` |
-| **`validarProducto.js`** | Validación de body (Zod) | Rutas POST y PUT de `/productos` | Pasa con `req.body` limpio (DTO) o corta con `next(crearError(..., 400))` |
-| **`producto.schemas.js`** | Esquemas de validación | `validarProducto.js` los importa | Objetos esquema Zod para usar con `.safeParse()` |
-| **`producto.services.js`** | Lógica de negocio y persistencia | Controladores | El resultado de Prisma o un error lanzado con `throw` |
-| **`crearError.js`** | Fabricador de Errores | Controladores, servicios, middlewares | Un objeto `Error` con `.status` y `.message` validados |
-| **`rutaNoEncontrada.js`** | Detección de rutas 404 | Express cuando ninguna ruta coincide | Envía el error 404 a `next(error)` |
-| **`manejoErrores.js`** | Respuesta final de fallos | Express cuando alguien hace `next(error)` | Responde el JSON final con código HTTP |
+| **`logger.js`** | Monitoreo HTTP | Express al recibir cualquier petición | Deja pasar la petición limpia con `next()` |
+| **`validarId.js`** | Validación de URL (:id) | Rutas `/productos/:id` y `/artesanos/:id` | `req.params.id` como `Number` o error 400 |
+| **`validarQuerys.js`** | Validación de Query Strings | `GET /productos` | `req.consultaProductos` validado con paginación/filtros |
+| **`validarProducto.js`** | Validación de body (Zod) | Rutas POST y PUT de `/productos` | `req.body` como DTO limpio o error 400 |
+| **`ErroresZod.js`** | Formateador de fallos Zod | `validarId`, `validarProducto`, `validarQuerys` | Array estructurado `[{ path, message }]` |
+| **`producto.schemas.js`** | Esquemas declarativos | Middlewares de validación | Reglas de validación Zod con `.safeParse()` |
+| **`crearError.js`** | Fabricador de Errores | Controladores, servicios y validadores | Objeto `Error` con `.status`, `.message` y `.details` |
+| **`rutaNoEncontrada.js`** | Detección de rutas 404 | Express cuando no hay coincidencias | Error 404 transferido a `next(error)` |
+| **`manejoErrores.js`** | Respuesta final de fallos | Express cuando se invoca `next(error)` | Respuesta JSON homogénea `{ error, details? }` |

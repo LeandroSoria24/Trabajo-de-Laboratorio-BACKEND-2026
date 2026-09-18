@@ -93,16 +93,18 @@ src/
 │   ├── rutaNoEncontrada.js     # Captura de rutas no existentes (404)
 │   └── validaciones/
 │       ├── validarId.js        # Validación de parámetros numéricos en URL (:id)
-│       └── validarProducto.js  # Middleware de validación con Zod para req.body (DTO)
+│       ├── validarProducto.js  # Validación con Zod para req.body en POST/PUT (DTO)
+│       └── validarQuerys.js    # Validación con Zod para req.query (filtros y paginación)
 ├── routes/                     # Definición de endpoints y handlers
 │   ├── artesano.routes.js
 │   └── producto.routes.js
 ├── services/                   # Lógica de negocio y persistencia con Prisma
 │   └── producto.services.js
 ├── utils/
-│   └── crearError.js          # Fábrica estándar de errores HTTP
+│   ├── crearError.js          # Fábrica estándar de errores HTTP (status, mensaje y details)
+│   └── ErroresZod.js          # Formateador de errores de Zod a { path, message }
 └── validators/
-    └── producto.schemas.js    # Contratos declarativos de entrada con Zod
+    └── producto.schemas.js    # Contratos declarativos de entrada con Zod (body, params y querys)
 ```
 
 ---
@@ -131,13 +133,33 @@ src/
 ### Productos (`/productos`)
 | Método | Ruta | Descripción | Código Éxito |
 |---|---|---|---|
-| `GET` | `/productos` | Listado de productos con datos de su artesano | `200 OK` |
-| `GET` | `/productos/filtrados?nombre=...` | Búsqueda de productos por coincidencia de nombre | `200 OK` |
+| `GET` | `/productos` | Listado con filtros, orden y paginación (`?nombre=&precio=&pagina=&limite=`) | `200 OK` |
 | `GET` | `/productos/:id` | Detalle de un producto por su ID (valida ID con Zod) | `200 OK` |
-| `POST` | `/productos` | Creación de un producto (valida body con Zod y servicio) | `201 Created` |
+| `POST` | `/productos` | Creación de un producto (valida body con Zod y persistencia) | `201 Created` |
 | `PUT` | `/productos/:id` | Actualización de datos de un producto (valida ID y body con Zod) | `200 OK` |
 | `DELETE` | `/productos/:id` | Eliminación física definitiva de un producto por su ID | `200 OK` |
 | `PATCH` | `/productos/:id` | Eliminación lógica (soft delete marcando `eliminado: true`) | `200 OK` |
+
+---
+
+## Formato Estándar de Errores
+
+La API implementa un formato unificado de respuestas de error. Cuando una petición falla por validación o regla de negocio, el cliente recibe:
+
+```json
+{
+  "error": "Error en los parámetros del producto",
+  "details": [
+    {
+      "path": "precio",
+      "message": "El precio debe ser mayor a 0"
+    }
+  ]
+}
+```
+
+* `error`: Mensaje general descriptivo del error.
+* `details`: *(Opcional)* Array con el detalle de cada campo que falló (`path` y `message`), generado automáticamente por `ErroresZod.js`.
 
 ---
 
@@ -146,9 +168,9 @@ src/
 * `200 OK`: Petición exitosa (lectura o actualización).
 * `201 Created`: Creación exitosa de un recurso.
 * `204 No Content`: Eliminación exitosa sin cuerpo de respuesta.
-* `400 Bad Request`: Formato de datos inválido (rechazado por Zod o reglas de negocio).
+* `400 Bad Request`: Formato de datos inválido (rechazado por Zod o reglas de negocio con `details`).
 * `404 Not Found`: Recurso inexistente por ID o endpoint no registrado.
-* `500 Internal Server Error`: Excepción no controlada gestionada por `manejoErrores`.
+* `500 Internal Server Error`: Excepción no controlada gestionada por `manejoErrores` (`{ "error": "Error interno del servidor" }`).
 
 ---
 

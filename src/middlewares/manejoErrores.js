@@ -5,11 +5,14 @@ export const manejoErrores = (err, req, res, next) => { /* 🟩 */
     if (estado >= 500) {
         console.error(err);
         return res.status(500).json({
-            mensaje: 'Error interno del servidor'
+            error: 'Error interno del servidor'
         });
     }
+    const cuerpo = { error: err.message };
 
+    if (err.details) {
+        cuerpo.details = err.details;
+    }
     // Errores controlados del cliente (4xx): devuelve el código y el mensaje específico
-    res.status(estado).json({ error: err.message });
+    res.status(estado).json(cuerpo);
 };
-

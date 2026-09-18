@@ -344,46 +344,63 @@ if (!resultado.success) {
 
 ---
 
-## Estructura de Errores de Zod
+## Estructura de Errores de Zod 4
 
-Cuando `.safeParse()` falla, `resultado.error` contiene un array de `issues`. Cada issue describe un problema específico:
+Cuando `.safeParse()` falla, `resultado.error` contiene una instancia de `ZodError` con un array de `issues`. Cada issue describe con precisión técnica el problema detectado:
 
 ```javascript
-const resultado = schema.safeParse({ nombre: "", precio: "gratis", artesanoId: 1 });
+const resultado = schema.safeParse({ nombre: "", precio: -10, artesanoId: 1 });
 
-// resultado.error.issues:
+// resultado.error.issues en Zod 4:
 [
     {
-        code: "too_small",        // Tipo de error
-        minimum: 1,               // Valor mínimo esperado
-        path: ["nombre"],         // Qué campo falló
-        message: "Too small: expected string to have >=1 characters"
+        origin: "string",                                    // Origen del tipo de dato (Zod 4)
+        code: "too_small",                                   // Tipo de regla que falló
+        minimum: 1,                                          // Valor mínimo esperado
+        inclusive: true,
+        path: ["nombre"],                                    // Array con la ruta al campo
+        message: "El nombre no puede estar vacío"             // Mensaje de error
     },
     {
-        code: "invalid_type",     // Tipo de error
-        expected: "number",       // Qué se esperaba
-        path: ["precio"],         // Qué campo falló
-        message: "Invalid input: expected number, received string"
+        origin: "number",
+        code: "too_small",
+        minimum: 0,
+        inclusive: false,
+        path: ["precio"],
+        message: "El precio debe ser mayor a 0"
     }
 ]
 ```
 
-### Propiedades de cada `issue`:
+### Formateador Limpio: `detallarErroresZod` (`src/utils/ErroresZod.js`)
 
-| Propiedad | Descripción | Ejemplo |
-|---|---|---|
-| `code` | Identificador del tipo de error | `"too_small"`, `"invalid_type"` |
-| `path` | Array con la ruta al campo que falló | `["nombre"]`, `["precio"]` |
-| `message` | Mensaje descriptivo del error | `"Too small: expected string..."` |
-| `expected` | (En `invalid_type`) El tipo esperado | `"string"`, `"number"` |
-| `minimum` | (En `too_small`) El valor mínimo | `1` |
+Para no enviar toda la verbosidad de Zod al cliente ni concatenar textos difíciles de parsear, creamos una función utilitaria que transforma los `issues` en un array plano de objetos `{ path, message }`:
 
-### ¿Cómo extraemos un mensaje útil?
 ```javascript
-const issue = resultado.error.issues[0];         // Tomamos el primer error
-const campo = issue.path.join('.') || 'body';     // "nombre", "precio", etc.
-const mensaje = `Error en '${campo}': ${issue.message}`;
-// → "Error en 'nombre': Too small: expected string to have >=1 characters"
+// src/utils/ErroresZod.js
+export const detallarErroresZod = (ZodError) =>
+    ZodError.issues.map((issue) => ({
+        path: issue.path.join('.') || null,
+        message: issue.message,
+    }));
+```
+
+Cuando un cliente envía datos inválidos, el cliente HTTP recibe:
+
+```json
+{
+  "error": "Error en los parámetros del producto",
+  "details": [
+    {
+      "path": "nombre",
+      "message": "El nombre no puede estar vacío"
+    },
+    {
+      "path": "precio",
+      "message": "El precio debe ser mayor a 0"
+    }
+  ]
+}
 ```
 
 ---
@@ -429,6 +446,24 @@ export const FiltrarProductoPorIDSchema = z.object({
     .int("El ID debe ser un número entero")
     .positive("El ID debe ser un número entero positivo")
 });
+
+export const obtenerProductosSchema = z.object({
+  id: z.coerce.number().int().positive().optional(),
+  nombre: z.string().trim().min(1).optional(),
+  descripcion: z.string().trim().min(1).optional().nullable(),
+  precio: z.coerce.number().positive().optional(),
+  stock: z.coerce.number().int().nonnegative().optional(),
+  artesanoId: z.coerce.number().int().positive().optional(),
+  eliminado: z.preprocess(val => {
+    if (val === 'true') return true;
+    if (val === 'false') return false;
+    return val;
+  }, z.boolean().optional()),
+  ordenarPor: z.enum(["id", "nombre", "precio", "stock", "artesanoId"]).default("nombre"),
+  direccion: z.enum(["asc", "desc"]).default("asc"),
+  pagina: z.coerce.number().int().positive().default(1),
+  limite: z.coerce.number().int().min(1).max(50).default(10)
+});
 ```
 
 ### Paso 2: Crear los middlewares de validación
@@ -437,6 +472,7 @@ export const FiltrarProductoPorIDSchema = z.object({
 ```javascript
 import { crearError } from "../../utils/crearError.js";
 import { crearProductoSchema, actualizarProductoSchema } from "../../validators/producto.schemas.js";
+import { detallarErroresZod } from "../../utils/ErroresZod.js";
 
 export const validarProducto = (req, res, next) => {
     let schema;
@@ -455,11 +491,9 @@ export const validarProducto = (req, res, next) => {
 
     const resultado = schema.safeParse(datosAValidar);
 
-    if (!resultado.success) {
-        const mensajeCompleto = resultado.error.issues
-            .map(issue => issue.message)
-            .join(' | ');
-        return next(crearError(mensajeCompleto, 400));
+    if (!resultado.success) { 
+        const detalles = detallarErroresZod(resultado.error);
+        return next(crearError('Error en los parámetros del producto', 400, detalles));
     }
 
     req.body = resultado.data;
@@ -471,19 +505,37 @@ export const validarProducto = (req, res, next) => {
 ```javascript
 import { crearError } from "../../utils/crearError.js";
 import { FiltrarProductoPorIDSchema } from "../../validators/producto.schemas.js";
+import { detallarErroresZod } from "../../utils/ErroresZod.js";
 
 export const validarId = (req, res, next) => {
     const resultado = FiltrarProductoPorIDSchema.safeParse(req.params);
       
-    if (!resultado.success) {
-        const mensajeCompleto = resultado.error.issues
-            .map(issue => issue.message)
-            .join(' | ');
-        return next(crearError(mensajeCompleto, 400));
+    if (!resultado.success) { 
+        const detalles = detallarErroresZod(resultado.error);
+        return next(crearError('Error en los parámetros del ID del producto', 400, detalles));
     }
     
     req.params.id = resultado.data.id;
     next();
+};
+```
+
+#### C) Validación de consultas URL / Query Strings (`src/middlewares/validaciones/validarQuerys.js`):
+```javascript
+import { crearError } from "../../utils/crearError.js";
+import { obtenerProductosSchema } from "../../validators/producto.schemas.js";
+import { detallarErroresZod } from "../../utils/ErroresZod.js";
+
+export const validarConsultaProductos = (req, res, next) => {
+    const resultado = obtenerProductosSchema.safeParse(req.query);
+
+    if (!resultado.success) {
+        const detalles = detallarErroresZod(resultado.error);
+        return next(crearError('Error en los parámetros de la consulta de Productos', 400, detalles));
+    }
+
+    req.consultaProductos = resultado.data;
+    return next();
 };
 ```
 
@@ -492,7 +544,9 @@ export const validarId = (req, res, next) => {
 ```javascript
 import { validarId } from '../middlewares/validaciones/validarId.js';
 import { validarProducto } from '../middlewares/validaciones/validarProducto.js';
+import { validarConsultaProductos } from '../middlewares/validaciones/validarQuerys.js';
 
+router.get('/', validarConsultaProductos, getProductos);
 router.get('/:id', validarId, getProductoPorId);
 router.post('/', validarProducto, createProducto);
 router.put('/:id', validarId, validarProducto, updateProducto);

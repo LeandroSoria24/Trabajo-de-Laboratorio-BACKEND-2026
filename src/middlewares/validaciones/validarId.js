@@ -1,14 +1,13 @@
 import { crearError } from "../../utils/crearError.js";
 import { FiltrarProductoPorIDSchema } from "../../validators/producto.schemas.js";
+import { detallarErroresZod } from "../../utils/ErroresZod.js";
 
 export const validarId = (req, res, next) => {  /* 🟩 */
       const resultado = FiltrarProductoPorIDSchema.safeParse(req.params);
       
-      if (!resultado.success) { /* modificar utils para no tener que programar esto dos veces 🟥*/
-         const mensajeCompleto = resultado.error.issues
-              .map(issue => issue.message)
-              .join(' | ');
-          return next(crearError(mensajeCompleto, 400));
+      if (!resultado.success) { 
+         const detalles = detallarErroresZod(resultado.error)
+         return next(crearError('Error en los parámetros del ID del producto', 400, detalles));
       }
     
     req.params.id = resultado.data.id
