@@ -183,4 +183,63 @@ flowchart TD
 7. **Persistencia con Prisma ORM (`prisma.producto.update`):** Envía el objeto de actualización con los campos correspondientes e incluye la relación `artesano: true`. PostgreSQL ejecuta la actualización y devuelve en una sola operación el registro modificado junto con los datos del artesano.
 8. **Respuesta al cliente:** El controlador recibe el objeto del producto actualizado y responde con `res.json(productoActualizado)` (código HTTP 200).
 
+---
+
+## Flujo Completo de Eliminación Física y Lógica: `DELETE` y `PATCH`
+
+### 1. Eliminación Física Definitiva (`DELETE /productos/:id`)
+
+```mermaid
+flowchart TD
+    A["1. Cliente: DELETE /productos/:id"] --> B["2. producto.routes.js\nrouter.delete('/:id', validarId, deleteProducto)"]
+    B --> C["3. validarId.js (Zod)\nFiltrarProductoPorIDSchema.safeParse(req.params)"]
+    C -->|"[Error] ID inválido"| ERR["next(crearError(..., 400)) -> manejoErrores.js"]
+    C -->|"[OK] req.params.id = resultado.data.id"| D["4. producto.controllers.js (deleteProducto)\nconst id = Number(req.params.id)\nawait eliminarProducto(id)"]
+    D --> E["5. producto.services.js (eliminarProducto)"]
+    E --> F{"findUnique(id)"}
+    F -->|"No existe"| G["throw crearError('No existe...', 404)"]
+    G -.->|"catch en controller"| ERR
+    F -->|"Existe"| H["prisma.producto.delete({ where: { id } })"]
+    H --> I[("PostgreSQL")]
+    I --> H
+    H --> D
+    D --> J["6. res.status(200).send('Producto eliminado exitosamente')"]
+
+    style A fill:#38bdf8,stroke:#0284c7,color:#000
+    style B fill:#a78bfa,stroke:#7c3aed,color:#000
+    style C fill:#34d399,stroke:#059669,color:#000
+    style D fill:#fb923c,stroke:#ea580c,color:#000
+    style E fill:#f472b6,stroke:#db2777,color:#000
+    style H fill:#f87171,stroke:#dc2626,color:#fff
+    style I fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style J fill:#4ade80,stroke:#16a34a,color:#000
+    style ERR fill:#ef4444,stroke:#dc2626,color:#fff
+```
+
+### 2. Eliminación Lógica / Soft Delete (`PATCH /productos/:id`)
+
+```mermaid
+flowchart TD
+    A["1. Cliente: PATCH /productos/:id"] --> B["2. producto.routes.js\nrouter.patch('/:id', validarId, deleteProductoLogico)"]
+    B --> C["3. validarId.js (Zod)\nValida ID entero positivo"]
+    C --> D["4. producto.controllers.js (deleteProductoLogico)\nawait deleteLogico(id)"]
+    D --> E["5. producto.services.js (deleteLogico)\nfindUnique(id)"]
+    E -->|"[Error] No existe"| F["throw crearError(..., 404) -> manejoErrores.js"]
+    E -->|"[OK] Existe"| G["prisma.producto.update({\n  where: { id },\n  data: { eliminado: true }\n})"]
+    G --> H[("PostgreSQL")]
+    H --> G
+    G --> D
+    D --> I["6. res.status(200).json({ message: 'Producto eliminado logicamente' })"]
+
+    style A fill:#38bdf8,stroke:#0284c7,color:#000
+    style B fill:#a78bfa,stroke:#7c3aed,color:#000
+    style C fill:#34d399,stroke:#059669,color:#000
+    style D fill:#fb923c,stroke:#ea580c,color:#000
+    style E fill:#f472b6,stroke:#db2777,color:#000
+    style G fill:#f87171,stroke:#dc2626,color:#fff
+    style H fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style I fill:#4ade80,stroke:#16a34a,color:#000
+    style F fill:#ef4444,stroke:#dc2626,color:#fff
+```
+
 

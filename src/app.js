@@ -32,8 +32,8 @@ app.get('/info', (req, res) => {
     });
 })
 
-app.use('/artesanos', artesanosRoutes);
-app.use('/productos', productosRoutes);
+app.use('/artesanos', artesanosRoutes);  /* 🟥 */
+app.use('/productos', productosRoutes);  /* 🟥 */
 
 
 /* MANEJO DE RUTAS NO ENCONTRADAS (404) */

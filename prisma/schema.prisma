@@ -31,6 +31,7 @@ model Producto {
   stock       Int      @default(0)
   artesanoId  Int
   artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  eliminado   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
 }

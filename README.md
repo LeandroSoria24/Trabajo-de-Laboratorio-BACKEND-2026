@@ -133,10 +133,11 @@ src/
 |---|---|---|---|
 | `GET` | `/productos` | Listado de productos con datos de su artesano | `200 OK` |
 | `GET` | `/productos/filtrados?nombre=...` | Búsqueda de productos por coincidencia de nombre | `200 OK` |
-| `GET` | `/productos/:id` | Detalle de un producto por su ID | `200 OK` |
-| `POST` | `/productos` | Creación de un producto (valida con Zod y servicio) | `201 Created` |
-| `PUT` | `/productos/:id` | Actualización de datos de un producto | `200 OK` |
-| `DELETE` | `/productos/:id` | Eliminación de un producto por su ID | `204 No Content` |
+| `GET` | `/productos/:id` | Detalle de un producto por su ID (valida ID con Zod) | `200 OK` |
+| `POST` | `/productos` | Creación de un producto (valida body con Zod y servicio) | `201 Created` |
+| `PUT` | `/productos/:id` | Actualización de datos de un producto (valida ID y body con Zod) | `200 OK` |
+| `DELETE` | `/productos/:id` | Eliminación física definitiva de un producto por su ID | `200 OK` |
+| `PATCH` | `/productos/:id` | Eliminación lógica (soft delete marcando `eliminado: true`) | `200 OK` |
 
 ---
 

@@ -10,19 +10,12 @@ export const manejoErrores = (err, req, res, next) => {
     }
 
     // Errores controlados del cliente (4xx): devuelve el código y el mensaje específico
-    res.status(estado).json({ error: err.message });
-
-    const cuerpo = {error: err.message};
-    if(err.detalles) {
-        cuerpo.detalles = err.detalles
+    const cuerpo = { error: err.message };
+    if (err.detalles) {
+        cuerpo.detalles = err.detalles;
     }
 
-    res.status(estado).json(cuerpo);
-
-        if(!resultado.success){
-            const detalles = detallarErroresZod(resultado.error);
-            return next(crearError('Los datos del libro son invalidos', 400, detalles));
-        }
+    return res.status(estado).json(cuerpo);
 };
 
 

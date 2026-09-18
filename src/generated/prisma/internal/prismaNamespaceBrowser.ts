@@ -96,6 +96,7 @@ export const ProductoScalarFieldEnum = {
   precio: 'precio',
   stock: 'stock',
   artesanoId: 'artesanoId',
+  eliminado: 'eliminado',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

@@ -2,7 +2,7 @@ import { crearError } from '../utils/crearError.js';
 import prisma from '../config/prisma.js';
 
 /* GET de todos los artesanos */
-export const getArtesanos = async (req, res, next) => {
+export const getArtesanos = async (req, res, next) => {  /* 🟥 */
     try {
         const artesanos = await prisma.artesano.findMany({
             include: {
@@ -16,7 +16,7 @@ export const getArtesanos = async (req, res, next) => {
 };
 
 /* GET Artesano por el ID */
-export const getArtesanoPorId = async (req, res, next) => {
+export const getArtesanoPorId = async (req, res, next) => {  /* 🟥 */
     try {
         const id = Number(req.params.id);
         if (isNaN(id)) {
@@ -41,7 +41,7 @@ export const getArtesanoPorId = async (req, res, next) => {
 };
 
 /* POST crear Artesano */
-export const createArtesano = async (req, res, next) => {
+export const createArtesano = async (req, res, next) => { /* 🟥 */
     try {
         const {
             nombre,
@@ -91,7 +91,7 @@ export const createArtesano = async (req, res, next) => {
 };
 
 /* PUT Actualizar Artesano */
-export const updateArtesano = async (req, res, next) => {
+export const updateArtesano = async (req, res, next) => { /* 🟥 */
     try {
         const id = Number(req.params.id);
         if (isNaN(id)) {
@@ -133,7 +133,7 @@ export const updateArtesano = async (req, res, next) => {
 };
 
 /* DELETE Eliminar Artesano */
-export const deleteArtesano = async (req, res, next) => {
+export const deleteArtesano = async (req, res, next) => { /* 🟥 */
     try {
         const id = Number(req.params.id);
         if (isNaN(id)) {
