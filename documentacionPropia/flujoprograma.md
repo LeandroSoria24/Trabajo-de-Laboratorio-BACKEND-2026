@@ -77,9 +77,7 @@ flowchart TD
 | Middleware / Utilidad | Tipo | Responsabilidad Principal |
 |---|---|---|
 | **`logger`** | Informativo | Cronometra y registra en consola el resultado final de cada petición. |
-| **`validarId`** | Middleware Zod | Valida y sanitiza parámetros de ruta (`:id`) transformándolos a `Number`. |
-| **`validarQuerys`** | Middleware Zod | Valida filtros, orden y paginación en `req.query` (`obtenerProductosSchema`). |
-| **`validarProducto`** | Middleware Zod | Valida payloads en `POST` y `PUT` generando DTOs limpios en `req.body`. |
+| **`validarSchema`** | Middleware Fábrica Zod | Valida y sanitiza entradas (`body`, `params`, `query`) según esquemas declarativos. |
 | **`ErroresZod`** | Utilidad (`utils`) | Transforma `issues` de Zod 4 en un array estructurado `[{ path, message }]`. |
 | **`crearError`** | Utilidad (`utils`) | Estandariza objetos `Error` adjuntando `status` HTTP y `details` opcionales. |
 | **`rutaNoEncontrada`** | Middleware 404 | Intercepta peticiones huérfanas y delega un error 404 mediante `next(...)`. |
@@ -94,9 +92,9 @@ Este flujo muestra la separación de responsabilidades de la **Unidad 3**: el va
 ```mermaid
 flowchart TD
     CLI["1. Cliente envía POST /productos\n{ nombre, precio, stock, artesanoId }"] --> LOG["2. logger"]
-    LOG --> ROUTE["3. producto.routes.js\nrouter.post('/', validarProducto, createProducto)"]
+    LOG --> ROUTE["3. producto.routes.js\nrouter.post('/', validarSchema(crearProductoSchema), createProducto)"]
     
-    ROUTE --> MW["4. validarProducto.js (Middleware Zod)\nsafeParse(req.body)"]
+    ROUTE --> MW["4. validarSchema.js (Middleware Zod)\ncrearProductoSchema.safeParse(req.body)"]
     
     MW -->|"[Error] Falló validación"| ERR["next(crearError(..., 400))"]
     ERR --> HANDLER["manejoErrores.js\nres.status(400).json(...)"]
@@ -108,36 +106,37 @@ flowchart TD
     
     SERV -->|"¿Artesano existe?"| PRISMA["7. prisma.producto.create(...)"]
     SERV -.->|"[Error] No existe artesano"| THROW["throw crearError('Artesano inexistente.', 400)"]
-    THROW -.->|"catch(error) en controller"| HANDLER
+    THROW -.->|"catch en controller"| HANDLER
     
-    PRISMA --> BD[("PostgreSQL")]
-    BD --> PRISMA
-    PRISMA -->|"Retorna registro creado"| SERV
-    SERV -->|"Retorna nuevoProducto"| CTRL
-    CTRL -->|"res.status(201).json(nuevoProducto)"| RES_OK["Cliente recibe 201 Created"]
+    PRISMA --> DB[("PostgreSQL")]
+    DB --> PRISMA
+    PRISMA --> SERV
+    SERV --> CTRL
+    CTRL --> RES_OK["8. Cliente recibe 201 Created\n{ id, nombre, precio, artesano, ... }"]
 
     style CLI fill:#38bdf8,stroke:#0284c7,color:#000
-    style LOG fill:#fde047,stroke:#eab308,color:#000
+    style LOG fill:#facc15,stroke:#ca8a04,color:#000
     style ROUTE fill:#a78bfa,stroke:#7c3aed,color:#000
     style MW fill:#34d399,stroke:#059669,color:#000
     style CTRL fill:#fb923c,stroke:#ea580c,color:#000
     style SERV fill:#f472b6,stroke:#db2777,color:#000
     style PRISMA fill:#f87171,stroke:#dc2626,color:#fff
-    style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style DB fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style ERR fill:#ef4444,stroke:#dc2626,color:#fff
     style HANDLER fill:#ef4444,stroke:#dc2626,color:#fff
+    style RES_ERR fill:#fca5a5,stroke:#b91c1c,color:#000
+    style RES_OK fill:#4ade80,stroke:#16a34a,color:#000
 ```
 
 ---
 
-## Flujo Completo de Actualización: `PUT /productos/:id`
-
-Este flujo describe paso a paso el recorrido desde el cliente hasta la persistencia y respuesta:
+## Flujo Completo de un Endpoint con Actualización: `PUT /productos/:id`
 
 ```mermaid
 flowchart TD
-    A["1. app.js\napp.use('/productos', productoRoutes)"] --> B["2. producto.routes.js\nrouter.put('/:id', validarId, validarProducto, updateProducto)"]
-    B --> C["3. validarId.js\nValida que :id sea entero positivo"]
-    C --> D["4. validarProducto.js\nswitch(req.method) -> case 'PUT'\nactualizarProductoSchema.safeParse(req.body)"]
+    A["1. app.js\napp.use('/productos', productoRoutes)"] --> B["2. producto.routes.js\nrouter.put('/:id', validarSchema(idParamSchema, 'params'),\nvalidarSchema(actualizarProductoSchema, 'body'), updateProducto)"]
+    B --> C["3. validarSchema.js ('params')\nidParamSchema.safeParse(req.params)"]
+    C --> D["4. validarSchema.js ('body')\nactualizarProductoSchema.safeParse(req.body)"]
     
     D -->|"[Error] !resultado.success"| E["next(crearError(..., 400))"]
     E --> F["manejoErrores.js\nres.status(400).json(...)"]
@@ -177,9 +176,9 @@ flowchart TD
 
 ### Detalle de las 8 etapas del flujo:
 1. **Entrada al servidor (`app.js`):** La petición HTTP `PUT /productos/:id` ingresa y es derivada al enrutador `productoRoutes`.
-2. **Definición de ruta y tubería (`producto.routes.js`):** Se encadenan los middlewares `validarId`, `validarProducto` y el controlador `updateProducto`.
-3. **Validación de identificador (`validarId.js`):** Comprueba que `:id` sea convertible a entero positivo.
-4. **Validación de datos con Zod (`validarProducto.js`):** Mediante un `switch`, selecciona `actualizarProductoSchema` y ejecuta `safeParse(req.body)`. Si falla, corta la ejecución con error 400. Si aprueba, almacena los datos limpios en `req.body` y continúa con `next()`.
+2. **Definición de ruta y tubería (`producto.routes.js`):** Se encadenan los middlewares `validarSchema(idParamSchema, 'params')`, `validarSchema(actualizarProductoSchema, 'body')` y el controlador `updateProducto`.
+3. **Validación de identificador con Zod:** Comprueba que `:id` sea convertible a entero positivo y lo castea a `Number`.
+4. **Validación de datos con Zod:** Aplica `actualizarProductoSchema.safeParse(req.body)`. Si falla, corta la ejecución con error 400. Si aprueba, almacena los datos limpios en `req.body` y continúa con `next()`.
 5. **Controlador (`updateProducto`):** Extrae los datos preparados (`id` numérico y `actualizarProductoDto`) y convoca a la capa de servicios mediante `await actualizarProducto(...)`.
 6. **Lógica de negocio (`producto.services.js`):**
    - Comprueba la existencia previa del producto mediante `findUnique` (si no existe, lanza un error 404 con `throw crearError(...)`).
@@ -195,8 +194,8 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["1. Cliente: DELETE /productos/:id"] --> B["2. producto.routes.js\nrouter.delete('/:id', validarId, deleteProducto)"]
-    B --> C["3. validarId.js (Zod)\nFiltrarProductoPorIDSchema.safeParse(req.params)"]
+    A["1. Cliente: DELETE /productos/:id"] --> B["2. producto.routes.js\nrouter.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProducto)"]
+    B --> C["3. validarSchema.js (Zod)\nidParamSchema.safeParse(req.params)"]
     C -->|"[Error] ID inválido"| ERR["next(crearError(..., 400)) -> manejoErrores.js"]
     C -->|"[OK] req.params.id = resultado.data.id"| D["4. producto.controllers.js (deleteProducto)\nconst id = Number(req.params.id)\nawait eliminarProducto(id)"]
     D --> E["5. producto.services.js (eliminarProducto)"]
@@ -224,8 +223,8 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["1. Cliente: PATCH /productos/:id"] --> B["2. producto.routes.js\nrouter.patch('/:id', validarId, deleteProductoLogico)"]
-    B --> C["3. validarId.js (Zod)\nValida ID entero positivo"]
+    A["1. Cliente: PATCH /productos/:id"] --> B["2. producto.routes.js\nrouter.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogico)"]
+    B --> C["3. validarSchema.js (Zod)\nidParamSchema.safeParse(req.params)"]
     C --> D["4. producto.controllers.js (deleteProductoLogico)\nawait deleteLogico(id)"]
     D --> E["5. producto.services.js (deleteLogico)\nfindUnique(id)"]
     E -->|"[Error] No existe"| F["throw crearError(..., 404) -> manejoErrores.js"]

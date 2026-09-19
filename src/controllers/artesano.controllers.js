@@ -1,5 +1,5 @@
 import { crearError } from '../utils/crearError.js';
-import prisma from '../config/prisma.js';
+
 
 /* GET de todos los artesanos */
 export const getArtesanos = async (req, res, next) => {  /* 🟥 */

@@ -441,12 +441,14 @@ export const actualizarProductoSchema = z.object({
     .optional()
 });
 
-export const FiltrarProductoPorIDSchema = z.object({
+// En src/validators/comun.schemas.js:
+export const idParamSchema = z.object({
   id: z.coerce.number("El ID debe ser un número")
     .int("El ID debe ser un número entero")
     .positive("El ID debe ser un número entero positivo")
 });
 
+// En src/validators/producto.schemas.js:
 export const obtenerProductosSchema = z.object({
   id: z.coerce.number().int().positive().optional(),
   nombre: z.string().trim().min(1).optional(),
@@ -466,92 +468,63 @@ export const obtenerProductosSchema = z.object({
 });
 ```
 
-### Paso 2: Crear los middlewares de validación
+### Paso 2: Crear el middleware genérico de validación (`src/middlewares/validarSchema.js`)
 
-#### A) Validación de cuerpo (`src/middlewares/validaciones/validarProducto.js`):
+En lugar de crear middlewares duplicados para cada tabla o cada propiedad (`body`, `params`, `query`), implementamos una **función fábrica** de middleware que evalúa cualquier esquema de Zod contra la fuente de datos elegida:
+
 ```javascript
-import { crearError } from "../../utils/crearError.js";
-import { crearProductoSchema, actualizarProductoSchema } from "../../validators/producto.schemas.js";
-import { detallarErroresZod } from "../../utils/ErroresZod.js";
+import { crearError } from '../utils/crearError.js';
+import { detallarErroresZod } from '../utils/ErroresZod.js';
 
-export const validarProducto = (req, res, next) => {
-    let schema;
-    let datosAValidar = req.body ?? {};
-
-    switch (req.method) {
-        case 'POST':
-            schema = crearProductoSchema;
-            break;
-        case 'PUT':
-            schema = actualizarProductoSchema;
-            break;
-        default:
-            return next();
-    }
-
-    const resultado = schema.safeParse(datosAValidar);
+export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
+    const datos = req[origen] ?? {};
+    const resultado = schema.safeParse(datos);
 
     if (!resultado.success) { 
         const detalles = detallarErroresZod(resultado.error);
-        return next(crearError('Error en los parámetros del producto', 400, detalles));
+        return next(crearError(`Error en los parámetros de ${origen}`, 400, detalles));
     }
 
-    req.body = resultado.data;
+    if (origen === 'query') {
+        req.consulta = resultado.data; // Almacena los filtros/paginación limpios y tipados
+    } else {
+        req[origen] = resultado.data; // Almacena el body o params limpio y tipado
+    }
+
     next();
-};
-```
-
-#### B) Validación de parámetros en URL (`src/middlewares/validaciones/validarId.js`):
-```javascript
-import { crearError } from "../../utils/crearError.js";
-import { FiltrarProductoPorIDSchema } from "../../validators/producto.schemas.js";
-import { detallarErroresZod } from "../../utils/ErroresZod.js";
-
-export const validarId = (req, res, next) => {
-    const resultado = FiltrarProductoPorIDSchema.safeParse(req.params);
-      
-    if (!resultado.success) { 
-        const detalles = detallarErroresZod(resultado.error);
-        return next(crearError('Error en los parámetros del ID del producto', 400, detalles));
-    }
-    
-    req.params.id = resultado.data.id;
-    next();
-};
-```
-
-#### C) Validación de consultas URL / Query Strings (`src/middlewares/validaciones/validarQuerys.js`):
-```javascript
-import { crearError } from "../../utils/crearError.js";
-import { obtenerProductosSchema } from "../../validators/producto.schemas.js";
-import { detallarErroresZod } from "../../utils/ErroresZod.js";
-
-export const validarConsultaProductos = (req, res, next) => {
-    const resultado = obtenerProductosSchema.safeParse(req.query);
-
-    if (!resultado.success) {
-        const detalles = detallarErroresZod(resultado.error);
-        return next(crearError('Error en los parámetros de la consulta de Productos', 400, detalles));
-    }
-
-    req.consultaProductos = resultado.data;
-    return next();
 };
 ```
 
 ### Paso 3: Conectar en las rutas (`producto.routes.js`)
 
-```javascript
-import { validarId } from '../middlewares/validaciones/validarId.js';
-import { validarProducto } from '../middlewares/validaciones/validarProducto.js';
-import { validarConsultaProductos } from '../middlewares/validaciones/validarQuerys.js';
+Conectamos el middleware `validarSchema` pasándole el esquema correspondiente y el origen (`'query'`, `'params'` o `'body'`):
 
-router.get('/', validarConsultaProductos, getProductos);
-router.get('/:id', validarId, getProductoPorId);
-router.post('/', validarProducto, createProducto);
-router.put('/:id', validarId, validarProducto, updateProducto);
-router.delete('/:id', validarId, deleteProducto);
-router.patch('/:id', validarId, deleteProductoLogico);
+```javascript
+import { Router } from "express";
+import {
+    getProductos,
+    getProductoPorId,
+    createProducto,
+    updateProducto,
+    deleteProducto,
+    deleteProductoLogico
+} from '../controllers/producto.controllers.js';
+import { validarSchema } from '../middlewares/validarSchema.js';
+import {
+    crearProductoSchema,
+    actualizarProductoSchema,
+    idParamSchema,
+    obtenerProductosSchema
+} from '../validators/producto.schemas.js';
+
+const router = Router();
+
+router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);
+router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);
+router.post('/', validarSchema(crearProductoSchema, 'body'), createProducto);
+router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarProductoSchema, 'body'), updateProducto);
+router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProducto);
+router.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogico);
 ```
 
 ### Paso 4: Transferir los datos como DTO al Servicio (`producto.controllers.js` y `producto.services.js`)

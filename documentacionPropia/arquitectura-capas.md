@@ -48,12 +48,10 @@ src/
 │   ├── logger.js                   ← Monitoreo de tiempos y estado HTTP
 │   ├── manejoErrores.js            ← Red de seguridad global para respuestas JSON
 │   ├── rutaNoEncontrada.js         ← Captura de 404
-│   └── validaciones/
-│       ├── validarId.js            ← Validación de parámetros URL (:id)
-│       ├── validarProducto.js      ← Validación de body con Zod (entrega DTO)
-│       └── validarQuerys.js        ← Validación de query string con Zod (filtros y paginación)
+│   └── validarSchema.js            ← Fábrica universal de validación Zod (body, params, query)
 │
 ├── validators/                     ← Capa de Esquemas de Validación (Zod)
+│   ├── comun.schemas.js            ← Esquemas compartidos (p. ej. validación de :id)
 │   └── producto.schemas.js         ← Contratos de entrada (body, params y querys)
 │
 ├── controllers/                    ← Capa de Controladores (gestión HTTP y delegación DTO)
@@ -93,16 +91,16 @@ app.use(manejoErrores);
 
 **Archivos:** `src/routes/artesano.routes.js`, `src/routes/producto.routes.js`  
 **Responsabilidad:** Declarar los endpoints y establecer el orden de ejecución:
-1. Validaciones previas (`validarId`, `validarProducto`, `validarConsultaProductos`).
+1. Validaciones previas con `validarSchema` (`query`, `params`, `body`).
 2. Controlador final.
 
 ```javascript
-router.get('/', validarConsultaProductos, getProductos);
-router.get('/:id', validarId, getProductoPorId);
-router.post('/', validarProducto, createProducto);
-router.put('/:id', validarId, validarProducto, updateProducto);
-router.delete('/:id', validarId, deleteProducto);
-router.patch('/:id', validarId, deleteProductoLogico);
+router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);
+router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);
+router.post('/', validarSchema(crearProductoSchema, 'body'), createProducto);
+router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarProductoSchema, 'body'), updateProducto);
+router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProducto);
+router.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogico);
 ```
 
 ---
@@ -112,9 +110,7 @@ router.patch('/:id', validarId, deleteProductoLogico);
 **Responsabilidad:** Interceptar y procesar la petición antes o después de los controladores.
 
 * **`logger.js`**: Mide con precisión milisegundos y status HTTP al completarse la respuesta (`res.on('finish')`).
-* **`validarId.js`**: Comprueba y sanitiza el parámetro `:id` en la URL utilizando Zod (`FiltrarProductoPorIDSchema`) y lo castea a tipo `Number`.
-* **`validarQuerys.js`**: Evalúa parámetros de consulta (`req.query`) con `obtenerProductosSchema` para filtros, ordenamiento y paginación, inyectando `req.consultaProductos`.
-* **`validarProducto.js`**: Evalúa el método mediante un `switch` (`POST` y `PUT`) y ejecuta `safeParse(...)` con Zod sobre `req.body ?? {}`. Si es válido, reemplaza los datos con `resultado.data` (DTO limpio). Si falla, delega a `detallarErroresZod` y `crearError`.
+* **`validarSchema.js`**: Middleware fábrica universal de validación. Recibe el esquema Zod y el origen (`body`, `params`, `query`), aplica `safeParse()`, sanitiza y limpia los datos en `req[origen]`. Si hay fallos, delega a `detallarErroresZod` y `crearError(400)`.
 * **`rutaNoEncontrada.js`**: Captura URLs que no coincidan con ninguna ruta registrada y arroja 404.
 * **`manejoErrores.js`**: Middleware final de 4 parámetros `(err, req, res, next)` que estandariza las respuestas de error en formato JSON homogéneo `{ error, details? }`.
 
@@ -122,13 +118,16 @@ router.patch('/:id', validarId, deleteProductoLogico);
 
 ## Capa 4: Validadores (`validators/`)
 
-**Archivo:** `src/validators/producto.schemas.js`  
+**Archivos:** `src/validators/comun.schemas.js`, `src/validators/producto.schemas.js`  
 **Responsabilidad:** Declarar los contratos formales que debe cumplir el cuerpo de la petición, los parámetros de ruta y los query strings usando **Zod 4**.
 
 ```javascript
+// comun.schemas.js
+export const idParamSchema = z.object({ ... });
+
+// producto.schemas.js
 export const crearProductoSchema = z.object({ ... });
 export const actualizarProductoSchema = z.object({ ... });
-export const FiltrarProductoPorIDSchema = z.object({ ... });
 export const obtenerProductosSchema = z.object({ ... });
 ```
 

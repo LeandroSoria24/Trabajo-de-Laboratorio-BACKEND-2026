@@ -7,17 +7,21 @@ import {
     deleteProducto,
     deleteProductoLogico
 } from '../controllers/producto.controllers.js';
-import { validarId } from '../middlewares/validaciones/validarId.js';
-import { validarProducto } from '../middlewares/validaciones/validarProducto.js';
-import { validarConsultaProductos } from '../middlewares/validaciones/validarQuerys.js';
+import { validarSchema } from '../middlewares/validarSchema.js';
+import { idParamSchema } from '../validators/comun.schemas.js';
+import {
+    crearProductoSchema,
+    actualizarProductoSchema,
+    obtenerProductosSchema
+} from '../validators/producto.schemas.js';
 
 const router = Router();
 
-router.get('/', validarConsultaProductos, getProductos);/* 🟩 */
-router.get('/:id', validarId, getProductoPorId);/* 🟩 */
-router.post('/', validarProducto, createProducto);/* 🟩 */
-router.put('/:id', validarId, validarProducto, updateProducto);/* 🟩 */
-router.delete('/:id', validarId, deleteProducto);/* 🟩 */
-router.patch('/:id', validarId, deleteProductoLogico);/* 🟩 */
+router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);/* 🟩 */
+router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);/* 🟩 */
+router.post('/', validarSchema(crearProductoSchema, 'body'), createProducto);/* 🟩 */
+router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarProductoSchema, 'body'), updateProducto);/* 🟩 */
+router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProducto);/* 🟩 */
+router.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogico);/* 🟩 */
 
 export default router;

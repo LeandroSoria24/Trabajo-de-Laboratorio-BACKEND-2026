@@ -1,5 +1,3 @@
-import { crearError } from '../utils/crearError.js';
-import prisma from '../config/prisma.js';
 import {
     crearProducto,
     actualizarProducto,
@@ -12,7 +10,7 @@ import {
 // GETTERS
 export const getProductos = async (req, res, next) => {  /* 🟩 */
     try {
-        const resultado = await obtenerProductos(req.consultaProductos);
+        const resultado = await obtenerProductos(req.consulta);
         res.json(resultado);
     }
     catch (error) {
