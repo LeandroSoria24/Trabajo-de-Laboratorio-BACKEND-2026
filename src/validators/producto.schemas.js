@@ -1,13 +1,7 @@
 import { z } from "zod";
 
-
-
-
-
-
-
-/**
- * Esquema de validación para crear un producto (POST /productos) 🟩
+/*
+  Esquema de validación para crear un producto (POST /productos) 🟩
  */
 export const crearProductoSchema = z.object({
   nombre: z.string("El campo 'nombre' es obligatorio")
@@ -27,8 +21,8 @@ export const crearProductoSchema = z.object({
     .positive()
 });
 
-/**
- * Esquema de validación para actualizar un producto (PUT /productos/:id) 🟩
+/*
+  Esquema de validación para actualizar un producto (PUT /productos/:id) 🟩
  */
 export const actualizarProductoSchema = z.object({
   nombre: z.string("El campo 'nombre' es obligatorio")
@@ -50,9 +44,9 @@ export const actualizarProductoSchema = z.object({
 });
 
 
-/**
- * Esquema de validación para listar productos (GET /productos)
- * Valida los parámetros de consulta (req.query) para paginación y filtros 🟩
+/*
+  Esquema de validación para listar productos (GET /productos)
+  Valida los parámetros de consulta (req.query) para paginación y filtros 🟩
  */
 export const obtenerProductosSchema = z.object({
   id: z.coerce.number().int().positive().optional(),
