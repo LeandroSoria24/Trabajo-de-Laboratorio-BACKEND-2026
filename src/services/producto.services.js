@@ -1,10 +1,16 @@
 import prisma from '../config/prisma.js';
 import { crearError } from '../utils/crearError.js';
 
-/**
- * Servicio para la creación de un producto.
- * Recibe el DTO (los datos validados por Zod desde req.body),
- * comprueba la regla de negocio (que el artesano exista) y persiste con Prisma. 🟩
+const encontrarId = async (arsetanoID) => {
+    return await prisma.artesano.findUnique({
+        where: { id: artesanoId }
+    });
+}
+
+/*
+  Servicio para la creación de un producto.
+  Recibe el DTO (los datos validados por Zod desde req.body),
+  comprueba la regla de negocio (que el artesano exista) y persiste con Prisma. 🟩
  */
 export const crearProducto = async (crearProductoDto) => {
     const { nombre, descripcion, precio, stock, artesanoId } = crearProductoDto;
@@ -32,10 +38,10 @@ export const crearProducto = async (crearProductoDto) => {
     });
 };
 
-/**
- * Servicio para la actualización de un producto.
- * Recibe el id y el DTO con los datos a actualizar.
- * Comprueba que el producto exista y que el artesano sea válido si se envía. 🟩
+/*
+  Servicio para la actualización de un producto.
+  Recibe el id y el DTO con los datos a actualizar.
+  Comprueba que el producto exista y que el artesano sea válido si se envía. 🟩
  */
 export const actualizarProducto = async (id, actualizarProductoDto) => {
     const producto = await prisma.producto.findUnique({
@@ -71,12 +77,12 @@ export const actualizarProducto = async (id, actualizarProductoDto) => {
     }); // buenisimo porque esta actualizando y a la vez devolviendo datos para la respuesta .JSON
 };
 
-/**
- * Servicio para obtener la lista de productos.
- * Recibe el DTO con los parámetros de consulta (paginación y filtros). 🟩
+/*
+  Servicio para obtener la lista de productos.
+  Recibe el DTO con los parámetros de consulta (paginación y filtros). 🟩
  */
 export const obtenerProductos = async (criterios = {}) => {
-    const { 
+    const {
         id,
         nombre,
         descripcion,
@@ -93,7 +99,7 @@ export const obtenerProductos = async (criterios = {}) => {
 
 
     } = criterios;
-    
+
     const where = {};
 
     if (id !== undefined) {
@@ -123,7 +129,7 @@ export const obtenerProductos = async (criterios = {}) => {
     if (eliminado !== undefined) {
         where.eliminado = eliminado;
     }
-    
+
     // Cálculo para la paginación de Prisma
     const desplazamiento = (pagina - 1) * limite;
 
@@ -151,9 +157,9 @@ export const obtenerProductos = async (criterios = {}) => {
     };
 };
 
-/**
- * Servicio para obtener un producto específico por su ID.
- * Recibe el ID validado y lanza un error si no existe. 🟩
+/*
+  Servicio para obtener un producto específico por su ID.
+  Recibe el ID validado y lanza un error si no existe. 🟩
  */
 export const obtenerProductoPorId = async (id) => {
     const producto = await prisma.producto.findUnique({
@@ -168,16 +174,16 @@ export const obtenerProductoPorId = async (id) => {
     return producto;
 };
 
-/**
- * Servicio para eliminar un producto por su ID.
- * Comprueba que el producto exista antes de eliminarlo. 🟩
+/*
+  Servicio para eliminar un producto por su ID.
+  Comprueba que el producto exista antes de eliminarlo. 🟩
  */
 export const eliminarProducto = async (id) => {
     // Primero verificar que el producto exista
     const producto = await prisma.producto.findUnique({
         where: { id }
     });
-    
+
     if (!producto) {
         throw crearError(`No existe un producto con id ${id}`, 404);
     }
@@ -193,7 +199,7 @@ export const eliminarProducto = async (id) => {
 /* servicio para eliminar un producto logicamente  🟩*/
 
 export const deleteLogico = async (id) => {
-        const producto = await prisma.producto.findUnique({
+    const producto = await prisma.producto.findUnique({
         where: { id }
     });
     if (!producto) {

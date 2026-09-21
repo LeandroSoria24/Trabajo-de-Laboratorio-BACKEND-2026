@@ -91,10 +91,7 @@ src/
 │   ├── logger.js               # Registro de tiempo y estado de cada petición
 │   ├── manejoErrores.js        # Manejador global centralizado de errores
 │   ├── rutaNoEncontrada.js     # Captura de rutas no existentes (404)
-│   └── validaciones/
-│       ├── validarId.js        # Validación de parámetros numéricos en URL (:id)
-│       ├── validarProducto.js  # Validación con Zod para req.body en POST/PUT (DTO)
-│       └── validarQuerys.js    # Validación con Zod para req.query (filtros y paginación)
+│   └── validarSchema.js        # Middleware fábrica genérico de validación Zod (body, params, query)
 ├── routes/                     # Definición de endpoints y handlers
 │   ├── artesano.routes.js
 │   └── producto.routes.js
@@ -104,6 +101,7 @@ src/
 │   ├── crearError.js          # Fábrica estándar de errores HTTP (status, mensaje y details)
 │   └── ErroresZod.js          # Formateador de errores de Zod a { path, message }
 └── validators/
+    ├── comun.schemas.js       # Esquemas compartidos (p. ej. validación de :id)
     └── producto.schemas.js    # Contratos declarativos de entrada con Zod (body, params y querys)
 ```
 
@@ -181,7 +179,7 @@ En la carpeta [`documentacionPropia/`](file:///c:/Users/actos/Desktop/Laboratori
 1. [**Arquitectura por Capas**](file:///c:/Users/actos/Desktop/Laboratorio/Trabajo-de-Laboratorio-BACKEND-2026/documentacionPropia/arquitectura-capas.md): Organización desacoplada (Rutas $\rightarrow$ Middlewares/Zod $\rightarrow$ Controladores $\rightarrow$ Servicios $\rightarrow$ Prisma ORM).
 2. [**Guía de Prisma ORM**](file:///c:/Users/actos/Desktop/Laboratorio/Trabajo-de-Laboratorio-BACKEND-2026/documentacionPropia/guia-prisma.md): Configuración con PostgreSQL, Prisma 7, schema declarativo y cliente singleton.
 3. [**Guía de Validación con Zod**](file:///c:/Users/actos/Desktop/Laboratorio/Trabajo-de-Laboratorio-BACKEND-2026/documentacionPropia/guia-zod.md): Esquemas de validación, `.safeParse()`, sanitización automática y DTOs.
-4. [**Middlewares y Utilidades**](file:///c:/Users/actos/Desktop/Laboratorio/Trabajo-de-Laboratorio-BACKEND-2026/documentacionPropia/middlewares-y-utils.md): Explicación línea por línea de `logger`, `validarId`, `validarProducto`, `crearError`, `rutaNoEncontrada` y `manejoErrores`.
+4. [**Middlewares y Utilidades**](file:///c:/Users/actos/Desktop/Laboratorio/Trabajo-de-Laboratorio-BACKEND-2026/documentacionPropia/middlewares-y-utils.md): Explicación línea por línea de `logger`, `validarSchema`, `crearError`, `rutaNoEncontrada` y `manejoErrores`.
 5. [**Consultas y Operaciones CRUD con Prisma**](file:///c:/Users/actos/Desktop/Laboratorio/Trabajo-de-Laboratorio-BACKEND-2026/documentacionPropia/consultas-y-crud-prisma.md): Métodos de consulta (`findMany`, `findUnique`, `where`, `orderBy`, paginación), mutaciones y relaciones 1:N.
 6. [**Flujograma de Ejecución**](file:///c:/Users/actos/Desktop/Laboratorio/Trabajo-de-Laboratorio-BACKEND-2026/documentacionPropia/flujoprograma.md): Diagramas Mermaid detallando el ciclo de vida de peticiones válidas y captura de excepciones.
 
