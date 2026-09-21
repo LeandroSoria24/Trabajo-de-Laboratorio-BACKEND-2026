@@ -273,6 +273,7 @@ export type ArtesanoWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"Artesano"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Artesano"> | Date | string
   productos?: Prisma.ProductoListRelationFilter
+  stands?: Prisma.StandListRelationFilter
 }
 
 export type ArtesanoOrderByWithRelationInput = {
@@ -289,6 +290,7 @@ export type ArtesanoOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   productos?: Prisma.ProductoOrderByRelationAggregateInput
+  stands?: Prisma.StandOrderByRelationAggregateInput
 }
 
 export type ArtesanoWhereUniqueInput = Prisma.AtLeast<{
@@ -308,6 +310,7 @@ export type ArtesanoWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"Artesano"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Artesano"> | Date | string
   productos?: Prisma.ProductoListRelationFilter
+  stands?: Prisma.StandListRelationFilter
 }, "id" | "dni" | "email">
 
 export type ArtesanoOrderByWithAggregationInput = {
@@ -361,6 +364,7 @@ export type ArtesanoCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   productos?: Prisma.ProductoCreateNestedManyWithoutArtesanoInput
+  stands?: Prisma.StandCreateNestedManyWithoutArtesanoInput
 }
 
 export type ArtesanoUncheckedCreateInput = {
@@ -377,6 +381,7 @@ export type ArtesanoUncheckedCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   productos?: Prisma.ProductoUncheckedCreateNestedManyWithoutArtesanoInput
+  stands?: Prisma.StandUncheckedCreateNestedManyWithoutArtesanoInput
 }
 
 export type ArtesanoUpdateInput = {
@@ -392,6 +397,7 @@ export type ArtesanoUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   productos?: Prisma.ProductoUpdateManyWithoutArtesanoNestedInput
+  stands?: Prisma.StandUpdateManyWithoutArtesanoNestedInput
 }
 
 export type ArtesanoUncheckedUpdateInput = {
@@ -408,6 +414,7 @@ export type ArtesanoUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   productos?: Prisma.ProductoUncheckedUpdateManyWithoutArtesanoNestedInput
+  stands?: Prisma.StandUncheckedUpdateManyWithoutArtesanoNestedInput
 }
 
 export type ArtesanoCreateManyInput = {
@@ -532,6 +539,20 @@ export type IntFieldUpdateOperationsInput = {
   divide?: number
 }
 
+export type ArtesanoCreateNestedOneWithoutStandsInput = {
+  create?: Prisma.XOR<Prisma.ArtesanoCreateWithoutStandsInput, Prisma.ArtesanoUncheckedCreateWithoutStandsInput>
+  connectOrCreate?: Prisma.ArtesanoCreateOrConnectWithoutStandsInput
+  connect?: Prisma.ArtesanoWhereUniqueInput
+}
+
+export type ArtesanoUpdateOneRequiredWithoutStandsNestedInput = {
+  create?: Prisma.XOR<Prisma.ArtesanoCreateWithoutStandsInput, Prisma.ArtesanoUncheckedCreateWithoutStandsInput>
+  connectOrCreate?: Prisma.ArtesanoCreateOrConnectWithoutStandsInput
+  upsert?: Prisma.ArtesanoUpsertWithoutStandsInput
+  connect?: Prisma.ArtesanoWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ArtesanoUpdateToOneWithWhereWithoutStandsInput, Prisma.ArtesanoUpdateWithoutStandsInput>, Prisma.ArtesanoUncheckedUpdateWithoutStandsInput>
+}
+
 export type ArtesanoCreateNestedOneWithoutProductosInput = {
   create?: Prisma.XOR<Prisma.ArtesanoCreateWithoutProductosInput, Prisma.ArtesanoUncheckedCreateWithoutProductosInput>
   connectOrCreate?: Prisma.ArtesanoCreateOrConnectWithoutProductosInput
@@ -546,6 +567,84 @@ export type ArtesanoUpdateOneRequiredWithoutProductosNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.ArtesanoUpdateToOneWithWhereWithoutProductosInput, Prisma.ArtesanoUpdateWithoutProductosInput>, Prisma.ArtesanoUncheckedUpdateWithoutProductosInput>
 }
 
+export type ArtesanoCreateWithoutStandsInput = {
+  nombre: string
+  apellido: string
+  dni: string
+  email: string
+  telefono?: string | null
+  localidad: string
+  rubro: string
+  nombreEmprendimiento: string
+  descripcionTrayectoria?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  productos?: Prisma.ProductoCreateNestedManyWithoutArtesanoInput
+}
+
+export type ArtesanoUncheckedCreateWithoutStandsInput = {
+  id?: number
+  nombre: string
+  apellido: string
+  dni: string
+  email: string
+  telefono?: string | null
+  localidad: string
+  rubro: string
+  nombreEmprendimiento: string
+  descripcionTrayectoria?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  productos?: Prisma.ProductoUncheckedCreateNestedManyWithoutArtesanoInput
+}
+
+export type ArtesanoCreateOrConnectWithoutStandsInput = {
+  where: Prisma.ArtesanoWhereUniqueInput
+  create: Prisma.XOR<Prisma.ArtesanoCreateWithoutStandsInput, Prisma.ArtesanoUncheckedCreateWithoutStandsInput>
+}
+
+export type ArtesanoUpsertWithoutStandsInput = {
+  update: Prisma.XOR<Prisma.ArtesanoUpdateWithoutStandsInput, Prisma.ArtesanoUncheckedUpdateWithoutStandsInput>
+  create: Prisma.XOR<Prisma.ArtesanoCreateWithoutStandsInput, Prisma.ArtesanoUncheckedCreateWithoutStandsInput>
+  where?: Prisma.ArtesanoWhereInput
+}
+
+export type ArtesanoUpdateToOneWithWhereWithoutStandsInput = {
+  where?: Prisma.ArtesanoWhereInput
+  data: Prisma.XOR<Prisma.ArtesanoUpdateWithoutStandsInput, Prisma.ArtesanoUncheckedUpdateWithoutStandsInput>
+}
+
+export type ArtesanoUpdateWithoutStandsInput = {
+  nombre?: Prisma.StringFieldUpdateOperationsInput | string
+  apellido?: Prisma.StringFieldUpdateOperationsInput | string
+  dni?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  telefono?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  localidad?: Prisma.StringFieldUpdateOperationsInput | string
+  rubro?: Prisma.StringFieldUpdateOperationsInput | string
+  nombreEmprendimiento?: Prisma.StringFieldUpdateOperationsInput | string
+  descripcionTrayectoria?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  productos?: Prisma.ProductoUpdateManyWithoutArtesanoNestedInput
+}
+
+export type ArtesanoUncheckedUpdateWithoutStandsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  nombre?: Prisma.StringFieldUpdateOperationsInput | string
+  apellido?: Prisma.StringFieldUpdateOperationsInput | string
+  dni?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  telefono?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  localidad?: Prisma.StringFieldUpdateOperationsInput | string
+  rubro?: Prisma.StringFieldUpdateOperationsInput | string
+  nombreEmprendimiento?: Prisma.StringFieldUpdateOperationsInput | string
+  descripcionTrayectoria?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  productos?: Prisma.ProductoUncheckedUpdateManyWithoutArtesanoNestedInput
+}
+
 export type ArtesanoCreateWithoutProductosInput = {
   nombre: string
   apellido: string
@@ -558,6 +657,7 @@ export type ArtesanoCreateWithoutProductosInput = {
   descripcionTrayectoria?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  stands?: Prisma.StandCreateNestedManyWithoutArtesanoInput
 }
 
 export type ArtesanoUncheckedCreateWithoutProductosInput = {
@@ -573,6 +673,7 @@ export type ArtesanoUncheckedCreateWithoutProductosInput = {
   descripcionTrayectoria?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  stands?: Prisma.StandUncheckedCreateNestedManyWithoutArtesanoInput
 }
 
 export type ArtesanoCreateOrConnectWithoutProductosInput = {
@@ -603,6 +704,7 @@ export type ArtesanoUpdateWithoutProductosInput = {
   descripcionTrayectoria?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  stands?: Prisma.StandUpdateManyWithoutArtesanoNestedInput
 }
 
 export type ArtesanoUncheckedUpdateWithoutProductosInput = {
@@ -618,6 +720,7 @@ export type ArtesanoUncheckedUpdateWithoutProductosInput = {
   descripcionTrayectoria?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  stands?: Prisma.StandUncheckedUpdateManyWithoutArtesanoNestedInput
 }
 
 
@@ -627,10 +730,12 @@ export type ArtesanoUncheckedUpdateWithoutProductosInput = {
 
 export type ArtesanoCountOutputType = {
   productos: number
+  stands: number
 }
 
 export type ArtesanoCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   productos?: boolean | ArtesanoCountOutputTypeCountProductosArgs
+  stands?: boolean | ArtesanoCountOutputTypeCountStandsArgs
 }
 
 /**
@@ -650,6 +755,13 @@ export type ArtesanoCountOutputTypeCountProductosArgs<ExtArgs extends runtime.Ty
   where?: Prisma.ProductoWhereInput
 }
 
+/**
+ * ArtesanoCountOutputType without action
+ */
+export type ArtesanoCountOutputTypeCountStandsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.StandWhereInput
+}
+
 
 export type ArtesanoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -665,6 +777,7 @@ export type ArtesanoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   createdAt?: boolean
   updatedAt?: boolean
   productos?: boolean | Prisma.Artesano$productosArgs<ExtArgs>
+  stands?: boolean | Prisma.Artesano$standsArgs<ExtArgs>
   _count?: boolean | Prisma.ArtesanoCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["artesano"]>
 
@@ -716,6 +829,7 @@ export type ArtesanoSelectScalar = {
 export type ArtesanoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "nombre" | "apellido" | "dni" | "email" | "telefono" | "localidad" | "rubro" | "nombreEmprendimiento" | "descripcionTrayectoria" | "createdAt" | "updatedAt", ExtArgs["result"]["artesano"]>
 export type ArtesanoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   productos?: boolean | Prisma.Artesano$productosArgs<ExtArgs>
+  stands?: boolean | Prisma.Artesano$standsArgs<ExtArgs>
   _count?: boolean | Prisma.ArtesanoCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type ArtesanoIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -725,6 +839,7 @@ export type $ArtesanoPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
   name: "Artesano"
   objects: {
     productos: Prisma.$ProductoPayload<ExtArgs>[]
+    stands: Prisma.$StandPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1134,6 +1249,7 @@ readonly fields: ArtesanoFieldRefs;
 export interface Prisma__ArtesanoClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   productos<T extends Prisma.Artesano$productosArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Artesano$productosArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProductoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  stands<T extends Prisma.Artesano$standsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Artesano$standsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$StandPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1589,6 +1705,30 @@ export type Artesano$productosArgs<ExtArgs extends runtime.Types.Extensions.Inte
   take?: number
   skip?: number
   distinct?: Prisma.ProductoScalarFieldEnum | Prisma.ProductoScalarFieldEnum[]
+}
+
+/**
+ * Artesano.stands
+ */
+export type Artesano$standsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Stand
+   */
+  select?: Prisma.StandSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Stand
+   */
+  omit?: Prisma.StandOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.StandInclude<ExtArgs> | null
+  where?: Prisma.StandWhereInput
+  orderBy?: Prisma.StandOrderByWithRelationInput | Prisma.StandOrderByWithRelationInput[]
+  cursor?: Prisma.StandWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.StandScalarFieldEnum | Prisma.StandScalarFieldEnum[]
 }
 
 /**

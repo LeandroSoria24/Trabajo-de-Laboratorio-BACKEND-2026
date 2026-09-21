@@ -21,6 +21,16 @@ model Artesano {
   productos              Producto[]
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @default(now()) @updatedAt
+  stands                Stand[]
+}
+
+model Stand {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  numero      Int
+  ubicacion   String?
+  artesanoId  Int
+  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
 }
 
 model Producto {

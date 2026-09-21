@@ -47,6 +47,11 @@ export { Prisma }
  */
 export type Artesano = Prisma.ArtesanoModel
 /**
+ * Model Stand
+ * 
+ */
+export type Stand = Prisma.StandModel
+/**
  * Model Producto
  * 
  */

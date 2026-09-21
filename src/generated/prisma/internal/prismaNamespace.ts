@@ -398,6 +398,7 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 export const ModelName = {
   Artesano: 'Artesano',
+  Stand: 'Stand',
   Producto: 'Producto'
 } as const
 
@@ -414,7 +415,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "artesano" | "producto"
+    modelProps: "artesano" | "stand" | "producto"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -489,6 +490,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ArtesanoCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ArtesanoCountAggregateOutputType> | number
+        }
+      }
+    }
+    Stand: {
+      payload: Prisma.$StandPayload<ExtArgs>
+      fields: Prisma.StandFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.StandFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.StandFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload>
+        }
+        findFirst: {
+          args: Prisma.StandFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.StandFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload>
+        }
+        findMany: {
+          args: Prisma.StandFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload>[]
+        }
+        create: {
+          args: Prisma.StandCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload>
+        }
+        createMany: {
+          args: Prisma.StandCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.StandCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload>[]
+        }
+        delete: {
+          args: Prisma.StandDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload>
+        }
+        update: {
+          args: Prisma.StandUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload>
+        }
+        deleteMany: {
+          args: Prisma.StandDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.StandUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.StandUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload>[]
+        }
+        upsert: {
+          args: Prisma.StandUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StandPayload>
+        }
+        aggregate: {
+          args: Prisma.StandAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateStand>
+        }
+        groupBy: {
+          args: Prisma.StandGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StandGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.StandCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StandCountAggregateOutputType> | number
         }
       }
     }
@@ -621,6 +696,17 @@ export const ArtesanoScalarFieldEnum = {
 } as const
 
 export type ArtesanoScalarFieldEnum = (typeof ArtesanoScalarFieldEnum)[keyof typeof ArtesanoScalarFieldEnum]
+
+
+export const StandScalarFieldEnum = {
+  id: 'id',
+  nombre: 'nombre',
+  numero: 'numero',
+  ubicacion: 'ubicacion',
+  artesanoId: 'artesanoId'
+} as const
+
+export type StandScalarFieldEnum = (typeof StandScalarFieldEnum)[keyof typeof StandScalarFieldEnum]
 
 
 export const ProductoScalarFieldEnum = {
@@ -882,6 +968,7 @@ export interface PrismaClientOptionsWithAdapter extends PrismaClientBaseOptions 
 export type PrismaClientOptions = PrismaClientOptionsWithAccelerateUrl | PrismaClientOptionsWithAdapter
 export type GlobalOmitConfig = {
   artesano?: Prisma.ArtesanoOmit
+  stand?: Prisma.StandOmit
   producto?: Prisma.ProductoOmit
 }
 
