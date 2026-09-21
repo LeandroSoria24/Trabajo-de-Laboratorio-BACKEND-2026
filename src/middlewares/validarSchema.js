@@ -2,7 +2,7 @@ import { crearError } from '../utils/crearError.js';
 import { detallarErroresZod } from '../utils/ErroresZod.js';
 
 // Middleware para validar datos (body, params o query) con Zod /* 🟩 */
-export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
+export const validarSchema = (schema, origen) => (req, res, next) => {
     const datos = req[origen] ?? {};
     const resultado = schema.safeParse(datos);
 

@@ -7,8 +7,8 @@ import {
     deleteLogico
 } from '../services/producto.services.js';
 
-// GETTERS
-export const getProductos = async (req, res, next) => {  /* 🟩 */
+// GETTERS 🟩
+export const getProductos = async (req, res, next) => {  
     try {
         const resultado = await obtenerProductos(req.consulta);
         res.json(resultado);
@@ -19,7 +19,7 @@ export const getProductos = async (req, res, next) => {  /* 🟩 */
 };
 
 
-//GET POR ID 🟩-- 
+//GET POR ID 🟩
 export const getProductoPorId = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -31,7 +31,7 @@ export const getProductoPorId = async (req, res, next) => {
     }
 };
 
-// POST 🟩-- 
+// POST 🟩
 export const createProducto = async (req, res, next) => {
     try {
         // req.body ya contiene los datos validados por el middleware Zod (DTO)
@@ -43,7 +43,7 @@ export const createProducto = async (req, res, next) => {
     }
 };
 
-// PUT 🟩-- 
+// PUT 🟩
 export const updateProducto = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -55,7 +55,7 @@ export const updateProducto = async (req, res, next) => {
     }
 };
 
-// DELETE  🟩-- 
+// DELETE 🟩
 export const deleteProducto = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -67,7 +67,7 @@ export const deleteProducto = async (req, res, next) => {
     }
 };
 
-/* DELETE LOGICO  🟩*/
+// DELETE LOGICO  🟩
 export const deleteProductoLogico= async (req, res,next)=>{
     try{
         const id = Number(req.params.id);
