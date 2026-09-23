@@ -13,13 +13,6 @@ export const validarSchema = (schema, origen) => (req, res, next) => {
 
     if (origen === 'query') {
         req.consulta = resultado.data;
-        // En Express 5 req.query es solo un getter en IncomingMessage; redefinimos la propiedad para reemplazar los datos validados
-        Object.defineProperty(req, 'query', {
-            value: resultado.data,
-            writable: true,
-            configurable: true,
-            enumerable: true
-        });
     } else {
         req[origen] = resultado.data;
     }
