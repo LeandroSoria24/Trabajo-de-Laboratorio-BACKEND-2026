@@ -1,20 +1,24 @@
 {
   "name": "laboratorio",
-  "version": "1.0.0",
+  "version": "4.0.0",
   "description": "- Leandro Soria Rosales, MUN° 00292 \r - Santiago Ortiz, MUN° 00451",
-  "main": "app.js",
+  "main": "src/app.js",
   "scripts": {
-    "start": "node app.js",
-    "dev": "node --watch app.js"
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "express": "^5.2.1"
+    "@prisma/adapter-pg": "^7.10.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.23.0",
+    "zod": "4.4.3"
   },
-  "devDependencies": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/LeandroSoria24/Trabajo-de-Laboratorio-BACKEND-2026.git"
@@ -22,5 +26,9 @@
   "bugs": {
     "url": "https://github.com/LeandroSoria24/Trabajo-de-Laboratorio-BACKEND-2026/issues"
   },
-  "homepage": "https://github.com/LeandroSoria24/Trabajo-de-Laboratorio-BACKEND-2026#readme"
+  "homepage": "https://github.com/LeandroSoria24/Trabajo-de-Laboratorio-BACKEND-2026#readme",
+  "devDependencies": {
+    "@prisma/client": "^7.10.0",
+    "prisma": "^7.10.0"
+  }
 }

@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EstadoSolicitud {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
+model Artesano {
+  id                     Int        @id @default(autoincrement())
+  nombre                 String
+  apellido               String
+  dni                    String     @unique
+  email                  String     @unique
+  telefono               String?
+  localidad              String
+  rubro                  String
+  nombreEmprendimiento   String
+  descripcionTrayectoria String?
+  productos              Producto[]
+  // Relación 1:1 con Stand (un artesano tiene como máximo un stand asignado/solicitado)
+  stand                  Stand?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @default(now()) @updatedAt
+}
+
+model Stand {
+  id          Int             @id @default(autoincrement())
+  codigo      String          @unique // Código identificatorio único del stand (ej: STD-101)
+  numero      Int
+  ubicacion   String?
+  estado      EstadoSolicitud @default(PENDIENTE) // Estado de la solicitud restringido por enum
+  artesanoId  Int             @unique // @unique garantiza relación 1:1 estricta con Artesano
+  // onDelete: Cascade justificado porque la asignación del stand pertenece a la postulación del artesano
+  artesano    Artesano        @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @default(now()) @updatedAt
+}
+
+model Producto {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  descripcion String?
+  precio      Float
+  stock       Int      @default(0)
+  artesanoId  Int      // FK del lado N
+  // onDelete: Cascade justificado para mantener integridad si el artesano es dado de baja
+  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  eliminado   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
