@@ -16,6 +16,7 @@ import {
 
 const router = Router();
 
+router.get('/', validarSchema(obtenerArtesanosSchema, 'query'), getArtesanos);/* 🟩 Estándar REST */
 router.get('/all', validarSchema(obtenerArtesanosSchema, 'query'), getArtesanos);/* 🟩 */
 router.get('/:id', validarSchema(idParamSchema, 'params'), getArtesanoPorId);/* 🟩 */
 router.post('/', validarSchema(crearArtesanoSchema, 'body'), createArtesano);/* 🟩 */

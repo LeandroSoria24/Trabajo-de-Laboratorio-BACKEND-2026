@@ -7,6 +7,12 @@ datasource db {
   provider = "postgresql"
 }
 
+enum EstadoSolicitud {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
 model Artesano {
   id                     Int        @id @default(autoincrement())
   nombre                 String
@@ -19,18 +25,23 @@ model Artesano {
   nombreEmprendimiento   String
   descripcionTrayectoria String?
   productos              Producto[]
+  // Relación 1:1 con Stand (un artesano tiene como máximo un stand asignado/solicitado)
+  stand                  Stand?
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @default(now()) @updatedAt
-  stands                Stand[]
 }
 
 model Stand {
-  id          Int      @id @default(autoincrement())
-  nombre      String
+  id          Int             @id @default(autoincrement())
+  codigo      String          @unique // Código identificatorio único del stand (ej: STD-101)
   numero      Int
   ubicacion   String?
-  artesanoId  Int
-  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  estado      EstadoSolicitud @default(PENDIENTE) // Estado de la solicitud restringido por enum
+  artesanoId  Int             @unique // @unique garantiza relación 1:1 estricta con Artesano
+  // onDelete: Cascade justificado porque la asignación del stand pertenece a la postulación del artesano
+  artesano    Artesano        @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @default(now()) @updatedAt
 }
 
 model Producto {
@@ -39,9 +50,11 @@ model Producto {
   descripcion String?
   precio      Float
   stock       Int      @default(0)
-  artesanoId  Int
+  artesanoId  Int      // FK del lado N
+  // onDelete: Cascade justificado para mantener integridad si el artesano es dado de baja
   artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
   eliminado   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
 }
+

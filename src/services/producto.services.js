@@ -15,7 +15,7 @@ const encontrarId = async (arsetanoID) => {
 export const crearProducto = async (crearProductoDto) => {
     const { nombre, descripcion, precio, stock, artesanoId } = crearProductoDto;
 
-    // Regla de negocio: comprobar que el artesano exista
+    // Regla de negocio: comprobar que el artesano exista antes de crear (400)
     const artesano = await prisma.artesano.findUnique({
         where: { id: artesanoId }
     });
@@ -29,7 +29,9 @@ export const crearProducto = async (crearProductoDto) => {
             descripcion: descripcion ?? null,
             precio: Number(precio),
             stock: stock !== undefined ? Number(stock) : 0,
-            artesanoId,
+            artesano: {
+                connect: { id: artesanoId }
+            },
             eliminado: false
         },
         include: {
@@ -62,19 +64,24 @@ export const actualizarProducto = async (id, actualizarProductoDto) => {
         }
     }
 
+    const data = {};
+    if (nombre !== undefined) data.nombre = nombre;
+    if (descripcion !== undefined) data.descripcion = descripcion;
+    if (precio !== undefined) data.precio = precio;
+    if (stock !== undefined) data.stock = stock;
+    if (artesanoId !== undefined) {
+        data.artesano = {
+            connect: { id: artesanoId }
+        };
+    }
+
     return prisma.producto.update({
         where: { id },
-        data: {
-            nombre,
-            descripcion,
-            precio,
-            stock,
-            artesanoId
-        },
+        data,
         include: {
             artesano: true
         }
-    }); // buenisimo porque esta actualizando y a la vez devolviendo datos para la respuesta .JSON
+    });
 };
 
 /*

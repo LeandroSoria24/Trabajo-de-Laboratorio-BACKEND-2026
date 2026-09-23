@@ -59,9 +59,9 @@ export const updateProducto = async (req, res, next) => {
 export const deleteProducto = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
-        await eliminarProducto(id) 
+        await eliminarProducto(id);
 
-        res.status(200).send("Producto eliminado exitosamente");
+        res.status(204).send();
     } catch (error) {
         next(error);
     }

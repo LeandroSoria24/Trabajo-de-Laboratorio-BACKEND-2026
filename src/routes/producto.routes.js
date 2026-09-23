@@ -18,6 +18,7 @@ import {
 
 const router = Router();
 
+router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);/* 🟩 Estándar REST */
 router.get('/all', validarSchema(obtenerProductosSchema, 'query'), getProductos);/* 🟩 */
 router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);/* 🟩 */
 router.post('/', validarSchema(crearProductoSchema, 'body'), createProducto);/* 🟩 */
