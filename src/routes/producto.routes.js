@@ -7,6 +7,7 @@ import {
     deleteProducto,
     deleteProductoLogico
 } from '../controllers/producto.controllers.js';
+
 import { validarSchema } from '../middlewares/validarSchema.js';
 import { idParamSchema } from '../validators/comun.schemas.js';
 import {
@@ -17,7 +18,7 @@ import {
 
 const router = Router();
 
-router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);/* 🟩 */
+router.get('/all', validarSchema(obtenerProductosSchema, 'query'), getProductos);/* 🟩 */
 router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);/* 🟩 */
 router.post('/', validarSchema(crearProductoSchema, 'body'), createProducto);/* 🟩 */
 router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarProductoSchema, 'body'), updateProducto);/* 🟩 */
