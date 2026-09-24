@@ -25,11 +25,13 @@ model Artesano {
   nombreEmprendimiento   String
   descripcionTrayectoria String?
   productos              Producto[]
-  // Relación 1:1 con Stand (un artesano tiene como máximo un stand asignado/solicitado)
-  stand                  Stand?
+
+  stand                  Stand? // Relación 1:1 con Stand (un artesano tiene como máximo un stand asignado/solicitado)
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @default(now()) @updatedAt
 }
+/* hacer tabla para localidad */
+/* estaodo en artesano */
 
 model Stand {
   id          Int             @id @default(autoincrement())
