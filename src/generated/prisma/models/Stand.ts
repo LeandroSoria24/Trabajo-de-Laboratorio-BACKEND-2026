@@ -238,15 +238,15 @@ export type StandOrderByWithRelationInput = {
 
 export type StandWhereUniqueInput = Prisma.AtLeast<{
   id?: number
+  artesanoId?: number
   AND?: Prisma.StandWhereInput | Prisma.StandWhereInput[]
   OR?: Prisma.StandWhereInput[]
   NOT?: Prisma.StandWhereInput | Prisma.StandWhereInput[]
   nombre?: Prisma.StringFilter<"Stand"> | string
   numero?: Prisma.IntFilter<"Stand"> | number
   ubicacion?: Prisma.StringNullableFilter<"Stand"> | string | null
-  artesanoId?: Prisma.IntFilter<"Stand"> | number
   artesano?: Prisma.XOR<Prisma.ArtesanoScalarRelationFilter, Prisma.ArtesanoWhereInput>
-}, "id">
+}, "id" | "artesanoId">
 
 export type StandOrderByWithAggregationInput = {
   id?: Prisma.SortOrder

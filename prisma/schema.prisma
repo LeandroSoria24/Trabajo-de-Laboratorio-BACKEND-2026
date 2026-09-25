@@ -21,7 +21,7 @@ model Artesano {
   productos              Producto[]
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @default(now()) @updatedAt
-  stands                Stand[]
+  stands                 Stand[]
 }
 
 model Stand {
@@ -29,7 +29,7 @@ model Stand {
   nombre      String
   numero      Int
   ubicacion   String?
-  artesanoId  Int
+  artesanoId  Int      @unique
   artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
 }
 
