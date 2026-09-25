@@ -47,10 +47,16 @@ Crear un archivo `.env` en la raíz del proyecto tomando como referencia [.env.e
 DATABASE_URL="postgresql://USUARIO:PASSWORD@HOST:5432/postgres?schema=public"
 ```
 
-### 4. Sincronizar y generar el cliente de Prisma
+### 4. Ejecutar migraciones y generar el cliente de Prisma
 ```bash
-# Sincronizar modelos en PostgreSQL
-npx prisma db push
+# Aplicar migraciones en PostgreSQL (desarrollo)
+npx prisma migrate dev
+
+# O en entornos de despliegue / producción:
+npx prisma migrate deploy
+
+# Verificar estado de las migraciones
+npx prisma migrate status
 
 # Generar el cliente Prisma en src/generated/prisma
 npx prisma generate
@@ -133,10 +139,32 @@ src/
 |---|---|---|---|
 | `GET` | `/productos` | Listado con filtros, orden y paginación (`?nombre=&precio=&pagina=&limite=`) | `200 OK` |
 | `GET` | `/productos/:id` | Detalle de un producto por su ID (valida ID con Zod) | `200 OK` |
-| `POST` | `/productos` | Creación de un producto (valida body con Zod y persistencia) | `201 Created` |
+| `POST` | `/productos` | Creación de un producto (valida body con Zod y persistencia con `connect`) | `201 Created` |
 | `PUT` | `/productos/:id` | Actualización de datos de un producto (valida ID y body con Zod) | `200 OK` |
-| `DELETE` | `/productos/:id` | Eliminación física definitiva de un producto por su ID | `200 OK` |
+| `DELETE` | `/productos/:id` | Eliminación física definitiva de un producto por su ID | `204 No Content` |
 | `PATCH` | `/productos/:id` | Eliminación lógica (soft delete marcando `eliminado: true`) | `200 OK` |
+
+---
+
+## Modelo de Datos y Reglas de Integridad
+
+El modelo implementado en Prisma ORM (`prisma/schema.prisma`) cuenta con las siguientes entidades y directivas:
+
+1. **Artesano** (Entidad núcleo):
+   - Identificadores únicos: `dni` (`@unique`) y `email` (`@unique`).
+   - Relación 1:N con `Producto` (`productos Producto[]`).
+   - Relación 1:1 con `Stand` (`stand Stand?`).
+
+2. **Producto** (Entidad núcleo):
+   - Clave foránea `artesanoId` con relación `artesano Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)`.
+   - **Justificación `onDelete: Cascade`:** Si se da de baja a un artesano del festival, todos los productos pertenecientes a su catálogo se eliminan en cascada para preservar la consistencia relacional.
+   - Creación y actualización asociadas mediante `connect` verificando previamente la existencia del artesano (HTTP 400).
+
+3. **Stand** (Entidad núcleo):
+   - Código identificatorio único: `codigo String @unique`.
+   - Clave foránea `artesanoId Int @unique` que garantiza una asignación **estrictamente 1:1** con `Artesano`.
+   - Estado de la solicitud restringido mediante `enum EstadoSolicitud { PENDIENTE, APROBADA, RECHAZADA }` con valor por defecto `PENDIENTE`.
+   - **Justificación `onDelete: Cascade`:** Si la postulación o registro de un artesano es eliminada, su stand asignado y la solicitud vinculada se liberan/eliminan automáticamente.
 
 ---
 

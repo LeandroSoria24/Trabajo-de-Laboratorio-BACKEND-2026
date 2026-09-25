@@ -58,9 +58,9 @@ export const updateArtesano = async (req, res, next) => {
 export const deleteArtesano = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
-        await eliminarArtesano(id)
+        await eliminarArtesano(id);
 
-        res.status(200).send("Artesano eliminado exitosamente");
+        res.status(204).send();
     } catch (error) {
         next(error);
     }

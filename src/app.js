@@ -27,13 +27,13 @@ app.get('/', (req, res) => {
 app.get('/info', (req, res) => {
     res.json({
         mensaje: 'API Poncho Digital',
-        version: '1.0',
+        version: '4.0',
         estado: 'En desarrollo'
     });
 })
 
-app.use('/artesanos', artesanosRoutes);  /* 🟥 */
-app.use('/productos', productosRoutes);  /* 🟥 */
+app.use('/artesanos', artesanosRoutes);  /* 🟩 */
+app.use('/productos', productosRoutes);  /* 🟩 */
 
 
 /* MANEJO DE RUTAS NO ENCONTRADAS (404) */
