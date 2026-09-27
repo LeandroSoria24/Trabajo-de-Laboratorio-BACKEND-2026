@@ -7,43 +7,96 @@ datasource db {
   provider = "postgresql"
 }
 
+// -------------------------------------------------------------
+// ENUMS
+// -------------------------------------------------------------
+enum RolUsuario {
+  ADMINISTRADOR
+  ARTESANO
+  VISITANTE
+}
+
 enum EstadoSolicitud {
   PENDIENTE
   APROBADA
   RECHAZADA
+  MODIFICACION_SOLICITADA
+}
+
+enum EstadoStand {
+  DISPONIBLE
+  OCUPADO
+}
+
+// -------------------------------------------------------------
+// MODELOS
+// -------------------------------------------------------------
+
+model Usuario {
+  id            Int                    @id @default(autoincrement())
+  email         String                 @unique
+  password_hash String
+  rol           RolUsuario             @default(VISITANTE)
+  activo        Boolean                @default(true)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @default(now()) @updatedAt
+
+  artesano      Artesano?
+  solicitudes   SolicitudPostulacion[]
+  consultas     RegistroConsulta[]
+}
+
+model Localidad {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  provincia String     @default("Catamarca")
+  artesanos Artesano[]
+  createdAt DateTime   @default(now())
 }
 
 model Artesano {
   id                     Int        @id @default(autoincrement())
+  usuarioId              Int?       @unique
+  usuario                Usuario?   @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
   nombre                 String
   apellido               String
   dni                    String     @unique
   email                  String     @unique
   telefono               String?
-  localidad              String
-  rubro                  String
   nombreEmprendimiento   String
   descripcionTrayectoria String?
-  productos              Producto[]
+  rubro                  String
 
-  stand                  Stand? // Relación 1:1 con Stand (un artesano tiene como máximo un stand asignado/solicitado)
+  // Relación con la tabla Localidad
+  localidadId            Int
+  localidad              Localidad  @relation(fields: [localidadId], references: [id])
+
+  // Soft delete en Artesano
+  activo                 Boolean    @default(true)
+
+  productos              Producto[]
+  stand                  Stand?     // Relación 1:1 con Stand (un artesano tiene como máximo un stand asignado)
+
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @default(now()) @updatedAt
 }
-/* hacer tabla para localidad */
-/* estaodo en artesano */
 
 model Stand {
-  id          Int             @id @default(autoincrement())
-  codigo      String          @unique // Código identificatorio único del stand (ej: STD-101)
-  numero      Int
-  ubicacion   String?
-  estado      EstadoSolicitud @default(PENDIENTE) // Estado de la solicitud restringido por enum
-  artesanoId  Int             @unique // @unique garantiza relación 1:1 estricta con Artesano
-  // onDelete: Cascade justificado porque la asignación del stand pertenece a la postulación del artesano
-  artesano    Artesano        @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @default(now()) @updatedAt
+  id          Int         @id @default(autoincrement())
+  codigo      String      @unique // Código identificatorio único del stand (ej: STD-101)
+  numero      Int?
+  pabellon    String      // Requerido para filtros GET /api/stands
+  sector      String      // Requerido para filtros GET /api/stands
+  coordenadas String?     // Ubicación espacial JSON o coordenadas
+  estado      EstadoStand @default(DISPONIBLE)
+
+  // artesanoId nullable para permitir que el stand esté DISPONIBLE sin artesano asignado
+  artesanoId  Int?        @unique
+  artesano    Artesano?   @relation(fields: [artesanoId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
 }
 
 model Producto {
@@ -53,10 +106,34 @@ model Producto {
   precio      Float
   stock       Int      @default(0)
   artesanoId  Int      // FK del lado N
-  // onDelete: Cascade justificado para mantener integridad si el artesano es dado de baja
   artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+
+  // Soft delete en Producto
   eliminado   Boolean  @default(false)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
 }
 
+model SolicitudPostulacion {
+  id                   Int             @id @default(autoincrement())
+  usuarioId            Int?
+  usuario              Usuario?        @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  datos_personales     String
+  datos_emprendimiento String
+  estado               EstadoSolicitud @default(PENDIENTE)
+  observaciones        String?         // Observaciones del administrador (modificaciones solicitadas o rechazo)
+
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @default(now()) @updatedAt
+}
+
+model RegistroConsulta {
+  id               Int      @id @default(autoincrement())
+  visitanteId      Int?     // Nullable para registrar consultas de visitantes anónimos
+  usuario          Usuario? @relation(fields: [visitanteId], references: [id], onDelete: SetNull)
+
+  termino_busqueda String
+  fecha            DateTime @default(now())
+}
