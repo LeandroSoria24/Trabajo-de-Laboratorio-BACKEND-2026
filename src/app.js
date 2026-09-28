@@ -1,6 +1,11 @@
 import express from "express";
 import artesanosRoutes from './routes/artesano.routes.js';
 import productosRoutes from './routes/producto.routes.js';
+import localidadesRoutes from './routes/localidad.routes.js';
+import standsRoutes from './routes/stand.routes.js';
+import solicitudesRoutes from './routes/solicitud.routes.js';
+import usuariosRoutes from './routes/usuario.routes.js';
+import registroConsultaRoutes from './routes/registroConsulta.routes.js';
 import { logger } from "./middlewares/logger.js"
 import {manejoErrores} from "./middlewares/manejoErrores.js"
 import {rutaNoEncontrada} from "./middlewares/rutaNoEncontrada.js"
@@ -32,8 +37,13 @@ app.get('/info', (req, res) => {
     });
 })
 
-app.use('/artesanos', artesanosRoutes);  /* 🟩 */
-app.use('/productos', productosRoutes);  /* 🟩 */
+app.use('/artesanos', artesanosRoutes);         /* 🟩 */
+app.use('/productos', productosRoutes);          /* 🟩 */
+app.use('/localidades', localidadesRoutes);      /* 🟩 */
+app.use('/stands', standsRoutes);                /* 🟩 */
+app.use('/solicitudes', solicitudesRoutes);      /* 🟩 */
+app.use('/usuarios', usuariosRoutes);            /* 🟩 */
+app.use('/consultas', registroConsultaRoutes);   /* 🟩 */
 
 
 /* MANEJO DE RUTAS NO ENCONTRADAS (404) */

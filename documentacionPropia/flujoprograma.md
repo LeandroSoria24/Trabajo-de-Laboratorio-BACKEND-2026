@@ -38,7 +38,11 @@ flowchart TD
   * `/info` (No coincide)
   * `/artesanos` (No coincide)
   * `/productos` (No coincide)
-  * `/docs` (No coincide)
+  * `/localidades` (No coincide)
+  * `/stands` (No coincide)
+  * `/solicitudes` (No coincide)
+  * `/usuarios` (No coincide)
+  * `/consultas` (No coincide)
 * Al no coincidir con ninguna, la petición continúa descendiendo por la cadena de middlewares.
 
 ### 3. Captura de Ruta Inexistente: `app.use(rutaNoEncontrada)`

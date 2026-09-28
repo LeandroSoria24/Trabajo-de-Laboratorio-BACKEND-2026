@@ -7,7 +7,13 @@ import { crearError } from '../utils/crearError.js';
   comprueba las reglas de negocio (unicidad de DNI y email) y persiste con Prisma. 🟩
  */
 export const crearArtesano = async (crearArtesanoDto) => {
-    const { nombre, apellido, dni, email, telefono, localidad, rubro, nombreEmprendimiento, descripcionTrayectoria } = crearArtesanoDto;
+    const { nombre, apellido, dni, email, telefono, localidadId, rubro, nombreEmprendimiento, descripcionTrayectoria, usuarioId } = crearArtesanoDto;
+
+    // Regla de negocio: comprobar que la localidad exista
+    const localidad = await prisma.localidad.findUnique({ where: { id: localidadId } });
+    if (!localidad) {
+        throw crearError(`No existe una localidad con id ${localidadId}`, 404);
+    }
 
     // Regla de negocio: comprobar que no exista otro artesano con el mismo DNI
     const existeDni = await prisma.artesano.findUnique({ where: { dni } });
@@ -28,12 +34,14 @@ export const crearArtesano = async (crearArtesanoDto) => {
             dni,
             email,
             telefono: telefono ?? null,
-            localidad,
+            localidadId,
             rubro,
             nombreEmprendimiento,
-            descripcionTrayectoria: descripcionTrayectoria ?? null
+            descripcionTrayectoria: descripcionTrayectoria ?? null,
+            usuarioId: usuarioId ?? null
         },
         include: {
+            localidad: true,
             productos: true
         }
     });
@@ -52,7 +60,15 @@ export const actualizarArtesano = async (id, actualizarArtesanoDto) => {
         throw crearError(`No existe un artesano con id ${id}`, 404);
     }
 
-    const { nombre, apellido, dni, email, telefono, localidad, rubro, nombreEmprendimiento, descripcionTrayectoria } = actualizarArtesanoDto;
+    const { nombre, apellido, dni, email, telefono, localidadId, rubro, nombreEmprendimiento, descripcionTrayectoria, usuarioId, activo } = actualizarArtesanoDto;
+
+    // Si se envía un nuevo localidadId, verificar que exista
+    if (localidadId !== undefined) {
+        const localidad = await prisma.localidad.findUnique({ where: { id: localidadId } });
+        if (!localidad) {
+            throw crearError(`No existe una localidad con id ${localidadId}`, 404);
+        }
+    }
 
     // Si se envía un DNI distinto al actual, verificar que no esté en uso
     if (dni && dni !== artesano.dni) {
@@ -78,12 +94,15 @@ export const actualizarArtesano = async (id, actualizarArtesanoDto) => {
             dni,
             email,
             telefono,
-            localidad,
+            localidadId,
             rubro,
             nombreEmprendimiento,
-            descripcionTrayectoria
+            descripcionTrayectoria,
+            usuarioId,
+            activo
         },
         include: {
+            localidad: true,
             productos: true
         }
     });
@@ -91,7 +110,7 @@ export const actualizarArtesano = async (id, actualizarArtesanoDto) => {
 
 /*
   Servicio para obtener la lista de artesanos.
-  Recibe el DTO con los parámetros de consulta (paginación y filtros). 🟩
+  Por defecto filtra sólo artesanos activos (activo: true). 🟩
  */
 export const obtenerArtesanos = async (criterios = {}) => {
     const {
@@ -101,9 +120,10 @@ export const obtenerArtesanos = async (criterios = {}) => {
         dni,
         email,
         telefono,
-        localidad,
+        localidadId,
         rubro,
         nombreEmprendimiento,
+        activo = true,
 
         ordenarPor = 'nombre',
         direccion = 'asc',
@@ -112,7 +132,7 @@ export const obtenerArtesanos = async (criterios = {}) => {
 
     } = criterios;
 
-    const where = {};
+    const where = { activo };
 
     if (id !== undefined) {
         where.id = id;
@@ -138,8 +158,8 @@ export const obtenerArtesanos = async (criterios = {}) => {
         where.telefono = { contains: telefono, mode: 'insensitive' };
     }
 
-    if (localidad !== undefined) {
-        where.localidad = { contains: localidad, mode: 'insensitive' };
+    if (localidadId !== undefined) {
+        where.localidadId = localidadId;
     }
 
     if (rubro !== undefined) {
@@ -159,7 +179,7 @@ export const obtenerArtesanos = async (criterios = {}) => {
             orderBy: [{ [ordenarPor]: direccion }, { id: 'asc' }],
             skip: desplazamiento,
             take: limite,
-            include: { productos: true }
+            include: { localidad: true, productos: true }
         }),
         prisma.artesano.count({
             where
@@ -184,7 +204,7 @@ export const obtenerArtesanos = async (criterios = {}) => {
 export const obtenerArtesanoPorId = async (id) => {
     const artesano = await prisma.artesano.findUnique({
         where: { id },
-        include: { productos: true }
+        include: { localidad: true, productos: true, stand: true }
     });
 
     if (!artesano) {
@@ -195,11 +215,10 @@ export const obtenerArtesanoPorId = async (id) => {
 };
 
 /*
-  Servicio para eliminar un artesano por su ID.
-  Comprueba que el artesano exista antes de eliminarlo. 🟩
+  Servicio para eliminar (soft delete) un artesano por su ID.
+  Marca el artesano como inactivo en vez de borrarlo físicamente. 🟩
  */
 export const eliminarArtesano = async (id) => {
-    // Primero verificar que el artesano exista
     const artesano = await prisma.artesano.findUnique({
         where: { id }
     });
@@ -208,9 +227,12 @@ export const eliminarArtesano = async (id) => {
         throw crearError(`No existe un artesano con id ${id}`, 404);
     }
 
-    await prisma.artesano.delete({
-        where: { id }
-    });
+    if (!artesano.activo) {
+        throw crearError(`El artesano con id ${id} ya se encuentra inactivo`, 400);
+    }
 
-    return artesano;
+    return prisma.artesano.update({
+        where: { id },
+        data: { activo: false }
+    });
 };

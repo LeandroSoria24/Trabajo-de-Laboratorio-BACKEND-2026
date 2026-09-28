@@ -38,37 +38,59 @@ Es un patrón de diseño que divide el software en niveles jerárquicos donde **
 
 ```text
 src/
-├── app.js                          ← Punto de entrada (configura Express, middlewares y rutas)
+├── app.js                              ← Punto de entrada (configura Express, middlewares y rutas)
 │
-├── routes/                         ← Capa de Enrutamiento (define endpoints y handlers)
+├── routes/                             ← Capa de Enrutamiento (define endpoints y handlers)
 │   ├── artesano.routes.js
-│   └── producto.routes.js
+│   ├── producto.routes.js
+│   ├── localidad.routes.js
+│   ├── stand.routes.js
+│   ├── solicitud.routes.js
+│   ├── usuario.routes.js
+│   └── registroConsulta.routes.js
 │
-├── middlewares/                     ← Capa de Middlewares (filtros intermedios)
-│   ├── logger.js                   ← Monitoreo de tiempos y estado HTTP
-│   ├── manejoErrores.js            ← Red de seguridad global para respuestas JSON
-│   ├── rutaNoEncontrada.js         ← Captura de 404
-│   └── validarSchema.js            ← Fábrica universal de validación Zod (body, params, query)
+├── middlewares/                         ← Capa de Middlewares (filtros intermedios)
+│   ├── logger.js                       ← Monitoreo de tiempos y estado HTTP
+│   ├── manejoErrores.js                ← Red de seguridad global para respuestas JSON
+│   ├── rutaNoEncontrada.js             ← Captura de 404
+│   └── validarSchema.js                ← Fábrica universal de validación Zod (body, params, query)
 │
-├── validators/                     ← Capa de Esquemas de Validación (Zod)
-│   ├── comun.schemas.js            ← Esquemas compartidos (p. ej. validación de :id)
-│   └── producto.schemas.js         ← Contratos de entrada (body, params y querys)
+├── validators/                         ← Capa de Esquemas de Validación (Zod 4)
+│   ├── comun.schemas.js                ← Esquemas compartidos (validación de :id)
+│   ├── artesano.schemas.js
+│   ├── producto.schemas.js
+│   ├── localidad.schemas.js
+│   ├── stand.schemas.js
+│   ├── solicitud.schemas.js
+│   ├── usuario.schemas.js
+│   └── registroConsulta.schemas.js
 │
-├── controllers/                    ← Capa de Controladores (gestión HTTP y delegación DTO)
+├── controllers/                        ← Capa de Controladores (gestión HTTP y delegación DTO)
 │   ├── artesano.controllers.js
-│   └── producto.controllers.js
+│   ├── producto.controllers.js
+│   ├── localidad.controllers.js
+│   ├── stand.controllers.js
+│   ├── solicitud.controllers.js
+│   ├── usuario.controllers.js
+│   └── registroConsulta.controllers.js
 │
-├── services/                       ← Capa de Servicios (lógica de negocio y persistencia con Prisma)
-│   └── producto.services.js
+├── services/                           ← Capa de Servicios (lógica de negocio y persistencia con Prisma)
+│   ├── artesano.services.js
+│   ├── producto.services.js
+│   ├── localidad.services.js
+│   ├── stand.services.js
+│   ├── solicitud.services.js
+│   ├── usuario.services.js
+│   └── registroConsulta.services.js
 │
-├── config/                         ← Capa de Configuración
-│   └── prisma.js                  ← Instancia compartida de Prisma Client con adapter-pg
+├── config/                             ← Capa de Configuración
+│   └── prisma.js                      ← Instancia singleton de Prisma Client con adapter-pg
 │
-├── utils/                          ← Utilidades transversales
-│   ├── crearError.js              ← Fábrica de errores HTTP con status y details
-│   └── ErroresZod.js              ← Formateador estructurado de errores Zod { path, message }
+├── utils/                              ← Utilidades transversales
+│   ├── crearError.js                  ← Fábrica de errores HTTP con status y details
+│   └── ErroresZod.js                  ← Formateador estructurado de errores Zod { path, message }
 │
-└── generated/prisma/               ← Cliente generado por Prisma ORM
+└── generated/prisma/                   ← Cliente generado por Prisma ORM
 ```
 
 ---
@@ -79,8 +101,13 @@ src/
 **Responsabilidad:** Configurar Express, registrar middlewares globales y montar los enrutadores principales.
 
 ```javascript
-app.use('/artesanos', artesanosRoutes);
-app.use('/productos', productosRoutes);
+app.use('/artesanos',  artesanosRoutes);
+app.use('/productos',  productosRoutes);
+app.use('/localidades', localidadesRoutes);
+app.use('/stands',     standsRoutes);
+app.use('/solicitudes', solicitudesRoutes);
+app.use('/usuarios',   usuariosRoutes);
+app.use('/consultas',  registroConsultaRoutes);
 app.use(rutaNoEncontrada);
 app.use(manejoErrores);
 ```
@@ -289,9 +316,12 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 ### Artesano
 | Regla | Capa | Detalle |
 |---|---|---|
-| DNI único | Prisma / Controller | No puede haber dos artesanos con el mismo documento |
-| Email único | Prisma / Controller | No puede haber dos artesanos con el mismo correo |
-| Datos obligatorios | Controller | Nombre, apellido, dni, email, localidad, rubro y emprendimiento |
+| DNI único | `@unique` en Prisma | No puede haber dos artesanos con el mismo documento |
+| Email único | `@unique` en Prisma | No puede haber dos artesanos con el mismo correo |
+| Localidad existente | `services/artesano.services.js` | `localidadId` debe referenciar una `Localidad` registrada |
+| Datos obligatorios | `validators/artesano.schemas.js` | nombre, apellido, dni, email, localidadId, rubro, nombreEmprendimiento |
+| Soft delete | `services/artesano.services.js` | `DELETE /artesanos/:id` → `activo: false` (no se borra físicamente) |
+| Filtro por activo | `services/artesano.services.js` | `GET /artesanos` filtra `activo: true` por defecto |
 
 ### Producto
 | Regla | Capa | Detalle |
@@ -299,8 +329,43 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 | Nombre obligatorio | `validators/producto.schemas.js` | Mínimo 1 carácter sin espacios en blanco |
 | Precio positivo | `validators/producto.schemas.js` | Mayor a 0 |
 | Stock no negativo | `validators/producto.schemas.js` | Mayor o igual a 0 |
-| Artesano existente | `services/producto.services.js` | El producto debe vincularse a un artesano registrado en la BD |
-| Eliminación en cascada | `prisma/schema.prisma` | Si se elimina un artesano, se eliminan sus productos |
+| Artesano existente | `services/producto.services.js` | El producto debe vincularse a un artesano registrado |
+| Eliminación en cascada | `prisma/schema.prisma` | `onDelete: Cascade` — si se elimina un artesano, sus productos se eliminan |
+| Soft delete | `services/producto.services.js` | `PATCH /productos/:id` → `eliminado: true` |
+
+### Localidad
+| Regla | Capa | Detalle |
+|---|---|---|
+| Nombre único | `@unique` en Prisma | No puede haber dos localidades con el mismo nombre |
+| Provincia con default | `prisma/schema.prisma` | Por defecto `"Catamarca"` |
+
+### Stand
+| Regla | Capa | Detalle |
+|---|---|---|
+| Código único | `@unique` en Prisma | Identificador único del stand (ej. `STD-101`) |
+| Asignación 1:1 | `artesanoId @unique` | Un artesano tiene como máximo un stand |
+| Asignación atómica | `services/stand.services.js` | Usa `prisma.$transaction` para evitar race conditions |
+| Stand disponible | `services/stand.services.js` | Solo se puede asignar un stand con `estado: DISPONIBLE` |
+| Artesano sin stand | `services/stand.services.js` | El artesano no puede tener otro stand ya asignado |
+
+### SolicitudPostulacion
+| Regla | Capa | Detalle |
+|---|---|---|
+| Estado controlado | `EstadoSolicitud` enum | `PENDIENTE`, `APROBADA`, `RECHAZADA`, `MODIFICACION_SOLICITADA` |
+| Evaluación solo admin | Semántica de ruta | `PATCH /solicitudes/:id/evaluar` está diseñado para uso administrativo |
+
+### Usuario
+| Regla | Capa | Detalle |
+|---|---|---|
+| Email único | `@unique` en Prisma | Un solo usuario por dirección de email |
+| Rol controlado | `RolUsuario` enum | `ADMINISTRADOR`, `ARTESANO`, `VISITANTE` |
+| Soft delete | `services/usuario.services.js` | `DELETE /usuarios/:id` → `activo: false` |
+
+### RegistroConsulta
+| Regla | Capa | Detalle |
+|---|---|---|
+| Visitante opcional | `visitanteId Int?` | Soporta registro de búsquedas anónimas (nullable FK) |
+| Término obligatorio | `validators/registroConsulta.schemas.js` | `termino_busqueda` no puede estar vacío |
 
 ---
 
