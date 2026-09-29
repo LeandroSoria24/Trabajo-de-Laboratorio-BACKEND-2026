@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { crearError } from '../utils/crearError.js';
-
+/* 🟥 */
 export const crearUsuario = async (dto) => {
     const { email, password, rol = "VISITANTE", activo = true } = dto;
 

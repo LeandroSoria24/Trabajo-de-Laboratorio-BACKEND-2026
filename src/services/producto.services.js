@@ -1,11 +1,7 @@
 import prisma from '../config/prisma.js';
 import { crearError } from '../utils/crearError.js';
 
-const encontrarId = async (arsetanoID) => {
-    return await prisma.artesano.findUnique({
-        where: { id: artesanoId }
-    });
-}
+
 
 /*
   Servicio para la creación de un producto.

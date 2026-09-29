@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { crearError } from '../utils/crearError.js';
-
+/* 🟥 */
 export const crearLocalidad = async (dto) => {
     const { nombre, provincia = "Catamarca" } = dto;
 

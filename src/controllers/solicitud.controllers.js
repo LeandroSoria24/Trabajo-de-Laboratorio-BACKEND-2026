@@ -5,7 +5,7 @@ import {
     evaluarSolicitud,
     eliminarSolicitud
 } from '../services/solicitud.services.js';
-
+/* 🟥 */
 export const getSolicitudes = async (req, res, next) => {
     try {
         const resultado = await obtenerSolicitudes(req.consulta);

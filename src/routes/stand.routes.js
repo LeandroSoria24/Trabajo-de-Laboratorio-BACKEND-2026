@@ -16,7 +16,7 @@ import {
     asignarStandSchema,
     obtenerStandsQuerySchema
 } from '../validators/stand.schemas.js';
-
+/* 🟥 */
 const router = Router();
 
 // GET /api/stands con filtros por query string (pabellón, sector, estado) 🟩

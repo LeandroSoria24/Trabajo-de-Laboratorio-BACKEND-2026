@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { crearError } from '../utils/crearError.js';
-
+/* 🟥 */
 export const crearSolicitud = async (dto) => {
     const { usuarioId, datos_personales, datos_emprendimiento } = dto;
 

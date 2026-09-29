@@ -7,7 +7,7 @@ import {
     desasignarStand,
     eliminarStand
 } from '../services/stand.services.js';
-
+/* 🟥 */
 export const getStands = async (req, res, next) => {
     try {
         const resultado = await obtenerStands(req.consulta);

@@ -5,7 +5,7 @@ import {
     actualizarLocalidad,
     eliminarLocalidad
 } from '../services/localidad.services.js';
-
+/* 🟥 */
 export const getLocalidades = async (req, res, next) => {
     try {
         const resultado = await obtenerLocalidades(req.consulta);

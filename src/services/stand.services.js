@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { crearError } from '../utils/crearError.js';
-
+/* 🟥 */
 export const crearStand = async (crearStandDto) => {
     const { codigo, numero, pabellon, sector, coordenadas, estado = "DISPONIBLE", artesanoId } = crearStandDto;
 

@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { crearError } from '../utils/crearError.js';
-
+/* 🟥 */
 export const crearRegistroConsulta = async (dto) => {
     const { visitanteId, termino_busqueda } = dto;
 

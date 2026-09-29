@@ -7,7 +7,6 @@ import {
     deleteProducto,
     deleteProductoLogico
 } from '../controllers/producto.controllers.js';
-
 import { validarSchema } from '../middlewares/validarSchema.js';
 import { idParamSchema } from '../validators/comun.schemas.js';
 import {

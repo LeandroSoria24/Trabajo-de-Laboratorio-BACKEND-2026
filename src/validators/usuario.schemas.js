@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { RolUsuarioEnum } from "./comun.schemas.js";
-
+/* 🟥 */
 export const crearUsuarioSchema = z.object({
   email: z.string("El email es obligatorio")
     .trim()

@@ -1,5 +1,5 @@
 import { z } from "zod";
-
+/* 🟥 */
 export const crearRegistroConsultaSchema = z.object({
   visitanteId: z.coerce.number().int().positive().optional().nullable(),
   termino_busqueda: z.string("El término de búsqueda es obligatorio")

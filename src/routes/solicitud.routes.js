@@ -13,7 +13,7 @@ import {
     evaluarSolicitudSchema,
     obtenerSolicitudesSchema
 } from '../validators/solicitud.schemas.js';
-
+/* 🟥 */
 const router = Router();
 
 // Endpoint de postulación (público) 🟩

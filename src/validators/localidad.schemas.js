@@ -1,5 +1,5 @@
 import { z } from "zod";
-
+/* 🟥 */
 export const crearLocalidadSchema = z.object({
   nombre: z.string("El nombre de la localidad es obligatorio")
     .trim()

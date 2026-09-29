@@ -11,7 +11,7 @@ import {
     crearRegistroConsultaSchema,
     obtenerRegistroConsultasSchema
 } from '../validators/registroConsulta.schemas.js';
-
+/* 🟥 */
 const router = Router();
 
 router.get('/', validarSchema(obtenerRegistroConsultasSchema, 'query'), getRegistroConsultas);

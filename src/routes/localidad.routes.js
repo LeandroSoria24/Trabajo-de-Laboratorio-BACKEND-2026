@@ -13,7 +13,7 @@ import {
     actualizarLocalidadSchema,
     obtenerLocalidadesSchema
 } from '../validators/localidad.schemas.js';
-
+/* 🟥 */
 const router = Router();
 
 router.get('/', validarSchema(obtenerLocalidadesSchema, 'query'), getLocalidades);

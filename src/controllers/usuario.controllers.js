@@ -5,7 +5,7 @@ import {
     actualizarUsuario,
     eliminarUsuario
 } from '../services/usuario.services.js';
-
+/* 🟥 */
 export const getUsuarios = async (req, res, next) => {
     try {
         const resultado = await obtenerUsuarios(req.consulta);

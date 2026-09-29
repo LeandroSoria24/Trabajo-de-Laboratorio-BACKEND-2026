@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { EstadoSolicitudEnum } from "./comun.schemas.js";
-
+/* 🟥 */
 export const crearSolicitudSchema = z.object({
   usuarioId: z.coerce.number().int().positive().optional().nullable(),
   datos_personales: z.string("Los datos personales son obligatorios")

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { EstadoStandEnum } from "./comun.schemas.js";
-
+/* 🟥 */
 export const crearStandSchema = z.object({
   codigo: z.string("El código del stand es obligatorio")
     .trim()

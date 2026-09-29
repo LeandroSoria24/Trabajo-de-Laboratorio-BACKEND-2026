@@ -4,7 +4,7 @@ import {
     obtenerRegistroConsultaPorId,
     eliminarRegistroConsulta
 } from '../services/registroConsulta.services.js';
-
+/* 🟥 */
 export const getRegistroConsultas = async (req, res, next) => {
     try {
         const resultado = await obtenerRegistroConsultas(req.consulta);

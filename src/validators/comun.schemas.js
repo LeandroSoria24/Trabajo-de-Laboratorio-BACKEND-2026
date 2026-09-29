@@ -1,5 +1,5 @@
 import { z } from "zod";
-
+/* 🟥 */
 /*
   Esquema común para validar parámetros de ruta con identificador numérico (:id).
   Asegura que el valor sea un entero positivo y lo transforma automáticamente a Number.

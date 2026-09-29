@@ -13,7 +13,7 @@ import {
     actualizarUsuarioSchema,
     obtenerUsuariosSchema
 } from '../validators/usuario.schemas.js';
-
+/* 🟥 */
 const router = Router();
 
 router.get('/', validarSchema(obtenerUsuariosSchema, 'query'), getUsuarios);
