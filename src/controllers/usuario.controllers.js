@@ -1,54 +1,24 @@
-import {
-    crearUsuario,
-    obtenerUsuarios,
-    obtenerUsuarioPorId,
-    actualizarUsuario,
-    eliminarUsuario
-} from '../services/usuario.services.js';
-/* 🟥 */
-export const getUsuarios = async (req, res, next) => {
-    try {
-        const resultado = await obtenerUsuarios(req.consulta);
-        res.json(resultado);
-    } catch (error) {
-        next(error);
-    }
-};
-
-export const getUsuarioPorId = async (req, res, next) => {
-    try {
-        const id = Number(req.params.id);
-        const usuario = await obtenerUsuarioPorId(id);
-        res.json(usuario);
-    } catch (error) {
-        next(error);
-    }
-};
+import { registrarUsuario, iniciarSesion as loginService } from '../services/usuario.services.js';
 
 export const postUsuario = async (req, res, next) => {
     try {
-        const nuevoUsuario = await crearUsuario(req.body);
-        res.status(201).json(nuevoUsuario);
+        const nuevoUsuario = await registrarUsuario(req.body);
+        res.status(201).json({
+            mensaje: "Usuario registrado exitosamente",
+            nuevoUsuario: nuevoUsuario
+        });
     } catch (error) {
         next(error);
     }
 };
 
-export const putUsuario = async (req, res, next) => {
+export const iniciarSesion = async (req, res, next) => {
     try {
-        const id = Number(req.params.id);
-        const usuarioActualizado = await actualizarUsuario(id, req.body);
-        res.json(usuarioActualizado);
-    } catch (error) {
-        next(error);
-    }
-};
-
-export const deleteUsuario = async (req, res, next) => {
-    try {
-        const id = Number(req.params.id);
-        await eliminarUsuario(id);
-        res.status(204).send();
+        const usuario = await loginService(req.body);
+        res.status(200).json({
+            mensaje: "Inicio de sesión exitoso",
+            usuario
+        });
     } catch (error) {
         next(error);
     }

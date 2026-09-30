@@ -31,19 +31,17 @@ enum EstadoStand {
 // -------------------------------------------------------------
 // MODELOS
 // -------------------------------------------------------------
-
 model Usuario {
-  id            Int                    @id @default(autoincrement())
-  email         String                 @unique
-  password_hash String
-  rol           RolUsuario             @default(VISITANTE)
-  activo        Boolean                @default(true)
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @default(now()) @updatedAt
+  id           String   @id @default(uuid()) @db.Uuid
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  artesano      Artesano?
-  solicitudes   SolicitudPostulacion[]
-  consultas     RegistroConsulta[]
+  artesano     Artesano?
+  solicitudes  SolicitudPostulacion[]
+  consultas    RegistroConsulta[]
 }
 
 model Localidad {
@@ -56,7 +54,7 @@ model Localidad {
 
 model Artesano {
   id                     Int        @id @default(autoincrement())
-  usuarioId              Int?       @unique
+  usuarioId              String?    @unique @db.Uuid
   usuario                Usuario?   @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   nombre                 String
@@ -117,7 +115,7 @@ model Producto {
 
 model SolicitudPostulacion {
   id                   Int             @id @default(autoincrement())
-  usuarioId            Int?
+  usuarioId            String?         @db.Uuid
   usuario              Usuario?        @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   datos_personales     String
@@ -131,9 +129,10 @@ model SolicitudPostulacion {
 
 model RegistroConsulta {
   id               Int      @id @default(autoincrement())
-  visitanteId      Int?     // Nullable para registrar consultas de visitantes anónimos
+  visitanteId      String?  @db.Uuid // Nullable para registrar consultas de visitantes anónimos
   usuario          Usuario? @relation(fields: [visitanteId], references: [id], onDelete: SetNull)
 
   termino_busqueda String
   fecha            DateTime @default(now())
 }
+
