@@ -22,4 +22,4 @@ export const iniciarSesion = async (req, res, next) => {
     } catch (error) {
         next(error);
     }
-};
+}; 

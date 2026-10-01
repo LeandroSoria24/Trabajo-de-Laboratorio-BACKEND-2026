@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+/*   eliminado: z.preprocess(val => {
+    if (val === 'true') return true;
+    if (val === 'false') return false;
+    return val;
+  }, z.boolean().optional()).default(false), */
+
 /*
   Esquema de validación para crear un artesano (POST /artesanos) 🟩
  */

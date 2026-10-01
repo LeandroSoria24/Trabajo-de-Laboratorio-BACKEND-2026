@@ -23,6 +23,6 @@ router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);/* 
 router.post('/', validarSchema(crearProductoSchema, 'body'), createProducto);/* 🟩 */
 router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarProductoSchema, 'body'), updateProducto);/* 🟩 */
 router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProducto);/* 🟩 */
-router.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogico);/* 🟩 */
+router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogico);/* 🟩 */
 
 export default router;
