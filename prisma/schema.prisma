@@ -86,7 +86,6 @@ model Stand {
   numero      Int?
   pabellon    String      // Requerido para filtros GET /api/stands
   sector      String      // Requerido para filtros GET /api/stands
-  coordenadas String?     // Ubicación espacial JSON o coordenadas
   estado      EstadoStand @default(DISPONIBLE)
 
   // artesanoId nullable para permitir que el stand esté DISPONIBLE sin artesano asignado
