@@ -28,7 +28,7 @@ export const crearProducto = async (crearProductoDto) => {
             artesano: {
                 connect: { id: artesanoId }
             },
-            eliminado: false
+            activo: true
         },
         include: {
             artesano: true
@@ -130,7 +130,7 @@ export const obtenerProductos = async (criterios = {}) => {
     }
 
     if (eliminado !== undefined) {
-        where.eliminado = eliminado;
+        where.activo = !eliminado;
     }
 
     // Cálculo para la paginación de Prisma
@@ -212,7 +212,7 @@ export const deleteLogico = async (id) => {
     return prisma.producto.update({
         where: { id },
         data: {
-            eliminado: true
+            activo: false
         }
     });
 

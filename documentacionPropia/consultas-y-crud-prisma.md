@@ -63,28 +63,38 @@ Cuando defines modelos en `prisma/schema.prisma`:
 ```prisma
 model Artesano {
   id                     Int        @id @default(autoincrement())
+  usuarioId              String     @unique @db.Uuid
+  usuario                Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  localidadId            Int
+  localidad              Localidad  @relation(fields: [localidadId], references: [id])
   nombre                 String
   apellido               String
   dni                    String     @unique
   email                  String     @unique
-  localidad              String
+  telefono               String?
   rubro                  String
   nombreEmprendimiento   String
+  descripcionTrayectoria String?    @db.Text
+  activo                 Boolean    @default(true)
   productos              Producto[]
+  stand                  Stand?
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @updatedAt
 }
 
 model Producto {
   id          Int      @id @default(autoincrement())
-  nombre      String
-  descripcion String?
-  precio      Float
-  stock       Int      @default(0)
   artesanoId  Int
-  artesano    Artesano @relation(fields: [artesanoId], references: [id])
+  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  nombre      String
+  descripcion String?  @db.Text
+  precio      Decimal  @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  activo      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([artesanoId])
 }
 ```
 
@@ -513,8 +523,9 @@ model Artesano {
 model Producto {
   id          Int      @id @default(autoincrement())
   nombre      String
-  precio      Float
+  precio      Decimal  @db.Decimal(10, 2)
   stock       Int      @default(0)
+  activo      Boolean  @default(true)
   
   // Clave foránea física en la BD:
   artesanoId  Int

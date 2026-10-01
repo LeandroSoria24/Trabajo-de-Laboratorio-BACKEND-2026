@@ -232,11 +232,11 @@ flowchart TD
     C --> D["4. producto.controllers.js (deleteProductoLogico)\nawait deleteLogico(id)"]
     D --> E["5. producto.services.js (deleteLogico)\nfindUnique(id)"]
     E -->|"[Error] No existe"| F["throw crearError(..., 404) -> manejoErrores.js"]
-    E -->|"[OK] Existe"| G["prisma.producto.update({\n  where: { id },\n  data: { eliminado: true }\n})"]
+    E -->|"[OK] Existe"| G["prisma.producto.update({\n  where: { id },\n  data: { activo: false }\n})"]
     G --> H[("PostgreSQL")]
     H --> G
     G --> D
-    D --> I["6. res.status(200).json({ message: 'Producto eliminado logicamente' })"]
+    D --> I["6. res.status(200).json({ message: 'Producto dado de baja (activo: false)' })"]
 
     style A fill:#38bdf8,stroke:#0284c7,color:#000
     style B fill:#a78bfa,stroke:#7c3aed,color:#000

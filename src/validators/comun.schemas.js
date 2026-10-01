@@ -13,13 +13,13 @@ export const idParamSchema = z.object({
 /*
   Enums coincidentes con schema.prisma para Zod 4
 */
-export const RolUsuarioEnum = z.enum(["ADMINISTRADOR", "ARTESANO", "VISITANTE"]);
+export const RolUsuarioEnum = z.enum(["ADMINISTRADOR", "EVALUADOR", "ARTESANO", "VISITANTE"]);
 
 export const EstadoSolicitudEnum = z.enum([
   "PENDIENTE",
+  "EN_REVISION",
   "APROBADA",
-  "RECHAZADA",
-  "MODIFICACION_SOLICITADA"
+  "RECHAZADA"
 ]);
 
-export const EstadoStandEnum = z.enum(["DISPONIBLE", "OCUPADO"]);
+export const EstadoStandEnum = z.enum(["DISPONIBLE", "OCUPADO", "MANTENIMIENTO"]);

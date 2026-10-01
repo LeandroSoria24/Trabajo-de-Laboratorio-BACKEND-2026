@@ -15,7 +15,7 @@ export const registrarUsuario = async (registrarUsuarioDto) => {
     }
     const passwordHash = await bcrypt.hash(password, FACTOR_COSTO);
 
-    // Guarda el hash, nunca la contraseña original.
+    // Guarda el usuario; el rol se asigna como 'VISITANTE' automáticamente por default
     return prisma.usuario.create({
         data: {
             nombre: nombre,
@@ -26,6 +26,7 @@ export const registrarUsuario = async (registrarUsuarioDto) => {
             id: true,
             nombre: true,
             email: true,
+            rol: true,
             createdAt: true
         }
     });
@@ -55,6 +56,7 @@ export const iniciarSesion = async (iniciarSesionDto) => {
     return {
         id: usuario.id,
         nombre: usuario.nombre,
-        email: usuario.email
+        email: usuario.email,
+        rol: usuario.rol
     };
 };

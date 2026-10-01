@@ -33,7 +33,7 @@ export const crearArtesanoSchema = z.object({
     .trim()
     .min(1, "El nombre del emprendimiento no puede estar vacío"),
   descripcionTrayectoria: z.string().trim().min(1).optional().nullable(),
-  usuarioId: z.coerce.number().int().positive().optional().nullable(),
+  usuarioId: z.string().uuid("El usuarioId debe ser un UUID válido"),
   activo: z.boolean().optional().default(true)
 });
 
@@ -68,7 +68,7 @@ export const actualizarArtesanoSchema = z.object({
     .min(1, "El nombre del emprendimiento no puede estar vacío")
     .optional(),
   descripcionTrayectoria: z.string().trim().min(1).optional().nullable(),
-  usuarioId: z.coerce.number().int().positive().optional().nullable(),
+  usuarioId: z.string().uuid("El usuarioId debe ser un UUID válido").optional(),
   activo: z.boolean().optional()
 });
 

@@ -15,20 +15,14 @@ export const crearStandSchema = z.object({
     .positive("El número debe ser positivo")
     .optional()
     .nullable(),
-  pabellon: z
-    .string()
-    .trim()
-    .min(1, "El pabellón es obligatorio"),
-  sector: z
-    .string()
-    .trim()
-    .min(1, "El sector es obligatorio"),
-  coordenadas: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .nullable(),
+  pabellonId: z.coerce
+    .number("El ID del pabellón es obligatorio")
+    .int("El ID del pabellón debe ser un entero")
+    .positive("El ID del pabellón debe ser positivo"),
+  sectorId: z.coerce
+    .number("El ID del sector es obligatorio")
+    .int("El ID del sector debe ser un entero")
+    .positive("El ID del sector debe ser positivo"),
   estado: EstadoStandEnum.optional().default("DISPONIBLE"),
   artesanoId: z.coerce
     .number()
@@ -53,22 +47,16 @@ export const actualizarStandSchema = z.object({
     .positive("El número debe ser positivo")
     .optional()
     .nullable(),
-  pabellon: z
-    .string()
-    .trim()
-    .min(1, "El pabellón no puede estar vacío")
+  pabellonId: z.coerce
+    .number()
+    .int("El ID del pabellón debe ser un entero")
+    .positive("El ID del pabellón debe ser positivo")
     .optional(),
-  sector: z
-    .string()
-    .trim()
-    .min(1, "El sector no puede estar vacío")
+  sectorId: z.coerce
+    .number()
+    .int("El ID del sector debe ser un entero")
+    .positive("El ID del sector debe ser positivo")
     .optional(),
-  coordenadas: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .nullable(),
   estado: EstadoStandEnum.optional(),
   artesanoId: z.coerce
     .number()
@@ -82,11 +70,11 @@ export const actualizarStandSchema = z.object({
   Esquema para listar/filtrar Stands (GET /stands)
 */
 export const obtenerStandsSchema = z.object({
-  pabellon: z.string().trim().min(1).optional(),
-  sector: z.string().trim().min(1).optional(),
+  pabellonId: z.coerce.number().int().positive().optional(),
+  sectorId: z.coerce.number().int().positive().optional(),
   estado: EstadoStandEnum.optional(),
   artesanoId: z.coerce.number().int().positive().optional(),
-  ordenarPor: z.enum(["id", "codigo", "numero", "pabellon", "sector", "estado", "createdAt"]).default("codigo"),
+  ordenarPor: z.enum(["id", "codigo", "numero", "pabellonId", "sectorId", "estado", "createdAt"]).default("codigo"),
   direccion: z.enum(["asc", "desc"]).default("asc"),
   pagina: z.coerce.number().int().positive().default(1),
   limite: z.coerce.number().int().min(1).max(50).default(10)

@@ -43,11 +43,7 @@ src/
 ├── routes/                             ← Capa de Enrutamiento (define endpoints y handlers)
 │   ├── artesano.routes.js
 │   ├── producto.routes.js
-│   ├── localidad.routes.js
-│   ├── stand.routes.js
-│   ├── solicitud.routes.js
-│   ├── usuario.routes.js
-│   └── registroConsulta.routes.js
+│   └── usuario.routes.js
 │
 ├── middlewares/                         ← Capa de Middlewares (filtros intermedios)
 │   ├── logger.js                       ← Monitoreo de tiempos y estado HTTP
@@ -56,32 +52,21 @@ src/
 │   └── validarSchema.js                ← Fábrica universal de validación Zod (body, params, query)
 │
 ├── validators/                         ← Capa de Esquemas de Validación (Zod 4)
-│   ├── comun.schemas.js                ← Esquemas compartidos (validación de :id)
+│   ├── comun.schemas.js                ← Esquemas compartidos (validación de :id y enums)
 │   ├── artesano.schemas.js
 │   ├── producto.schemas.js
-│   ├── localidad.schemas.js
 │   ├── stand.schemas.js
-│   ├── solicitud.schemas.js
-│   ├── usuario.schemas.js
-│   └── registroConsulta.schemas.js
+│   └── usuario.schemas.js
 │
 ├── controllers/                        ← Capa de Controladores (gestión HTTP y delegación DTO)
 │   ├── artesano.controllers.js
 │   ├── producto.controllers.js
-│   ├── localidad.controllers.js
-│   ├── stand.controllers.js
-│   ├── solicitud.controllers.js
-│   ├── usuario.controllers.js
-│   └── registroConsulta.controllers.js
+│   └── usuario.controllers.js
 │
 ├── services/                           ← Capa de Servicios (lógica de negocio y persistencia con Prisma)
 │   ├── artesano.services.js
 │   ├── producto.services.js
-│   ├── localidad.services.js
-│   ├── stand.services.js
-│   ├── solicitud.services.js
-│   ├── usuario.services.js
-│   └── registroConsulta.services.js
+│   └── usuario.services.js
 │
 ├── config/                             ← Capa de Configuración
 │   └── prisma.js                      ← Instancia singleton de Prisma Client con adapter-pg
@@ -103,11 +88,7 @@ src/
 ```javascript
 app.use('/artesanos',  artesanosRoutes);
 app.use('/productos',  productosRoutes);
-app.use('/localidades', localidadesRoutes);
-app.use('/stands',     standsRoutes);
-app.use('/solicitudes', solicitudesRoutes);
 app.use('/usuarios',   usuariosRoutes);
-app.use('/consultas',  registroConsultaRoutes);
 app.use(rutaNoEncontrada);
 app.use(manejoErrores);
 ```
@@ -196,7 +177,7 @@ export const obtenerProductosSchema = z.object({ ... });
   - `actualizarProducto`: valida existencia del producto y del artesano si se envía.
   - `obtenerProductoPorId`: busca el producto y lanza 404 si no existe.
   - `eliminarProducto`: verifica existencia previa y elimina definitivamente el registro con `prisma.producto.delete`.
-  - `deleteLogico`: verifica existencia y actualiza el flag `eliminado: true` con `prisma.producto.update`.
+  - `deleteLogico`: verifica existencia y actualiza el flag `activo: false` con `prisma.producto.update`.
 
 ---
 
@@ -206,32 +187,51 @@ export const obtenerProductosSchema = z.object({ ... });
 **Responsabilidad:** Definir las tablas relacionales en PostgreSQL y proveer el cliente de consultas.
 
 ```prisma
+model Usuario {
+  id           String     @id @default(uuid()) @db.Uuid
+  rol          RolUsuario @default(VISITANTE)
+  nombre       String
+  email        String     @unique
+  passwordHash String
+  artesano     Artesano?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
 model Artesano {
   id                     Int        @id @default(autoincrement())
+  usuarioId              String     @unique @db.Uuid
+  usuario                Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  localidadId            Int
+  localidad              Localidad  @relation(fields: [localidadId], references: [id])
   nombre                 String
   apellido               String
   dni                    String     @unique
   email                  String     @unique
   telefono               String?
-  localidad              String
-  rubro                  String
   nombreEmprendimiento   String
-  descripcionTrayectoria String?
+  rubro                  String
+  descripcionTrayectoria String?    @db.Text
+  activo                 Boolean    @default(true)
   productos              Producto[]
+  stand                  Stand?
   createdAt              DateTime   @default(now())
-  updatedAt              DateTime   @default(now()) @updatedAt
+  updatedAt              DateTime   @updatedAt
 }
 
 model Producto {
   id          Int      @id @default(autoincrement())
-  nombre      String
-  descripcion String?
-  precio      Float
-  stock       Int      @default(0)
   artesanoId  Int
   artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  nombre      String
+  descripcion String?  @db.Text
+  precio      Decimal  @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  activo      Boolean  @default(true)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  updatedAt   DateTime @updatedAt
+
+  @@index([artesanoId])
 }
 ```
 
@@ -351,21 +351,18 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 ### SolicitudPostulacion
 | Regla | Capa | Detalle |
 |---|---|---|
-| Estado controlado | `EstadoSolicitud` enum | `PENDIENTE`, `APROBADA`, `RECHAZADA`, `MODIFICACION_SOLICITADA` |
-| Evaluación solo admin | Semántica de ruta | `PATCH /solicitudes/:id/evaluar` está diseñado para uso administrativo |
+| Estado controlado | `EstadoSolicitud` enum | `PENDIENTE`, `EN_REVISION`, `APROBADA`, `RECHAZADA` |
+| Evaluación por evaluador | `evaluadorId UUID?` | Asignado a un usuario evaluador (`@relation("EvaluadorSolicitud")`) |
+| Postulante obligatorio | `artesanoId Int` | Vínculo requerido con el artesano solicitante |
 
 ### Usuario
 | Regla | Capa | Detalle |
 |---|---|---|
+| ID seguro | `id UUID` | Generado con `default(uuid())` a nivel base de datos |
 | Email único | `@unique` en Prisma | Un solo usuario por dirección de email |
-| Rol controlado | `RolUsuario` enum | `ADMINISTRADOR`, `ARTESANO`, `VISITANTE` |
-| Soft delete | `services/usuario.services.js` | `DELETE /usuarios/:id` → `activo: false` |
-
-### RegistroConsulta
-| Regla | Capa | Detalle |
-|---|---|---|
-| Visitante opcional | `visitanteId Int?` | Soporta registro de búsquedas anónimas (nullable FK) |
-| Término obligatorio | `validators/registroConsulta.schemas.js` | `termino_busqueda` no puede estar vacío |
+| Password hasheada | `services/usuario.services.js` | Encriptada de forma unidireccional con Bcrypt (cost 10) |
+| Rol controlado | `RolUsuario` enum | `ADMINISTRADOR`, `EVALUADOR`, `ARTESANO`, `VISITANTE` (por defecto) |
+| Rol por defecto | `@default(VISITANTE)` | Todo nuevo registro adquiere rol visitante automáticamente |
 
 ---
 

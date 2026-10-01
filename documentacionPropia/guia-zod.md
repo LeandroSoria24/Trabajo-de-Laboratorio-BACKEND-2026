@@ -456,11 +456,6 @@ export const obtenerProductosSchema = z.object({
   precio: z.coerce.number().positive().optional(),
   stock: z.coerce.number().int().nonnegative().optional(),
   artesanoId: z.coerce.number().int().positive().optional(),
-  eliminado: z.preprocess(val => {
-    if (val === 'true') return true;
-    if (val === 'false') return false;
-    return val;
-  }, z.boolean().optional()),
   ordenarPor: z.enum(["id", "nombre", "precio", "stock", "artesanoId"]).default("nombre"),
   direccion: z.enum(["asc", "desc"]).default("asc"),
   pagina: z.coerce.number().int().positive().default(1),

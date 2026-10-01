@@ -13,7 +13,7 @@
 
 ## Caso de Estudio: Poncho Digital
 
-Plataforma digital para la gestión y difusión de los artesanos, productores y productos de la tradicional **Fiesta Nacional e Internacional del Poncho** en la provincia de Catamarca. La API REST proporciona servicios desacoplados para la postulación y registro de artesanos, administración de su catálogo de productos artesanales, asignación de stands dentro del predio ferial, gestión de usuarios con roles y recopilación de estadísticas de búsqueda de visitantes.
+Plataforma digital para la gestión y difusión de los artesanos, productores y productos de la tradicional **Fiesta Nacional e Internacional del Poncho** en la provincia de Catamarca. La API REST proporciona servicios desacoplados para la autenticación y registro de usuarios con roles, gestión integral de artesanos vinculados a sus cuentas, administración de su catálogo de productos artesanales, organización del predio ferial mediante pabellones, sectores y stands (con asignación 1:1), y evaluación de solicitudes de postulación por parte de evaluadores y administradores.
 
 ---
 
@@ -23,8 +23,9 @@ Plataforma digital para la gestión y difusión de los artesanos, productores y 
 |---|---|---|
 | **Node.js** | v24 LTS | Runtime (ESM `"type": "module"`) |
 | **Express.js** | v5.x | Framework HTTP |
-| **PostgreSQL** | — | Motor de base de datos relacional |
+| **PostgreSQL** | Supabase | Motor de base de datos relacional con tipos nativos (`UUID`, `DECIMAL`) |
 | **Prisma ORM** | v7.10.x | Acceso a datos (cliente con adaptador `@prisma/adapter-pg`) |
+| **Bcrypt** | v6.0.0 | Hashing seguro de contraseñas (salt factor 10) |
 | **Zod** | v4.4.3 | Validación declarativa de esquemas y contratos de entrada |
 | **Dotenv** | v17.x | Gestión segura de credenciales por variables de entorno |
 
@@ -52,10 +53,7 @@ DATABASE_URL="postgresql://USUARIO:PASSWORD@HOST:5432/postgres?schema=public"
 
 ### 4. Ejecutar migraciones y generar el cliente de Prisma
 ```bash
-# Aplicar migraciones en PostgreSQL (desarrollo)
-npx prisma migrate dev
-
-# O en entornos de despliegue / producción:
+# Aplicar migraciones pendientes en PostgreSQL
 npx prisma migrate deploy
 
 # Verificar estado de las migraciones
@@ -108,63 +106,13 @@ Petición HTTP
          │
          ▼
 ┌──────────────────┐
-│   Services       │  Lógica de negocio, reglas de integridad
+│   Services       │  Lógica de negocio, bcrypt, reglas de integridad
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
 │   Prisma ORM     │  Acceso a PostgreSQL (queries, transactions)
 └──────────────────┘
-```
-
-### Estructura de directorios
-
-```text
-src/
-├── app.js                          # Configuración de Express, middlewares globales y montaje de routers
-├── config/
-│   └── prisma.js                   # Instancia singleton del cliente Prisma
-├── controllers/
-│   ├── artesano.controllers.js
-│   ├── producto.controllers.js
-│   ├── localidad.controllers.js
-│   ├── stand.controllers.js
-│   ├── solicitud.controllers.js
-│   ├── usuario.controllers.js
-│   └── registroConsulta.controllers.js
-├── middlewares/
-│   ├── logger.js                   # Registro de tiempo y estado de cada petición
-│   ├── manejoErrores.js            # Manejador global centralizado de errores
-│   ├── rutaNoEncontrada.js         # Captura de rutas no registradas (404)
-│   └── validarSchema.js            # Middleware fábrica genérico de validación Zod (body | params | query)
-├── routes/
-│   ├── artesano.routes.js
-│   ├── producto.routes.js
-│   ├── localidad.routes.js
-│   ├── stand.routes.js
-│   ├── solicitud.routes.js
-│   ├── usuario.routes.js
-│   └── registroConsulta.routes.js
-├── services/
-│   ├── artesano.services.js
-│   ├── producto.services.js
-│   ├── localidad.services.js
-│   ├── stand.services.js
-│   ├── solicitud.services.js
-│   ├── usuario.services.js
-│   └── registroConsulta.services.js
-├── utils/
-│   ├── crearError.js               # Fábrica estándar de errores HTTP con status, mensaje y details
-│   └── ErroresZod.js               # Formateador de errores de Zod a { path, message }
-└── validators/
-    ├── comun.schemas.js            # Esquemas compartidos (p. ej. validación de :id)
-    ├── artesano.schemas.js
-    ├── producto.schemas.js
-    ├── localidad.schemas.js
-    ├── stand.schemas.js
-    ├── solicitud.schemas.js
-    ├── usuario.schemas.js
-    └── registroConsulta.schemas.js
 ```
 
 ---
@@ -175,53 +123,61 @@ El schema Prisma (`prisma/schema.prisma`) define los siguientes **enums** y **mo
 
 ### Enums
 
-| Enum | Valores |
-|---|---|
-| `RolUsuario` | `ADMINISTRADOR`, `ARTESANO`, `VISITANTE` |
-| `EstadoSolicitud` | `PENDIENTE`, `APROBADA`, `RECHAZADA`, `MODIFICACION_SOLICITADA` |
-| `EstadoStand` | `DISPONIBLE`, `OCUPADO` |
-
-### Modelos y relaciones
-
-```
-Usuario (1) ──── (0..1) Artesano (1) ──── (N) Producto
-   │                       │
-   │                       └──── (0..1) Stand
-   │
-   ├──── (N) SolicitudPostulacion
-   └──── (N) RegistroConsulta
-
-Localidad (1) ──── (N) Artesano
-```
-
-| Modelo | Descripción | Soft Delete |
+| Enum | Valores | Descripción |
 |---|---|---|
-| `Usuario` | Cuenta del sistema con rol (`RolUsuario`). Campo `activo` para baja lógica. | `activo: Boolean` |
-| `Localidad` | Tabla de localidades de Catamarca, referenciada por `Artesano`. | — |
-| `Artesano` | Entidad núcleo. Vinculada a `Usuario` (opcional), `Localidad`, sus `Producto[]` y un `Stand?`. | `activo: Boolean` |
-| `Stand` | Espacio físico en el predio. Estado controlado por `EstadoStand`. Asignación 1:1 con `Artesano`. | — |
-| `Producto` | Artículo del catálogo de un artesano. | `eliminado: Boolean` |
-| `SolicitudPostulacion` | Postulación de un usuario para convertirse en artesano. Estado controlado por `EstadoSolicitud`. | — |
-| `RegistroConsulta` | Traza de búsquedas realizadas en la plataforma. `visitanteId` nullable (soporta anónimos). | — |
+| `RolUsuario` | `ADMINISTRADOR`, `EVALUADOR`, `ARTESANO`, `VISITANTE` | Roles del sistema con permisos diferenciados |
+| `EstadoStand` | `DISPONIBLE`, `OCUPADO`, `MANTENIMIENTO` | Estado operativo de los stands del predio |
+| `EstadoSolicitud` | `PENDIENTE`, `EN_REVISION`, `APROBADA`, `RECHAZADA` | Estados del circuito de postulación |
+
+### Diagrama Entidad-Relación (DER)
+
+![Diagrama Entidad-Relación - Poncho Digital](documentacionPropia/der-poncho-digital.png)
+
+### Diagrama de Relaciones
+
+```
+Usuario (1) ═══════════════ (1) Artesano (1) ──── (N) Producto
+   │                               │
+   │ (evaluador)                   └──── (0..1) Stand (1) ──── Pabellon (N:1)
+   ▼                                       │           └──── Sector (N:1)
+SolicitudPostulacion (N) ◄─────────────────┘
+   ▲
+   │ (postulante)
+   └─────────────────────────────── Artesano (N:1)
+
+Localidad (1) ──────────────────── (N) Artesano
+```
+
+### Modelos y Entidades
+
+| Modelo | Descripción | Identificador | Soft Delete |
+|---|---|---|---|
+| `Usuario` | Cuenta del sistema. Contraseña hasheada con bcrypt (`passwordHash`) y rol asignado. | `id: String @db.Uuid` | — |
+| `Localidad` | Localidades de Catamarca referenciadas por artesanos. | `id: Int` | — |
+| `Artesano` | Perfil de artesano vinculado **obligatoriamente (1 a 1)** a un `Usuario`. | `id: Int` | `activo: Boolean` |
+| `Producto` | Artículo del catálogo de un artesano. Moneda con precisión `Decimal(10,2)`. | `id: Int` | `activo: Boolean` |
+| `Pabellon` | Pabellón del predio ferial (ej: "Pabellón de Artesanías Tradicionales"). | `id: Int` | — |
+| `Sector` | Sector interno del predio (ej: "Sector Norte"). | `id: Int` | — |
+| `Stand` | Espacio físico. Vinculado a Pabellón, Sector y asignación **1:1 opcional** con Artesano. | `id: Int` | — |
+| `SolicitudPostulacion` | Postulación de un artesano para un stand, evaluada por un usuario evaluador. | `id: Int` | — |
 
 ### Reglas de integridad clave
-
-- `Artesano.dni` y `Artesano.email` son `@unique`.
-- `Stand.codigo` es `@unique` (ej: `STD-101`).
-- `Stand.artesanoId` es `@unique`, garantizando la relación **1:1 estricta**.
-- `Producto → Artesano`: `onDelete: Cascade` (si se da de baja un artesano, sus productos se eliminan).
-- `Stand → Artesano`: `onDelete: SetNull` (si el artesano se desvincula, el stand queda disponible).
-- `Artesano → Usuario`: `onDelete: SetNull` (si se elimina el usuario, el artesano permanece sin cuenta).
+- **`Usuario.id` es UUID (`@db.Uuid`)**: Identificador único global compatible con seguridad criptográfica.
+- **`Usuario.rol` con `@default(VISITANTE)`**: Todo usuario nuevo ingresa como visitante automáticamente.
+- **`Artesano ↔ Usuario` (1:1 obligatorio)**: `usuarioId String @unique @db.Uuid` con `onDelete: Cascade`.
+- **`Stand ↔ Artesano` (1:1 opcional)**: `artesanoId Int? @unique` con `onDelete: SetNull`.
+- **`Producto ↔ Artesano`**: `onDelete: Cascade` (si se elimina el artesano, se eliminan sus productos).
+- **`SolicitudPostulacion`**: Relaciona `artesanoId` (postulante), `standId` (stand pedido) y `evaluadorId` (`Usuario` que dictamina).
 
 ---
 
 ## Endpoints de la API
 
-### Generales
-| Método | Ruta | Descripción |
-|---|---|---|
-| `GET` | `/` | Bienvenida de la API Poncho Digital |
-| `GET` | `/info` | Metadatos de la API (versión y estado) |
+### Autenticación y Usuarios — `/usuarios`
+| Método | Ruta | Descripción | Validación Zod | Código Éxito |
+|---|---|---|---|---|
+| `POST` | `/usuarios/registro` | Registra un nuevo usuario con contraseña hasheada (bcrypt) y rol `VISITANTE` | `registrarUsuarioSchema` | `201 Created` |
+| `POST` | `/usuarios/login` | Inicia sesión verificando hash bcrypt y retorna datos del usuario y rol | `iniciarSesionSchema` | `200 OK` |
 
 ---
 
@@ -230,11 +186,9 @@ Localidad (1) ──── (N) Artesano
 |---|---|---|---|
 | `GET` | `/artesanos` | Listado paginado con filtros (`?nombre=&rubro=&localidadId=&activo=&pagina=&limite=`) | `200 OK` |
 | `GET` | `/artesanos/:id` | Detalle de un artesano (incluye `localidad`, `productos` y `stand`) | `200 OK` |
-| `POST` | `/artesanos` | Registro de un nuevo artesano | `201 Created` |
+| `POST` | `/artesanos` | Registro de artesano (requiere `usuarioId` UUID existente) | `201 Created` |
 | `PUT` | `/artesanos/:id` | Actualización de datos del artesano | `200 OK` |
 | `DELETE` | `/artesanos/:id` | **Soft delete** — marca `activo: false` | `200 OK` |
-
-> `GET /artesanos` filtra `activo: true` por defecto. Para ver inactivos: `?activo=false`.
 
 ---
 
@@ -246,67 +200,18 @@ Localidad (1) ──── (N) Artesano
 | `POST` | `/productos` | Creación de un producto (valida existencia del artesano) | `201 Created` |
 | `PUT` | `/productos/:id` | Actualización de datos del producto | `200 OK` |
 | `DELETE` | `/productos/:id` | Eliminación **física** del producto | `204 No Content` |
-| `PATCH` | `/productos/:id` | **Soft delete** — marca `eliminado: true` | `200 OK` |
+| `PATCH` | `/productos/:id` | **Soft delete** — marca `activo: false` | `200 OK` |
 
 ---
 
-### Localidades — `/localidades`
+### Stands, Pabellones y Sectores — `/stands`
 | Método | Ruta | Descripción | Código Éxito |
 |---|---|---|---|
-| `GET` | `/localidades` | Listado de localidades con filtros | `200 OK` |
-| `GET` | `/localidades/:id` | Detalle de una localidad | `200 OK` |
-| `POST` | `/localidades` | Creación de una nueva localidad | `201 Created` |
-| `PUT` | `/localidades/:id` | Actualización de nombre o provincia | `200 OK` |
-| `DELETE` | `/localidades/:id` | Eliminación de una localidad | `204 No Content` |
-
----
-
-### Stands — `/stands`
-| Método | Ruta | Descripción | Código Éxito |
-|---|---|---|---|
-| `GET` | `/stands` | Listado con filtros por `pabellon`, `sector`, `estado` | `200 OK` |
+| `GET` | `/stands` | Listado con filtros por `pabellonId`, `sectorId`, `estado`, `artesanoId` | `200 OK` |
 | `GET` | `/stands/:id` | Detalle de un stand | `200 OK` |
-| `POST` | `/stands` | Creación de un nuevo stand | `201 Created` |
+| `POST` | `/stands` | Creación de stand (`pabellonId`, `sectorId`, `codigo`, `numero`) | `201 Created` |
 | `PUT` | `/stands/:id` | Actualización de datos del stand | `200 OK` |
 | `DELETE` | `/stands/:id` | Eliminación de un stand | `204 No Content` |
-| `POST` | `/stands/:id/asignar` | Asigna un artesano al stand (transacción atómica) | `200 OK` |
-| `PATCH` | `/stands/:id/desasignar` | Libera el stand (`estado: DISPONIBLE`, `artesanoId: null`) | `200 OK` |
-
-> La asignación usa `prisma.$transaction` para garantizar atomicidad y evitar race conditions.
-
----
-
-### Solicitudes de Postulación — `/solicitudes`
-| Método | Ruta | Descripción | Código Éxito |
-|---|---|---|---|
-| `POST` | `/solicitudes` | Nueva solicitud de postulación (público) | `201 Created` |
-| `GET` | `/solicitudes` | Listado de solicitudes con filtro por `estado` | `200 OK` |
-| `GET` | `/solicitudes/:id` | Detalle de una solicitud | `200 OK` |
-| `PATCH` | `/solicitudes/:id/evaluar` | Cambia el `estado` y agrega `observaciones` (admin) | `200 OK` |
-| `DELETE` | `/solicitudes/:id` | Eliminación de una solicitud | `204 No Content` |
-
----
-
-### Usuarios — `/usuarios`
-| Método | Ruta | Descripción | Código Éxito |
-|---|---|---|---|
-| `GET` | `/usuarios` | Listado de usuarios con filtros | `200 OK` |
-| `GET` | `/usuarios/:id` | Detalle de un usuario | `200 OK` |
-| `POST` | `/usuarios` | Creación de un nuevo usuario | `201 Created` |
-| `PUT` | `/usuarios/:id` | Actualización de datos del usuario | `200 OK` |
-| `DELETE` | `/usuarios/:id` | **Soft delete** — marca `activo: false` | `200 OK` |
-
----
-
-### Registro de Consultas — `/consultas`
-| Método | Ruta | Descripción | Código Éxito |
-|---|---|---|---|
-| `GET` | `/consultas` | Listado de registros de búsqueda con paginación | `200 OK` |
-| `GET` | `/consultas/:id` | Detalle de un registro | `200 OK` |
-| `POST` | `/consultas` | Registra una nueva búsqueda (soporta visitantes anónimos) | `201 Created` |
-| `DELETE` | `/consultas/:id` | Eliminación de un registro | `204 No Content` |
-
-> `visitanteId` es **nullable**; permite trazar búsquedas de visitantes no autenticados.
 
 ---
 
@@ -316,43 +221,34 @@ La API implementa un formato unificado de respuestas de error:
 
 ```json
 {
-  "error": "Error en los parámetros del producto",
+  "error": "El email no tiene un formato válido.",
   "details": [
     {
-      "path": "precio",
-      "message": "El precio debe ser mayor a 0"
+      "path": "email",
+      "message": "El email no tiene un formato válido."
     }
   ]
 }
 ```
 
-* `error`: Mensaje general descriptivo del error.
-* `details`: *(Opcional)* Array generado por `ErroresZod.js` con el campo (`path`) y el mensaje de validación (`message`) de cada falla.
-
 ---
 
-## Códigos de Estado HTTP
+## Documentacion Tecnica Detallada
 
-| Código | Semántica | Cuándo se usa |
-|---|---|---|
-| `200 OK` | Éxito | Lecturas y actualizaciones |
-| `201 Created` | Recurso creado | `POST` exitoso |
-| `204 No Content` | Eliminación exitosa | `DELETE` sin cuerpo |
-| `400 Bad Request` | Datos inválidos | Rechazado por Zod o regla de negocio |
-| `404 Not Found` | Recurso inexistente | ID no encontrado o ruta no registrada |
-| `500 Internal Server Error` | Falla interna | Excepción no controlada (gestionada por `manejoErrores`) |
+> **Documento Maestro Unificado:**  
+> Puedes consultar la guia completa con toda la teoria, arquitectura, base de datos, flujos de ejecucion y endpoints en:  
+> **[DOCUMENTACION COMPLETA UNIFICADA](documentacionPropia/DOCUMENTACION_COMPLETA.md)**
 
----
-
-## Documentación Técnica Detallada
-
-En la carpeta [`documentacionPropia/`](documentacionPropia/) se encuentran disponibles guías exhaustivas:
+En la carpeta [`documentacionPropia/`](documentacionPropia/) tambien se encuentran disponibles las guias tecnicas individuales:
 
 | # | Documento | Contenido |
 |---|---|---|
-| 1 | [Arquitectura por Capas](documentacionPropia/arquitectura-capas.md) | Organización desacoplada Routes → Middlewares → Controllers → Services → Prisma |
-| 2 | [Guía de Prisma ORM](documentacionPropia/guia-prisma.md) | Configuración con PostgreSQL, Prisma 7, schema declarativo y cliente singleton |
-| 3 | [Guía de Validación con Zod](documentacionPropia/guia-zod.md) | Esquemas Zod 4, `.safeParse()`, sanitización automática y DTOs |
-| 4 | [Middlewares y Utilidades](documentacionPropia/middlewares-y-utils.md) | `logger`, `validarSchema`, `crearError`, `rutaNoEncontrada`, `manejoErrores` |
-| 5 | [Consultas y CRUD con Prisma](documentacionPropia/consultas-y-crud-prisma.md) | `findMany`, `findUnique`, `where`, `orderBy`, paginación, mutaciones y relaciones |
-| 6 | [Flujograma de Ejecución](documentacionPropia/flujoprograma.md) | Diagramas Mermaid del ciclo de vida de peticiones válidas y captura de excepciones |
+| Ref | **[Documentacion Completa Unificada](documentacionPropia/DOCUMENTACION_COMPLETA.md)** | **Compendio integral de toda la teoria, arquitectura, base de datos, diagramas y endpoints.** |
+| 1 | [Arquitectura por Capas](documentacionPropia/arquitectura-capas.md) | Organizacion desacoplada Routes -> Middlewares -> Controllers -> Services -> Prisma |
+| 2 | [Estructura de Base de Datos](documentacionPropia/estructura-base-de-datos.md) | Explicacion teorica del modelo relacional, diagrama ER Mermaid, normalizacion y decisiones de diseño |
+| 3 | [Guia de Prisma ORM](documentacionPropia/guia-prisma.md) | Configuracion con PostgreSQL, Prisma 7, schema declarativo y cliente singleton |
+| 4 | [Guia de Validacion con Zod](documentacionPropia/guia-zod.md) | Esquemas Zod 4, validacion de UUIDs, sanitizacion automatica y DTOs |
+| 5 | [Middlewares y Utilidades](documentacionPropia/middlewares-y-utils.md) | `logger`, `validarSchema`, `crearError`, `rutaNoEncontrada`, `manejoErrores` |
+| 6 | [Consultas y CRUD con Prisma](documentacionPropia/consultas-y-crud-prisma.md) | `findMany`, `findUnique`, `where`, `orderBy`, paginacion, mutaciones y transacciones |
+| 7 | [Flujograma de Ejecucion](documentacionPropia/flujoprograma.md) | Diagramas Mermaid del ciclo de vida de peticiones validas y captura de excepciones |
+

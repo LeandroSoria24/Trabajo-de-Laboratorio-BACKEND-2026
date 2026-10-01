@@ -7,41 +7,46 @@ datasource db {
   provider = "postgresql"
 }
 
-// -------------------------------------------------------------
+// ----------------------------------------------------
 // ENUMS
-// -------------------------------------------------------------
+// ----------------------------------------------------
+
 enum RolUsuario {
   ADMINISTRADOR
+  EVALUADOR
   ARTESANO
   VISITANTE
-}
-
-enum EstadoSolicitud {
-  PENDIENTE
-  APROBADA
-  RECHAZADA
-  MODIFICACION_SOLICITADA
 }
 
 enum EstadoStand {
   DISPONIBLE
   OCUPADO
+  MANTENIMIENTO
 }
 
-// -------------------------------------------------------------
-// MODELOS
-// -------------------------------------------------------------
-model Usuario {
-  id           String   @id @default(uuid()) @db.Uuid
-  nombre       String
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+enum EstadoSolicitud {
+  PENDIENTE
+  EN_REVISION
+  APROBADA
+  RECHAZADA
+}
 
-  artesano     Artesano?
-  solicitudes  SolicitudPostulacion[]
-  consultas    RegistroConsulta[]
+// ----------------------------------------------------
+// MODELOS
+// ----------------------------------------------------
+
+model Usuario {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  rol                  RolUsuario             @default(VISITANTE)
+  nombre               String
+  email                String                 @unique
+  passwordHash         String
+
+  artesano             Artesano?
+  solicitudesEvaluadas SolicitudPostulacion[] @relation("EvaluadorSolicitud")
+
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 }
 
 model Localidad {
@@ -53,83 +58,104 @@ model Localidad {
 }
 
 model Artesano {
-  id                     Int        @id @default(autoincrement())
-  usuarioId              String?    @unique @db.Uuid
-  usuario                Usuario?   @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  id                     Int                    @id @default(autoincrement())
+  usuarioId              String                 @unique @db.Uuid
+  usuario                Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  localidadId            Int
+  localidad              Localidad              @relation(fields: [localidadId], references: [id])
 
   nombre                 String
   apellido               String
-  dni                    String     @unique
-  email                  String     @unique
+  dni                    String                 @unique
+  email                  String                 @unique
   telefono               String?
   nombreEmprendimiento   String
-  descripcionTrayectoria String?
   rubro                  String
-
-  // Relación con la tabla Localidad
-  localidadId            Int
-  localidad              Localidad  @relation(fields: [localidadId], references: [id])
-
-  // Soft delete en Artesano
-  activo                 Boolean    @default(true)
+  descripcionTrayectoria String?                @db.Text
+  activo                 Boolean                @default(true)
 
   productos              Producto[]
-  stand                  Stand?     // Relación 1:1 con Stand (un artesano tiene como máximo un stand asignado)
+  stand                  Stand?                 // Relación 1:1 con Stand (un artesano tiene como máximo un stand)
+  solicitudes            SolicitudPostulacion[]
 
-  createdAt              DateTime   @default(now())
-  updatedAt              DateTime   @default(now()) @updatedAt
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+}
+
+model Producto {
+  id          Int      @id @default(autoincrement())
+  artesanoId  Int
+  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+
+  nombre      String
+  descripcion String?  @db.Text
+  precio      Decimal  @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  activo      Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([artesanoId])
+}
+
+model Pabellon {
+  id        Int      @id @default(autoincrement())
+  nombre    String   @unique
+  stands    Stand[]
+  createdAt DateTime @default(now())
+}
+
+model Sector {
+  id        Int      @id @default(autoincrement())
+  nombre    String   @unique
+  stands    Stand[]
+  createdAt DateTime @default(now())
 }
 
 model Stand {
-  id          Int         @id @default(autoincrement())
-  codigo      String      @unique // Código identificatorio único del stand (ej: STD-101)
+  id          Int                    @id @default(autoincrement())
+  codigo      String                 @unique
   numero      Int?
-  pabellon    String      // Requerido para filtros GET /api/stands
-  sector      String      // Requerido para filtros GET /api/stands
-  estado      EstadoStand @default(DISPONIBLE)
+  estado      EstadoStand            @default(DISPONIBLE)
 
-  // artesanoId nullable para permitir que el stand esté DISPONIBLE sin artesano asignado
-  artesanoId  Int?        @unique
-  artesano    Artesano?   @relation(fields: [artesanoId], references: [id], onDelete: SetNull)
+  pabellonId  Int
+  pabellon    Pabellon               @relation(fields: [pabellonId], references: [id])
 
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @default(now()) @updatedAt
-}
+  sectorId    Int
+  sector      Sector                 @relation(fields: [sectorId], references: [id])
 
-model Producto { 
-  id          Int      @id @default(autoincrement())
-  nombre      String
-  descripcion String?
-  precio      Float
-  stock       Int      @default(0)
-  artesanoId  Int      // FK del lado N
-  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  // Relación 1:1 con Artesano (@unique garantiza máximo 1 stand por artesano)
+  artesanoId  Int?                   @unique
+  artesano    Artesano?              @relation(fields: [artesanoId], references: [id], onDelete: SetNull)
 
+  solicitudes SolicitudPostulacion[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([pabellonId])
+  @@index([sectorId])
 }
 
 model SolicitudPostulacion {
-  id                   Int             @id @default(autoincrement())
-  usuarioId            String?         @db.Uuid
-  usuario              Usuario?        @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  id                Int             @id @default(autoincrement())
 
-  datos_personales     String
-  datos_emprendimiento String
-  estado               EstadoSolicitud @default(PENDIENTE)
-  observaciones        String?         // Observaciones del administrador (modificaciones solicitadas o rechazo)
+  artesanoId        Int
+  artesano          Artesano        @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
 
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @default(now()) @updatedAt
+  standId           Int?
+  stand             Stand?          @relation(fields: [standId], references: [id], onDelete: SetNull)
+
+  evaluadorId       String?         @db.Uuid
+  evaluador         Usuario?        @relation("EvaluadorSolicitud", fields: [evaluadorId], references: [id], onDelete: SetNull)
+
+  estado            EstadoSolicitud @default(PENDIENTE)
+  observaciones     String?         @db.Text
+  fechaPresentacion DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([artesanoId])
+  @@index([standId])
+  @@index([evaluadorId])
 }
-
-model RegistroConsulta {
-  id               Int      @id @default(autoincrement())
-  visitanteId      String?  @db.Uuid // Nullable para registrar consultas de visitantes anónimos
-  usuario          Usuario? @relation(fields: [visitanteId], references: [id], onDelete: SetNull)
-
-  termino_busqueda String
-  fecha            DateTime @default(now())
-}
-

@@ -219,37 +219,70 @@ model Evento {
 
 ---
 
-### Modelos del Proyecto Poncho Digital (`Artesano` y `Producto`)
+### Modelos del Proyecto Poncho Digital (`Usuario`, `Artesano`, `Producto`, `Stand`, etc.)
 Aplicando exactamente las mismas reglas y tipos de datos a los recursos de nuestra API:
 
 ```prisma
+enum RolUsuario {
+  ADMINISTRADOR
+  EVALUADOR
+  ARTESANO
+  VISITANTE
+}
+
+enum EstadoStand {
+  DISPONIBLE
+  OCUPADO
+  MANTENIMIENTO
+}
+
+model Usuario {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  rol                  RolUsuario             @default(VISITANTE)
+  nombre               String
+  email                String                 @unique
+  passwordHash         String
+  artesano             Artesano?
+  solicitudesEvaluadas SolicitudPostulacion[] @relation("EvaluadorSolicitud")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+}
+
 model Artesano {
-  id                     Int        @id @default(autoincrement())
+  id                     Int                    @id @default(autoincrement())
+  usuarioId              String                 @unique @db.Uuid
+  usuario                Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  localidadId            Int
+  localidad              Localidad              @relation(fields: [localidadId], references: [id])
   nombre                 String
   apellido               String
-  dni                    String     @unique
-  email                  String     @unique
+  dni                    String                 @unique
+  email                  String                 @unique
   telefono               String?
-  localidad              String
-  rubro                  String
   nombreEmprendimiento   String
-  descripcionTrayectoria String?
+  rubro                  String
+  descripcionTrayectoria String?                @db.Text
+  activo                 Boolean                @default(true)
   productos              Producto[]
-  createdAt              DateTime   @default(now())
-  updatedAt              DateTime   @default(now()) @updatedAt
+  stand                  Stand?
+  solicitudes            SolicitudPostulacion[]
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
 }
 
 model Producto {
   id          Int      @id @default(autoincrement())
-  nombre      String
-  descripcion String?
-  precio      Float
-  stock       Int      @default(0)
   artesanoId  Int
   artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
-  eliminado   Boolean  @default(false)
+  nombre      String
+  descripcion String?  @db.Text
+  precio      Decimal  @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  activo      Boolean  @default(true)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  updatedAt   DateTime @updatedAt
+
+  @@index([artesanoId])
 }
 ```
 

@@ -27,6 +27,18 @@ export const crearArtesano = async (crearArtesanoDto) => {
         throw crearError(`Ya existe un artesano registrado con el email ${email}`, 400);
     }
 
+    // Regla de negocio: comprobar que el usuario exista
+    const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+    if (!usuario) {
+        throw crearError(`No existe un usuario con id ${usuarioId}`, 404);
+    }
+
+    // Regla de negocio: comprobar que el usuario no tenga ya un artesano asociado
+    const usuarioConArtesano = await prisma.artesano.findUnique({ where: { usuarioId } });
+    if (usuarioConArtesano) {
+        throw crearError(`El usuario ya tiene un perfil de artesano asociado`, 400);
+    }
+
     return prisma.artesano.create({
         data: {
             nombre,
@@ -38,7 +50,7 @@ export const crearArtesano = async (crearArtesanoDto) => {
             rubro,
             nombreEmprendimiento,
             descripcionTrayectoria: descripcionTrayectoria ?? null,
-            usuarioId: usuarioId ?? null
+            usuarioId
         },
         include: {
             localidad: true,
