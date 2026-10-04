@@ -14,10 +14,10 @@ import { rutaNoEncontrada } from "./middlewares/rutaNoEncontrada.js"
 import cors from "cors"; /* esto es para permitir que se pueda usar el backend en un proyecto aparte que estoy haciendo de frontend */
 
 const app = express();
-const corss = require('cors');
 const PORT = 3000;
+
+app.use(cors()); /* esto es para permitir que se pueda usar el backend en un proyecto aparte que estoy haciendo de frontend */
 app.use(express.json());
-app.use(corss()); /* esto es para permitir que se pueda usar el backend en un proyecto aparte que estoy haciendo de frontend */
 
 /* 1 middleware de informacion */
 app.use(logger);
