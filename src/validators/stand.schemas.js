@@ -79,3 +79,14 @@ export const obtenerStandsSchema = z.object({
   pagina: z.coerce.number().int().positive().default(1),
   limite: z.coerce.number().int().min(1).max(50).default(10)
 });
+
+/*
+  Esquema para asignar artesano a un Stand (PATCH /stands/:id/asignar-artesano)
+*/
+export const asignarArtesanoSchema = z.object({
+  artesanoId: z.coerce
+    .number("El ID del artesano es obligatorio")
+    .int("El ID del artesano debe ser un número entero")
+    .positive("El ID del artesano debe ser positivo")
+});
+
