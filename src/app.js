@@ -12,6 +12,8 @@ import { logger } from "./middlewares/logger.js"
 import { manejoErrores } from "./middlewares/manejoErrores.js"
 import { rutaNoEncontrada } from "./middlewares/rutaNoEncontrada.js"
 import cors from "cors"; /* esto es para permitir que se pueda usar el backend en un proyecto aparte que estoy haciendo de frontend */
+import "./config/jwt.js"; /*🟨 */
+import { iniciarLimpiezaRevocaciones }from "./tareas/limpiezaRevocaciones.js"; /*🟨 */
 
 const app = express();
 const PORT = 3000;
@@ -34,6 +36,7 @@ app.get('/', (req, res) => {
         mensaje: 'API Poncho Digital - Fiesta Nacional e Internacional del Poncho'
     });
 })
+
 app.get('/info', (req, res) => {
     res.json({
         mensaje: 'API Poncho Digital',
@@ -61,5 +64,10 @@ app.use(manejoErrores);
 
 /* LISTEN */
 app.listen(PORT, () => {
-    console.log(`servidor iniciado en puerto http://localhost:${PORT}`)
+console.log(`Servidor iniciado en puerto ${PORT}`);
+iniciarLimpiezaRevocaciones(); /*🟨 */
 });
+
+
+
+

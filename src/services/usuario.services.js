@@ -60,3 +60,14 @@ export const iniciarSesion = async (iniciarSesionDto) => {
         rol: usuario.rol
     };
 };
+
+export const obtenerUsuarioPorId = async (id) => { /*🟨 */
+return prisma.usuario.findUnique({
+where: { id: id },
+select: {
+            id: true,
+            nombre: true,
+            email: true
+        }
+    });
+};

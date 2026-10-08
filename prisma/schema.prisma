@@ -36,17 +36,17 @@ enum EstadoSolicitud {
 // ----------------------------------------------------
 
 model Usuario {
-  id                   String                 @id @default(uuid()) @db.Uuid
-  rol                  RolUsuario             @default(VISITANTE)
-  nombre               String
-  email                String                 @unique
-  passwordHash         String
+  id           String     @id @default(uuid()) @db.Uuid
+  rol          RolUsuario @default(VISITANTE)
+  nombre       String
+  email        String     @unique
+  passwordHash String
 
   artesano             Artesano?
   solicitudesEvaluadas SolicitudPostulacion[] @relation("EvaluadorSolicitud")
 
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Localidad {
@@ -58,43 +58,43 @@ model Localidad {
 }
 
 model Artesano {
-  id                     Int                    @id @default(autoincrement())
-  usuarioId              String                 @unique @db.Uuid
-  usuario                Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  localidadId            Int
-  localidad              Localidad              @relation(fields: [localidadId], references: [id])
+  id          Int       @id @default(autoincrement())
+  usuarioId   String    @unique @db.Uuid
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  localidadId Int
+  localidad   Localidad @relation(fields: [localidadId], references: [id])
 
   nombre                 String
   apellido               String
-  dni                    String                 @unique
-  email                  String                 @unique
+  dni                    String  @unique
+  email                  String  @unique
   telefono               String?
   nombreEmprendimiento   String
   rubro                  String
-  descripcionTrayectoria String?                @db.Text
-  activo                 Boolean                @default(true)
+  descripcionTrayectoria String? @db.Text
+  activo                 Boolean @default(true)
 
-  productos              Producto[]
-  stand                  Stand?                 // Relación 1:1 con Stand (un artesano tiene como máximo un stand)
-  solicitudes            SolicitudPostulacion[]
+  productos   Producto[]
+  stand       Stand? // Relación 1:1 con Stand (un artesano tiene como máximo un stand)
+  solicitudes SolicitudPostulacion[]
 
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Producto {
-  id          Int      @id @default(autoincrement())
-  artesanoId  Int
-  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  id         Int      @id @default(autoincrement())
+  artesanoId Int
+  artesano   Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
 
   nombre      String
-  descripcion String?  @db.Text
-  precio      Decimal  @db.Decimal(10, 2)
-  stock       Int      @default(0)
-  activo      Boolean  @default(true)
+  descripcion String? @db.Text
+  precio      Decimal @db.Decimal(10, 2)
+  stock       Int     @default(0)
+  activo      Boolean @default(true)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([artesanoId])
 }
@@ -114,41 +114,41 @@ model Sector {
 }
 
 model Stand {
-  id          Int                    @id @default(autoincrement())
-  codigo      String                 @unique
-  numero      Int?
-  estado      EstadoStand            @default(DISPONIBLE)
+  id     Int         @id @default(autoincrement())
+  codigo String      @unique
+  numero Int?
+  estado EstadoStand @default(DISPONIBLE)
 
-  pabellonId  Int
-  pabellon    Pabellon               @relation(fields: [pabellonId], references: [id])
+  pabellonId Int
+  pabellon   Pabellon @relation(fields: [pabellonId], references: [id])
 
-  sectorId    Int
-  sector      Sector                 @relation(fields: [sectorId], references: [id])
+  sectorId Int
+  sector   Sector @relation(fields: [sectorId], references: [id])
 
   // Relación 1:1 con Artesano (@unique garantiza máximo 1 stand por artesano)
-  artesanoId  Int?                   @unique
-  artesano    Artesano?              @relation(fields: [artesanoId], references: [id], onDelete: SetNull)
+  artesanoId Int?      @unique
+  artesano   Artesano? @relation(fields: [artesanoId], references: [id], onDelete: SetNull)
 
   solicitudes SolicitudPostulacion[]
 
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([pabellonId])
   @@index([sectorId])
 }
 
 model SolicitudPostulacion {
-  id                Int             @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  artesanoId        Int
-  artesano          Artesano        @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  artesanoId Int
+  artesano   Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
 
-  standId           Int?
-  stand             Stand?          @relation(fields: [standId], references: [id], onDelete: SetNull)
+  standId Int?
+  stand   Stand? @relation(fields: [standId], references: [id], onDelete: SetNull)
 
-  evaluadorId       String?         @db.Uuid
-  evaluador         Usuario?        @relation("EvaluadorSolicitud", fields: [evaluadorId], references: [id], onDelete: SetNull)
+  evaluadorId String?  @db.Uuid
+  evaluador   Usuario? @relation("EvaluadorSolicitud", fields: [evaluadorId], references: [id], onDelete: SetNull)
 
   estado            EstadoSolicitud @default(PENDIENTE)
   observaciones     String?         @db.Text
@@ -158,4 +158,11 @@ model SolicitudPostulacion {
   @@index([artesanoId])
   @@index([standId])
   @@index([evaluadorId])
+}
+
+model TokenRevocado {
+  jti     String   @id
+  venceEn DateTime
+
+  @@index([venceEn])
 }
