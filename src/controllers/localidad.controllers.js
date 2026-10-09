@@ -4,6 +4,7 @@ import {
    /*  sincronizarDesdeGeoref */
 } from '../services/localidad.services.js';
 
+// GET   🟩 
 export const getLocalidades = async (req, res, next) => {
     try {
         const resultado = await obtenerLocalidades(req.consulta);
@@ -13,6 +14,7 @@ export const getLocalidades = async (req, res, next) => {
     }
 };
 
+// GET por ID 🟩 
 export const getLocalidadPorId = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -23,6 +25,8 @@ export const getLocalidadPorId = async (req, res, next) => {
     }
 };
 
+//servicio para llenar la base de datos con localidades de toda la argentina
+//Descomentar para usar
 /* export const postSincronizarGeoref = async (req, res, next) => {
     try {
         const resultado = await sincronizarDesdeGeoref();

@@ -1,7 +1,7 @@
 import prisma from '../config/prisma.js';
 import { crearError } from '../utils/crearError.js';
 
-const GEOREF_CATAMARCA_URL = 'https://apis.datos.gob.ar/georef/api/v2.0/municipios?provincia=Catamarca&max=100';
+/* const GEOREF_CATAMARCA_URL = 'https://apis.datos.gob.ar/georef/api/v2.0/municipios?provincia=Catamarca&max=100'; */
 
 /*
   Servicio para sincronizar las localidades/municipios de Catamarca
@@ -40,6 +40,8 @@ const GEOREF_CATAMARCA_URL = 'https://apis.datos.gob.ar/georef/api/v2.0/municipi
     };
 };
  */
+
+
 /*
   Servicio para obtener la lista de localidades.
   Si la base de datos está vacía, se auto-sincroniza desde Georef.

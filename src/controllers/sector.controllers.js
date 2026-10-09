@@ -6,6 +6,7 @@ import {
     eliminarSector
 } from '../services/sector.services.js';
 
+// GET 🟩 
 export const getSectores = async (req, res, next) => {
     try {
         const resultado = await obtenerSectores(req.consulta);
@@ -15,6 +16,7 @@ export const getSectores = async (req, res, next) => {
     }
 };
 
+// GET por ID 🟩 
 export const getSectorPorId = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -25,6 +27,7 @@ export const getSectorPorId = async (req, res, next) => {
     }
 };
 
+// POST 🟩 
 export const createSector = async (req, res, next) => {
     try {
         const nuevoSector = await crearSector(req.body);
@@ -34,6 +37,7 @@ export const createSector = async (req, res, next) => {
     }
 };
 
+// PUT 🟩 
 export const updateSector = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -44,6 +48,7 @@ export const updateSector = async (req, res, next) => {
     }
 };
 
+// DELETE 🟩 
 export const deleteSector = async (req, res, next) => {
     try {
         const id = Number(req.params.id);

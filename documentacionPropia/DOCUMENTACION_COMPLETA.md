@@ -9,7 +9,7 @@
 * **Leandro Soria Rosales** — M.U. N° 00292
 * **Santiago Ortiz** — M.U. N° 00451
 
-**Stack Tecnológico:** Node.js, Express 5, Prisma ORM 7, PostgreSQL (Supabase), Bcrypt, Zod 4.
+**Stack Tecnológico:** Node.js, Express 5, Prisma ORM 7, PostgreSQL (Supabase), Bcrypt, JSON Web Tokens (jsonwebtoken), Zod 4.
 
 ---
 
@@ -65,15 +65,16 @@ Es un patrón de diseño que divide el software en niveles jerárquicos donde **
 
 ```text
 src/
-├── app.js                              ← Punto de entrada (configura Express, middlewares y rutas)
+├── app.js                              ← Punto de entrada (configura Express, middlewares, rutas e inicia tareas)
 │
 ├── routes/                             ← Capa de Enrutamiento (define endpoints y handlers)
 │   ├── artesano.routes.js
 │   ├── producto.routes.js
-│   └── usuario.routes.js
+│   └── usuario.routes.js              ← Endpoints de registro, login, /me y /logout
 │
 ├── middlewares/                         ← Capa de Middlewares (filtros intermedios)
 │   ├── logger.js                       ← Monitoreo de tiempos y estado HTTP
+│   ├── autenticarUsuario.js            ← Verificación de Bearer JWT y consulta de lista negra (revocaciones)
 │   ├── manejoErrores.js                ← Red de seguridad global para respuestas JSON
 │   ├── rutaNoEncontrada.js             ← Captura de 404
 │   └── validarSchema.js                ← Fábrica universal de validación Zod (body, params, query)
@@ -88,15 +89,22 @@ src/
 ├── controllers/                        ← Capa de Controladores (gestión HTTP y delegación DTO)
 │   ├── artesano.controllers.js
 │   ├── producto.controllers.js
-│   └── usuario.controllers.js
+│   ├── sesiones.controllers.js        ← Controlador de cierre de sesión (revocación de token)
+│   └── usuario.controllers.js         ← Registro, login con emisión de JWT y perfil (/me)
 │
 ├── services/                           ← Capa de Servicios (lógica de negocio y persistencia con Prisma)
 │   ├── artesano.services.js
 │   ├── producto.services.js
-│   └── usuario.services.js
+│   ├── usuario.services.js            ← Registro, verificación bcrypt y búsqueda por ID
+│   ├── token.services.js              ← Emisión HS256 (15m, JTI) y validación de claims con Zod
+│   └── revocaciones.services.js       ← Comprobación, inserción y purga de tokens revocados
+│
+├── tareas/                             ← Tareas Programadas y Asíncronas en Segundo Plano
+│   └── limpiezaRevocaciones.js        ← Purga periódica por hora de tokens expirados en la BD
 │
 ├── config/                             ← Capa de Configuración
-│   └── prisma.js                      ← Instancia singleton de Prisma Client con adapter-pg
+│   ├── prisma.js                      ← Instancia singleton de Prisma Client con adapter-pg
+│   └── jwt.js                         ← Carga y validación estricta de variable JWT_SECRET
 │
 ├── utils/                              ← Utilidades transversales
 │   ├── crearError.js                  ← Fábrica de errores HTTP con status y details
@@ -110,32 +118,49 @@ src/
 ## Capa 1: Punto de Entrada (`app.js`)
 
 **Archivo:** `src/app.js`  
-**Responsabilidad:** Configurar Express, registrar middlewares globales y montar los enrutadores principales.
+**Responsabilidad:** Configurar Express, registrar middlewares globales, montar los enrutadores principales e inicializar servicios en segundo plano y configuraciones críticas:
 
 ```javascript
+import "./config/jwt.js"; // Valida presencia de JWT_SECRET en el entorno
+import { iniciarLimpiezaRevocaciones } from "./tareas/limpiezaRevocaciones.js";
+
+// Montaje de rutas
 app.use('/artesanos',  artesanosRoutes);
 app.use('/productos',  productosRoutes);
 app.use('/usuarios',   usuariosRoutes);
 app.use(rutaNoEncontrada);
 app.use(manejoErrores);
+
+app.listen(PORT, () => {
+    console.log(`Servidor iniciado en puerto ${PORT}`);
+    iniciarLimpiezaRevocaciones(); // Inicia daemon de purga periódica de tokens
+});
 ```
 
 ---
 
 ## Capa 2: Rutas (`routes/`)
 
-**Archivos:** `src/routes/artesano.routes.js`, `src/routes/producto.routes.js`  
+**Archivos:** `src/routes/artesano.routes.js`, `src/routes/producto.routes.js`, `src/routes/usuario.routes.js`  
 **Responsabilidad:** Declarar los endpoints y establecer el orden de ejecución:
 1. Validaciones previas con `validarSchema` (`query`, `params`, `body`).
-2. Controlador final.
+2. Middlewares de seguridad y sesión (`autenticarUsuario`).
+3. Controlador final.
 
 ```javascript
+// Rutas de productos:
 router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);
 router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);
 router.post('/', validarSchema(crearProductoSchema, 'body'), createProducto);
 router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarProductoSchema, 'body'), updateProducto);
 router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProducto);
 router.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogico);
+
+// Rutas de autenticación y usuarios:
+router.post("/registro", validarSchema(registrarUsuarioSchema, 'body'), postUsuario);
+router.post("/login", validarSchema(iniciarSesionSchema, 'body'), iniciarSesion);
+router.get("/me", autenticarUsuario, obtenerMiPerfil);
+router.post("/logout", autenticarUsuario, cerrarSesion);
 ```
 
 ---
@@ -146,6 +171,12 @@ router.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogic
 
 * **`logger.js`**: Mide con precisión milisegundos y status HTTP al completarse la respuesta (`res.on('finish')`).
 * **`validarSchema.js`**: Middleware fábrica universal de validación. Recibe el esquema Zod y el origen (`body`, `params`, `query`), aplica `safeParse()`, sanitiza y limpia los datos en `req[origen]`. Si hay fallos, delega a `detallarErroresZod` y `crearError(400)`.
+* **`autenticarUsuario.js`**: Middleware de autenticación y seguridad mediante tokens JWT según estándar **RFC 6750**:
+  - Extrae y valida el encabezado `Authorization: Bearer <token>`.
+  - Verifica la firma criptográfica y expiración usando `verificarToken()`.
+  - Consulta en base de datos si el identificador único `jti` está en la lista negra (`tokenEstaRevocado()`).
+  - Emite cabeceras de respuesta `WWW-Authenticate` con diagnósticos ante fallos (`Bearer`, `error="invalid_request"`, `error="invalid_token"`).
+  - Inyecta la identidad decodificada en `req.usuario = { id, jti, exp }` para los siguientes controladores.
 * **`rutaNoEncontrada.js`**: Captura URLs que no coincidan con ninguna ruta registrada y arroja 404.
 * **`manejoErrores.js`**: Middleware final de 4 parámetros `(err, req, res, next)` que estandariza las respuestas de error en formato JSON homogéneo `{ error, details? }`.
 
@@ -170,24 +201,28 @@ export const obtenerProductosSchema = z.object({ ... });
 
 ## Capa 5: Controladores (`controllers/`)
 
-**Archivos:** `src/controllers/artesano.controllers.js`, `src/controllers/producto.controllers.js`  
+**Archivos:** `src/controllers/artesano.controllers.js`, `src/controllers/producto.controllers.js`, `src/controllers/usuario.controllers.js`, `src/controllers/sesiones.controllers.js`  
 **Responsabilidad:** Coordinar el flujo HTTP.
 * Recibe los datos validados desde `req.body` como un **DTO** o el `id` desde `req.params`.
 * Invoca a la capa de servicios:
   ```javascript
+  // Creación de producto
   const crearProductoDto = req.body;
   const nuevoProducto = await crearProducto(crearProductoDto);
   return res.status(201).json(nuevoProducto);
-  ```
-* Para borrado físico y lógico:
-  ```javascript
-  // Borrado físico:
-  await eliminarProducto(id);
-  res.status(200).send("Producto eliminado exitosamente");
 
-  // Borrado lógico:
-  await deleteLogico(id);
-  res.status(200).json({ message: "Producto eliminado logicamente" });
+  // Inicio de sesión y emisión de JWT:
+  const usuario = await loginService(req.body);
+  const token = generarToken(usuario);
+  return res.status(200).json({ mensaje: "Inicio de sesión exitoso.", token, usuario });
+
+  // Perfil autenticado (/me):
+  const usuario = await obtenerUsuarioPorId(req.usuario.id);
+  return res.status(200).json({ usuario });
+
+  // Cierre de sesión (/logout):
+  await revocarToken(req.usuario);
+  return res.status(204).end();
   ```
 * En caso de error, el bloque `try/catch` lo remite a `next(error)`.
 
@@ -195,23 +230,27 @@ export const obtenerProductosSchema = z.object({ ... });
 
 ## Capa 6: Servicios (`services/`)
 
-**Archivo:** `src/services/producto.services.js`  
-**Responsabilidad:** Contener la lógica de negocio y comunicarse directamente con Prisma Client.
+**Archivos:** `src/services/producto.services.js`, `src/services/usuario.services.js`, `src/services/token.services.js`, `src/services/revocaciones.services.js`  
+**Responsabilidad:** Contener la lógica de negocio, seguridad criptográfica y comunicarse directamente con Prisma Client.
 
 * **Desacoplado de Express:** No recibe `req`, `res` ni `next`. Trabaja únicamente con tipos primitivos y DTOs planos. Si ocurre un fallo de negocio, lanza excepciones mediante `throw crearError(...)` que el controlador captura en su bloque `catch`.
 * **Reglas de negocio y persistencia limpia:**
-  - `crearProducto`: comprueba la existencia previa del artesano.
-  - `actualizarProducto`: valida existencia del producto y del artesano si se envía.
-  - `obtenerProductoPorId`: busca el producto y lanza 404 si no existe.
-  - `eliminarProducto`: verifica existencia previa y elimina definitivamente el registro con `prisma.producto.delete`.
-  - `deleteLogico`: verifica existencia y actualiza el flag `activo: false` con `prisma.producto.update`.
+  - `producto.services.js`: comprueba existencia de artesanos, alta, modificación, bajas físicas (`delete`) y lógicas (`update activo: false`).
+  - `usuario.services.js`: registra cuentas con hash Bcrypt (cost 10), valida login y provee `obtenerUsuarioPorId` con proyección segura (`select: { id, nombre, email }`).
+  - `token.services.js`:
+    - `generarToken`: emite un JWT firmado con HS256, expiración a 15 minutos (`expiresIn: "15m"`), subject `sub: usuario.id` y `jti: randomUUID()`.
+    - `verificarToken`: verifica firma contra `secretoJWT`, algoritmos permitidos, y valida defensivamente los claims con **Zod** (`z.uuid().safeParse(payload.sub)` y `payload.jti`).
+  - `revocaciones.services.js`:
+    - `tokenEstaRevocado(jti)`: comprueba existencia del token en la tabla `TokenRevocado`.
+    - `revocarToken({ jti, exp })`: almacena el `jti` y su fecha de expiración usando `prisma.tokenRevocado.upsert`.
+    - `eliminarRevocacionesVencidas()`: elimina masivamente registros cuyo `venceEn` sea menor o igual a la fecha actual (`deleteMany`).
 
 ---
 
-## Capa 7: Acceso a Datos — Prisma ORM (`config/`, `prisma/`)
+## Capa 7: Acceso a Datos y Configuración (`config/`, `prisma/`)
 
-**Archivos:** `src/config/prisma.js`, `prisma/schema.prisma`  
-**Responsabilidad:** Definir las tablas relacionales en PostgreSQL y proveer el cliente de consultas.
+**Archivos:** `src/config/prisma.js`, `src/config/jwt.js`, `prisma/schema.prisma`  
+**Responsabilidad:** Definir las tablas relacionales en PostgreSQL, validar secretos del entorno y proveer el cliente singleton de consultas.
 
 ```prisma
 model Usuario {
@@ -260,7 +299,23 @@ model Producto {
 
   @@index([artesanoId])
 }
+
+model TokenRevocado {
+  jti     String   @id
+  venceEn DateTime
+
+  @@index([venceEn])
+}
 ```
+
+---
+
+## Capa 8: Tareas Programadas en Segundo Plano (`tareas/`)
+
+**Archivo:** `src/tareas/limpiezaRevocaciones.js`  
+**Responsabilidad:** Ejecutar procesos de mantenimiento en segundo plano sin bloquear el bucle de eventos de Node.js.
+* **`iniciarLimpiezaRevocaciones()`**: Configura un bucle recurrente cada 1 hora (`60 * 60 * 1000` ms) utilizando `setTimeout(ejecutar, INTERVALO_MS).unref()`.
+* Invoca `eliminarRevocacionesVencidas()` para purgar registros de la lista negra cuyos tokens ya hayan expirado naturalmente, evitando el crecimiento desmedido de la tabla `TokenRevocado`.
 
 ---
 
@@ -391,20 +446,32 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 | Rol controlado | `RolUsuario` enum | `ADMINISTRADOR`, `EVALUADOR`, `ARTESANO`, `VISITANTE` (por defecto) |
 | Rol por defecto | `@default(VISITANTE)` | Todo nuevo registro adquiere rol visitante automáticamente |
 
+### Sesiones y Autenticación JWT (`TokenRevocado`)
+| Regla | Capa | Detalle |
+|---|---|---|
+| Firma y expiración | `services/token.services.js` | Algoritmo HS256, vigencia de 15 minutos (`expiresIn: "15m"`) y secreto en `JWT_SECRET` |
+| Identificador de token (JTI) | `services/token.services.js` | Cada token emitido genera un `jti` criptográfico con `crypto.randomUUID()` |
+| Verificación defensiva Zod | `services/token.services.js` | Valida que `sub` sea UUID válido (`z.uuid()`), `exp` sea número y `jti` no esté vacío |
+| Autenticación Bearer | `middlewares/autenticarUsuario.js` | Extrae encabezado `Authorization: Bearer <token>`, valida formato y firma, e inyecta `req.usuario` |
+| Cierre de sesión (Revocación) | `services/revocaciones.services.js` | Invalida el token guardando `{ jti, venceEn }` en la tabla `TokenRevocado` con `upsert` |
+| Verificación de lista negra | `middlewares/autenticarUsuario.js` | Rechaza peticiones si el token se encuentra registrado como revocado en la BD |
+| Purga periódica en segundo plano | `tareas/limpiezaRevocaciones.js` | Tarea recurrente cada 1 hora que elimina tokens vencidos de `TokenRevocado` con `deleteMany` |
+
 ---
 
 ## Tabla Resumen: Quién Hace Qué
 
 | Capa | Carpeta | Responsabilidad | Importa | NO importa |
 |---|---|---|---|---|
-| **Punto de Entrada** | `app.js` | Configura Express y monta rutas | `express`, `routes`, `middlewares` | `prisma`, `validators` |
+| **Punto de Entrada** | `app.js` | Configura Express, monta rutas e inicia tareas | `express`, `routes`, `middlewares`, `tareas` | `prisma`, `validators` |
 | **Rutas** | `routes/` | Declara endpoints y orden de handlers | `controllers`, `middlewares` | `prisma`, `validators` |
-| **Middlewares** | `middlewares/` | Valida con Zod, monitorea y captura errores | `utils`, `validators` | `prisma`, `controllers` |
+| **Middlewares** | `middlewares/` | Valida con Zod, autentica JWT (`autenticarUsuario`), captura errores | `utils`, `validators`, `services/token`, `services/revocaciones` | `controllers` |
 | **Validadores** | `validators/` | Define contratos Zod | `zod` | Todo lo demás |
-| **Controladores** | `controllers/` | Recibe HTTP, transfiere DTO, responde | `services`, `utils`, `prisma` (GETs) | `express.Router`, `validators` |
-| **Servicios** | `services/` | Lógica de negocio y persistencia | `prisma`, `utils` | `express` (`req`/`res`), `validators` |
-| **Acceso a Datos** | `config/`, `prisma/` | Conexión y modelos de base de datos | `@prisma`, `dotenv` | Todo lo demás |
-| **Utilidades** | `utils/` | Estandarización de errores | Independiente | Todo lo demás |
+| **Controladores** | `controllers/` | Recibe HTTP, transfiere DTO, responde | `services`, `utils` | `express.Router`, `validators` |
+| **Servicios** | `services/` | Lógica de negocio, persistencia, emisión/verificación JWT | `prisma`, `utils`, `jsonwebtoken`, `zod`, `crypto` | `express` (`req`/`res`) |
+| **Tareas en 2do Plano** | `tareas/` | Daemons recurrentes de mantenimiento y purga | `services/revocaciones` | `express`, `routes` |
+| **Acceso a Datos** | `config/`, `prisma/` | Conexión, secretos de entorno y modelos BD | `@prisma`, `dotenv` | Todo lo demás |
+| **Utilidades** | `utils/` | Estandarización de errores y formateo Zod | Independiente | Todo lo demás |
 
 ---
 
@@ -468,6 +535,8 @@ El modelo de datos de **Poncho Digital** fue diseñado bajo los principios de **
    En `Producto`, el precio se define como `Decimal(10, 2)` en lugar de coma flotante (`Float`), garantizando exactitud matemática sin pérdidas por redondeo binario.
 4. **Soft Delete (Baja Lógica):**  
    Tanto `Artesano` como `Producto` poseen una columna `activo Boolean @default(true)`, lo que permite preservar el histórico de ventas o stands ocupados sin perder trazabilidad al dar de baja un registro.
+5. **Lista Negra Persistente de Tokens Revocados (`TokenRevocado`):**  
+   Para implementar un cierre de sesión seguro en un esquema de autenticación sin estado (stateless JWT), se modela una entidad dedicada con clave primaria `jti` (JWT ID criptográfico) y marca de tiempo `venceEn`. Un índice B-Tree sobre `venceEn` garantiza consultas ultrarrápidas y permite a tareas en segundo plano purgar masivamente registros expirados sin penalizar el rendimiento.
 
 ---
 
@@ -481,6 +550,11 @@ El modelo de datos de **Poncho Digital** fue diseñado bajo los principios de **
 
 ```mermaid
 erDiagram
+    TOKEN_REVOCADO {
+        String jti PK "Identificador único JWT (UUID)"
+        DateTime venceEn "Fecha de expiración del token"
+    }
+
     USUARIO {
         Uuid id PK "UUID autogenerado"
         RolUsuario rol "default(VISITANTE)"
@@ -656,6 +730,16 @@ Trámite digital mediante el cual los artesanos postulan a la feria:
   - Si el artesano postulante se elimina, sus solicitudes se suprimen en cascada (`onDelete: Cascade`).
   - Si el evaluador o el stand se desvinculan, la solicitud se conserva con valor nulo para auditoría (`onDelete: SetNull`).
 
+### 4.7. `TokenRevocado`
+Entidad técnica de seguridad para invalidación prematura de tokens JWT (Lista Negra de Sesiones):
+- **`jti` (`String`, `@id`)**: Clave primaria que almacena el *JWT ID* (UUID v4 criptográfico asignado unívocamente a cada token emitido en `/login`).
+- **`venceEn` (`DateTime`)**: Timestamp que refleja el vencimiento natural del token (`exp`).
+- **Índice secundario `@@index([venceEn])`**: Crea un índice B-Tree dedicado sobre la fecha de expiración, posibilitando que la tarea de fondo elimine en lote (`deleteMany`) registros antiguos sin bloqueos de tabla.
+- **Conectividad y ciclo de vida:**
+  - No posee claves foráneas para mantener desacoplada la infraestructura de revocación de la tabla `Usuario`.
+  - Los registros se insertan de forma idempotente con `upsert` al invocarse `POST /usuarios/logout`.
+  - Permite denegar el acceso inmediato en el middleware `autenticarUsuario` aun si el token no superó sus 15 minutos de vida.
+
 ---
 
 ## 5. Resumen de Políticas de Integridad Referencial (`onDelete`)
@@ -669,12 +753,13 @@ Trámite digital mediante el cual los artesanos postulan a la feria:
 | `Stand` | `Sector` | N a 1 | **`Restrict`** | No se puede eliminar un sector mientras existan stands asignados a él. |
 | `Solicitud` | `Artesano` | N a 1 | **`Cascade`** | Las postulaciones son propiedad del artesano solicitante. |
 | `Solicitud` | `Usuario` | N a 1 | **`SetNull`** | Si un evaluador renuncia o se borra, la postulación preserva su histórico y queda lista para ser reasignada. |
+| `TokenRevocado` | *Independiente* | Sin FK | **—** | Tabla de revocación técnica; administración de ciclo de vida por purga automática temporal (`deleteMany`). |
 
 ---
 
 ## 6. Verificación en el Entorno
 
-El esquema actual se encuentra aplicado y validado contra PostgreSQL (Supabase):
+El esquema actual incluye la migración `20261008000300_create_token_revocado` y se encuentra completamente aplicado y validado contra PostgreSQL (Supabase):
 ```bash
 # Validar consistencia del schema
 npx prisma validate
@@ -976,6 +1061,13 @@ model Producto {
 
   @@index([artesanoId])
 }
+
+model TokenRevocado {
+  jti     String   @id
+  venceEn DateTime
+
+  @@index([venceEn])
+}
 ```
 
 ---
@@ -1260,6 +1352,21 @@ const artesanoPorDni = await prisma.artesano.findUnique({
     dni: '28123456'
   }
 });
+
+// Por identificador UUID con proyección segura 'select' (excluye passwordHash):
+const perfilUsuario = await prisma.usuario.findUnique({
+  where: { id: usuarioId },
+  select: {
+    id: true,
+    nombre: true,
+    email: true
+  }
+});
+
+// Comprobar si un identificador de token (JTI) está registrado como revocado:
+const registroRevocado = await prisma.tokenRevocado.findUnique({
+  where: { jti: jti }
+});
 ```
 
 > [!IMPORTANT]
@@ -1465,6 +1572,7 @@ const artesanoEliminado = await prisma.artesano.delete({
 Si el registro existe lo actualiza, y si no existe lo inserta en una sola operación atómica.
 
 ```javascript
+// Caso 1: Actualizar o registrar datos de artesano
 const artesano = await prisma.artesano.upsert({
   where: { dni: '28123456' },
   update: {
@@ -1475,10 +1583,18 @@ const artesano = await prisma.artesano.upsert({
     apellido: 'Gómez',
     dni: '28123456',
     email: 'maria.gomez@gmail.com',
-    localidad: 'Belén',
+    localidadId: 1,
     rubro: 'Textil',
     nombreEmprendimiento: 'Tejidos del Valle'
   }
+});
+
+// Caso 2: Revocación idempotente de Token JWT (Cierre de sesión):
+// Si el JTI ya estaba revocado, actualiza venceEn; si no existía, lo inserta.
+await prisma.tokenRevocado.upsert({
+  where: { jti: jti },
+  create: { jti: jti, venceEn: venceEn },
+  update: { venceEn: venceEn }
 });
 ```
 
@@ -1496,7 +1612,7 @@ Para manipular múltiples registros a la vez:
         apellido: 'Gómez',
         dni: '28123456',
         email: 'maria@gmail.com',
-        localidad: 'Belén',
+        localidadId: 1,
         rubro: 'Textil',
         nombreEmprendimiento: 'Tejidos Belén'
       },
@@ -1505,7 +1621,7 @@ Para manipular múltiples registros a la vez:
         apellido: 'Rodríguez',
         dni: '30456789',
         email: 'carlos@gmail.com',
-        localidad: 'Santa María',
+        localidadId: 2,
         rubro: 'Cerámica',
         nombreEmprendimiento: 'Alfarería Santa María'
       }
@@ -1514,20 +1630,32 @@ Para manipular múltiples registros a la vez:
   ```
 * **`updateMany`**: Actualiza todos los registros que cumplan una condición.
 * **`deleteMany`**: Elimina todos los registros que cumplan una condición (o todos si se deja vacío `where: {}`).
+  ```javascript
+  // Ejemplo real de tarea programada (purga de tokens expirados en src/services/revocaciones.services.js):
+  const resultado = await prisma.tokenRevocado.deleteMany({
+    where: {
+      venceEn: { lte: new Date() } // 'lte' = Less Than or Equal (<= fecha actual)
+    }
+  });
+  console.log("Tokens vencidos purgados:", resultado.count);
+  ```
 
 ---
 
-## 5. Mapeo Práctico: De Memoria a Prisma en los Controladores
+## 5. Mapeo Práctico: De Memoria a Prisma en los Controladores y Servicios
 
-Así es como se transforman los métodos del controlador `src/controllers/artesano.controllers.js`:
+Así es como se transforman los métodos del proyecto con Prisma ORM:
 
-| Acción HTTP | Ruta | En Memoria (JavaScript) | Con Prisma ORM |
+| Acción HTTP | Ruta | Enfoque en Memoria | Con Prisma ORM |
 | :--- | :--- | :--- | :--- |
 | **GET** | `/artesanos` | `artesanos` | `await prisma.artesano.findMany()` |
 | **GET** | `/artesanos/:id` | `artesanos.find(a => a.id === id)` | `await prisma.artesano.findUnique({ where: { id } })` |
 | **POST** | `/artesanos` | `artesanos.push(nuevoArtesano)` | `await prisma.artesano.create({ data: { ... } })` |
 | **PUT** | `/artesanos/:id` | `artesano.nombre = ...` | `await prisma.artesano.update({ where: { id }, data: { ... } })` |
 | **DELETE** | `/artesanos/:id` | `artesanos.splice(indice, 1)` | `await prisma.artesano.delete({ where: { id } })` |
+| **GET** | `/usuarios/me` | `usuarios.find(u => u.id === req.usuario.id)` | `await prisma.usuario.findUnique({ where: { id }, select: { id: true, nombre: true, email: true } })` |
+| **POST** | `/usuarios/logout` | `tokensRevocados.add(req.usuario.jti)` | `await prisma.tokenRevocado.upsert({ where: { jti }, create: { jti, venceEn }, update: { venceEn } })` |
+| **CRON** | *Limpieza cada 1h* | `tokens.filter(t => t.exp > now)` | `await prisma.tokenRevocado.deleteMany({ where: { venceEn: { lte: new Date() } } })` |
 
 ---
 
@@ -2771,6 +2899,35 @@ Cliente envía POST /productos con body: { nombre: "  Poncho  ", precio: 150000,
 └───────────────────────────┘
 ```
 
+### Caso Especial: Validación de Claims JWT en Capa de Servicios (`token.services.js`)
+
+Zod no solo se utiliza como middleware en los endpoints HTTP, sino también como mecanismo de **defensa en profundidad** dentro de la capa de servicios para verificar la integridad de las cargas útiles (*claims*) de tokens criptográficos:
+
+```javascript
+// src/services/token.services.js
+import { z } from "zod";
+import jwt from "jsonwebtoken";
+
+export const verificarToken = (token) => {
+    const payload = jwt.verify(token, secretoJWT, { algorithms: ["HS256"] });
+
+    // Zod valida en tiempo de ejecución que el subject sea estrictamente un UUID v4
+    if (typeof payload !== "object" || payload === null ||
+        !z.uuid().safeParse(payload.sub).success ||
+        !Number.isFinite(payload.exp)) {
+        throw new jwt.JsonWebTokenError("Contenido del token inválido.");
+    }
+
+    if (typeof payload.jti !== "string" || !payload.jti.trim()) {
+        throw new jwt.JsonWebTokenError("Falta el identificador del token.");
+    }
+
+    return { id: payload.sub, jti: payload.jti, exp: payload.exp };
+};
+```
+
+Esto garantiza que ningún token alterado o malformado pueda inyectar identificadores incompatibles en las consultas de Prisma o en `req.usuario`.
+
 ---
 
 ## Referencia Rápida de Métodos
@@ -2865,11 +3022,12 @@ Este documento explica en profundidad el funcionamiento, la lógica interna y la
 1. [¿Qué es un Middleware en Express?](#qué-es-un-middleware-en-express)
 2. [1. Logger de Peticiones (`logger.js`)](#1-logger-de-peticiones-loggerjs)
 3. [2. Validador Universal con Zod (`validarSchema.js`)](#2-validador-universal-con-zod-validarschemajs)
-4. [3. Creador de Errores HTTP (`crearError.js`)](#3-creador-de-errores-http-crearerrorjs)
-5. [4. Formateador de Errores Zod (`ErroresZod.js`)](#4-formateador-de-errores-zod-erroreszodjs)
-6. [5. Capturador 404 (`rutaNoEncontrada.js`)](#5-capturador-404-rutanoencontradajs)
-7. [6. Manejador Global Centralizado (`manejoErrores.js`)](#6-manejador-global-centralizado-manejoerroresjs)
-8. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
+4. [3. Autenticación JWT y Revocaciones (`autenticarUsuario.js`)](#3-autenticación-jwt-y-revocaciones-autenticarusuariojs)
+5. [4. Creador de Errores HTTP (`crearError.js`)](#4-creador-de-errores-http-crearerrorjs)
+6. [5. Formateador de Errores Zod (`ErroresZod.js`)](#5-formateador-de-errores-zod-erroreszodjs)
+7. [6. Capturador 404 (`rutaNoEncontrada.js`)](#6-capturador-404-rutanoencontradajs)
+8. [7. Manejador Global Centralizado (`manejoErrores.js`)](#7-manejador-global-centralizado-manejoerroresjs)
+9. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
 
 ---
 
@@ -2971,7 +3129,73 @@ export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
 
 ---
 
-## 3. Creador de Errores HTTP (`crearError.js`)
+## 3. Autenticación JWT y Revocaciones (`autenticarUsuario.js`)
+
+**Ubicación:** `src/middlewares/autenticarUsuario.js`  
+**Tipo:** Middleware de Seguridad, Autenticación y Autorización (Bearer JWT con RFC 6750)  
+**Posición en rutas:** En rutas privadas (`src/routes/usuario.routes.js`, ej. `/me`, `/logout`) antes de los controladores que requieren identidad verificada.
+
+### Código:
+```javascript
+import jwt from "jsonwebtoken";
+import { verificarToken } from "../services/token.services.js";
+import { tokenEstaRevocado } from "../services/revocaciones.services.js";
+
+export const autenticarUsuario = async (req, res, next) => {
+    const encabezado = req.get("Authorization")?.trim();
+    if (!encabezado) {
+        res.set("WWW-Authenticate", "Bearer");
+        return res.status(401).json({
+            mensaje: "Se requiere un token de acceso."
+        });
+    }
+
+    const coincidencia = /^Bearer\s+(\S+)$/i.exec(encabezado);
+    if (!coincidencia) {
+        res.set("WWW-Authenticate", 'Bearer error="invalid_request"');
+        return res.status(400).json({
+            mensaje: "Usar Authorization: Bearer <token>."
+        });
+    }
+
+    try {
+        req.usuario = verificarToken(coincidencia[1]);
+        if (await tokenEstaRevocado(req.usuario.jti)) {
+            throw new jwt.JsonWebTokenError("Token revocado.");
+        }
+    } catch (error) {
+        if (!(error instanceof jwt.JsonWebTokenError)) {
+            return next(error);
+        }
+        res.set("WWW-Authenticate", 'Bearer error="invalid_token"');
+        return res.status(401).json({
+            mensaje: "Token inválido, vencido o revocado."
+        });
+    }
+
+    return next();
+};
+```
+
+### ¿Cómo funciona paso a paso?
+1. **Extracción del encabezado (`req.get("Authorization")`):**
+   Obtiene el valor de la cabecera HTTP de forma insensible a mayúsculas/minúsculas y remueve espacios en los bordes.
+2. **Validación de presencia (RFC 6750):**
+   Si la petición carece de cabecera `Authorization`, responde HTTP `401 Unauthorized` e incluye la cabecera estándar `WWW-Authenticate: Bearer` exigida por la especificación OAuth 2.0 / Bearer Token.
+3. **Validación de formato sintáctico (`/^Bearer\s+(\S+)$/i`):**
+   Aplica una expresión regular insensible a mayúsculas para comprobar que el esquema sea `Bearer` seguido de una cadena no vacía (`<token>`). Si el cliente envía un formato incorrecto (ej: `Basic ...` o solo el token sin la palabra `Bearer`), responde HTTP `400 Bad Request` con cabecera `WWW-Authenticate: Bearer error="invalid_request"`.
+4. **Verificación criptográfica y estructural (`verificarToken`):**
+   Extrae el token del grupo de captura (`coincidencia[1]`) y lo delega al servicio `src/services/token.services.js`. Allí se valida la firma con `JWT_SECRET`, algoritmo `HS256`, y se comprueban con **Zod** los claims requeridos (`sub` tipo UUID, `exp` número y `jti` cadena válida).
+5. **Comprobación de Lista Negra en Base de Datos (`tokenEstaRevocado`):**
+   Consulta de forma asíncrona en PostgreSQL si el identificador único del token (`req.usuario.jti`) figura en la tabla `TokenRevocado`. Si fue revocado (por ejemplo, porque el usuario cerró sesión con `/logout`), fuerza el lanzamiento de una excepción `jwt.JsonWebTokenError("Token revocado.")`.
+6. **Captura y diagnóstico de errores:**
+   Si la excepción capturada es una instancia de `jwt.JsonWebTokenError` (token alterado, firma inválida, expirado por tiempo o revocado), emite `401 Unauthorized` con cabecera `WWW-Authenticate: Bearer error="invalid_token"` y mensaje unificado `"Token inválido, vencido o revocado."`. Si se produce cualquier otro fallo imprevisto (ej. caída de conexión con la base de datos), lo remite a `next(error)` para su gestión en el middleware global de 500.
+7. **Inyección de identidad (`req.usuario`) y prosecución (`next()`):**
+   Al superar exitosamente todas las etapas, asocia el objeto `{ id: payload.sub, jti, exp }` a `req.usuario` y llama a `next()`, permitiendo que los controladores dependientes consuman la identidad del usuario autenticado sin volver a consultar o decodificar el token.
+
+---
+
+## 4. Creador de Errores HTTP (`crearError.js`)
 
 **Ubicación:** `src/utils/crearError.js`  
 **Tipo:** Función Utilitaria (Factory Pattern)  
@@ -3008,7 +3232,7 @@ export const crearError = (mensaje, status = 500, details = null) => {
 
 ---
 
-## 4. Formateador de Errores Zod (`ErroresZod.js`)
+## 5. Formateador de Errores Zod (`ErroresZod.js`)
 
 **Ubicación:** `src/utils/ErroresZod.js`  
 **Tipo:** Utilidad especializada de formateo para Zod  
@@ -3031,7 +3255,7 @@ export const detallarErroresZod = (ZodError) =>
 
 ---
 
-## 5. Capturador 404 (`rutaNoEncontrada.js`)
+## 6. Capturador 404 (`rutaNoEncontrada.js`)
 
 **Ubicación:** `src/middlewares/rutaNoEncontrada.js`  
 **Tipo:** Middleware de Enrutamiento / Ruta Comodín  
@@ -3053,7 +3277,7 @@ export const rutaNoEncontrada = (req, res, next) => {
 
 ---
 
-## 6. Manejador Global Centralizado (`manejoErrores.js`)
+## 7. Manejador Global Centralizado (`manejoErrores.js`)
 
 **Ubicación:** `src/middlewares/manejoErrores.js`  
 **Tipo:** Middleware de Errores (Error Handling Middleware)  
@@ -3094,6 +3318,7 @@ export const manejoErrores = (err, req, res, next) => {
 |---|---|---|---|
 | **`logger.js`** | Monitoreo HTTP | Express al recibir cualquier petición | Deja pasar la petición limpia con `next()` |
 | **`validarSchema.js`** | Validación universal (body, params, query) | Rutas HTTP antes de los controladores | `req[origen]` como DTO limpio y tipado o error 400 |
+| **`autenticarUsuario.js`** | Autenticación Bearer JWT y Lista Negra | Rutas privadas (`/me`, `/logout`) | Inyecta `req.usuario = { id, jti, exp }` o rechaza 401/400 |
 | **`comun.schemas.js`** | Esquemas Zod compartidos | Rutas con parámetros comunes (`:id`) | Regla para validar identificadores numéricos |
 | **`producto.schemas.js`** | Esquemas Zod de Producto | Rutas de `/productos` | Reglas de validación Zod con `.safeParse()` |
 | **`ErroresZod.js`** | Formateador de fallos Zod | `validarSchema` | Array estructurado `[{ path, message }]` |
@@ -3187,6 +3412,7 @@ flowchart TD
 |---|---|---|
 | **`logger`** | Informativo | Cronometra y registra en consola el resultado final de cada petición. |
 | **`validarSchema`** | Middleware Fábrica Zod | Valida y sanitiza entradas (`body`, `params`, `query`) según esquemas declarativos. |
+| **`autenticarUsuario`** | Seguridad / Auth JWT | Valida cabeceras Bearer (RFC 6750), verifica firma y consulta lista negra de revocaciones. |
 | **`ErroresZod`** | Utilidad (`utils`) | Transforma `issues` de Zod 4 en un array estructurado `[{ path, message }]`. |
 | **`crearError`** | Utilidad (`utils`) | Estandariza objetos `Error` adjuntando `status` HTTP y `details` opcionales. |
 | **`rutaNoEncontrada`** | Middleware 404 | Intercepta peticiones huérfanas y delega un error 404 mediante `next(...)`. |
@@ -3356,3 +3582,94 @@ flowchart TD
 
 ---
 
+## Flujo Completo de Autenticación con Token: `GET /usuarios/me`
+
+Este flujo ilustra el control de acceso implementado con **JWT**, validación de esquemas de token mediante **Zod**, consulta de revocaciones en **PostgreSQL** y entrega segura del perfil de usuario:
+
+```mermaid
+flowchart TD
+    CLI["1. Cliente envía GET /usuarios/me\nHeaders: Authorization: Bearer <token>"] --> LOG["2. logger"]
+    LOG --> ROUTE["3. usuario.routes.js\nrouter.get('/me', autenticarUsuario, obtenerMiPerfil)"]
+    
+    ROUTE --> AUTH["4. autenticarUsuario.js"]
+    AUTH -->|"¿Falta header?"| ERR_NO_HEADER["res.status(401)\nWWW-Authenticate: Bearer\n'Se requiere un token de acceso.'"]
+    AUTH -->|"¿Formato no es Bearer?"| ERR_BAD_FMT["res.status(400)\nWWW-Authenticate: Bearer error='invalid_request'\n'Usar Authorization: Bearer <token>.'"]
+    
+    AUTH -->|"Formato OK"| VERIF["5. verificarToken(token)\nValida firma HS256 y claims con Zod"]
+    VERIF -->|"[Error] Firma/exp inválida"| ERR_JWT["res.status(401)\nWWW-Authenticate: Bearer error='invalid_token'\n'Token inválido, vencido o revocado.'"]
+    
+    VERIF -->|"[OK] Token estructuralmente válido"| REVOC["6. tokenEstaRevocado(jti)\nprisma.tokenRevocado.findUnique({ where: { jti } })"]
+    REVOC -->|"[Revocado] jti en BD"| ERR_JWT
+    
+    REVOC -->|"[Activo] jti no revocado"| INJECT["7. req.usuario = { id, jti, exp }\nnext()"]
+    
+    INJECT --> CTRL["8. usuario.controllers.js (obtenerMiPerfil)\nobtenerUsuarioPorId(req.usuario.id)"]
+    CTRL --> SERV["9. usuario.services.js\nprisma.usuario.findUnique({ where: { id }, select: { id, nombre, email } })"]
+    
+    SERV -->|"Usuario no existe"| ERR_NOT_FOUND["res.status(401)\n'La cuenta asociada al token no existe.'"]
+    SERV -->|"Usuario existe"| RES_OK["10. res.status(200).json({ usuario })"]
+
+    style CLI fill:#38bdf8,stroke:#0284c7,color:#000
+    style LOG fill:#facc15,stroke:#ca8a04,color:#000
+    style ROUTE fill:#a78bfa,stroke:#7c3aed,color:#000
+    style AUTH fill:#fb923c,stroke:#ea580c,color:#000
+    style VERIF fill:#34d399,stroke:#059669,color:#000
+    style REVOC fill:#f87171,stroke:#dc2626,color:#fff
+    style INJECT fill:#38bdf8,stroke:#0284c7,color:#000
+    style CTRL fill:#fb923c,stroke:#ea580c,color:#000
+    style SERV fill:#f472b6,stroke:#db2777,color:#000
+    style RES_OK fill:#4ade80,stroke:#16a34a,color:#000
+    style ERR_NO_HEADER fill:#ef4444,stroke:#dc2626,color:#fff
+    style ERR_BAD_FMT fill:#ef4444,stroke:#dc2626,color:#fff
+    style ERR_JWT fill:#ef4444,stroke:#dc2626,color:#fff
+    style ERR_NOT_FOUND fill:#ef4444,stroke:#dc2626,color:#fff
+```
+
+---
+
+## Flujo Completo de Cierre de Sesión (Logout) y Revocación: `POST /usuarios/logout`
+
+Este flujo describe cómo la arquitectura stateless invalida de forma inmediata un token JWT persistiendo su identificador en la lista negra:
+
+```mermaid
+flowchart TD
+    CLI["1. Cliente envía POST /usuarios/logout\nHeaders: Authorization: Bearer <token>"] --> AUTH["2. autenticarUsuario.js\nValida token activo, inyecta req.usuario"]
+    AUTH --> CTRL["3. sesiones.controllers.js (cerrarSesion)"]
+    CTRL --> SERV["4. revocaciones.services.js (revocarToken)\nconst venceEn = new Date(exp * 1000)"]
+    SERV --> PRISMA["5. prisma.tokenRevocado.upsert({\n  where: { jti },\n  create: { jti, venceEn },\n  update: { venceEn }\n})"]
+    PRISMA --> BD[("PostgreSQL (Tabla TokenRevocado)")]
+    BD --> PRISMA
+    PRISMA --> SERV
+    SERV --> CTRL
+    CTRL --> RES["6. res.status(204).end()\n(Sesión cerrada, token invalidado)"]
+
+    style CLI fill:#38bdf8,stroke:#0284c7,color:#000
+    style AUTH fill:#fb923c,stroke:#ea580c,color:#000
+    style CTRL fill:#a78bfa,stroke:#7c3aed,color:#000
+    style SERV fill:#f472b6,stroke:#db2777,color:#000
+    style PRISMA fill:#f87171,stroke:#dc2626,color:#fff
+    style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style RES fill:#4ade80,stroke:#16a34a,color:#000
+```
+
+---
+
+## Flujo de la Tarea en Segundo Plano: Limpieza Automática de Tokens (`limpiezaRevocaciones.js`)
+
+Ciclo de vida de la tarea recurrente no bloqueante que purga periódicamente los tokens revocados cuya expiración natural ya ha transcurrido:
+
+```mermaid
+flowchart TD
+    INIT["1. app.listen() al arrancar el servidor\niniciarLimpiezaRevocaciones()"] --> LOOP["2. Bucle Asíncrono Desacoplado\nsetTimeout(ejecutar, INTERVALO_MS).unref()\nIntervalo = 1 hora (3.600.000 ms)"]
+    LOOP --> PURGE["3. eliminarRevocacionesVencidas()\nprisma.tokenRevocado.deleteMany({\n  where: { venceEn: { lte: new Date() } }\n})"]
+    PURGE --> BD[("PostgreSQL (TokenRevocado)")]
+    BD -->|"Elimina registros con venceEn <= NOW()"| PURGE
+    PURGE --> LOG_OUT["4. Consola: 'Revocaciones vencidas eliminadas: N'"]
+    LOG_OUT --> LOOP
+
+    style INIT fill:#38bdf8,stroke:#0284c7,color:#000
+    style LOOP fill:#facc15,stroke:#ca8a04,color:#000
+    style PURGE fill:#f87171,stroke:#dc2626,color:#fff
+    style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style LOG_OUT fill:#4ade80,stroke:#16a34a,color:#000
+```

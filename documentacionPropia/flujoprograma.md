@@ -82,6 +82,7 @@ flowchart TD
 |---|---|---|
 | **`logger`** | Informativo | Cronometra y registra en consola el resultado final de cada petición. |
 | **`validarSchema`** | Middleware Fábrica Zod | Valida y sanitiza entradas (`body`, `params`, `query`) según esquemas declarativos. |
+| **`autenticarUsuario`** | Seguridad / Auth JWT | Valida cabeceras Bearer (RFC 6750), verifica firma y consulta lista negra de revocaciones. |
 | **`ErroresZod`** | Utilidad (`utils`) | Transforma `issues` de Zod 4 en un array estructurado `[{ path, message }]`. |
 | **`crearError`** | Utilidad (`utils`) | Estandariza objetos `Error` adjuntando `status` HTTP y `details` opcionales. |
 | **`rutaNoEncontrada`** | Middleware 404 | Intercepta peticiones huérfanas y delega un error 404 mediante `next(...)`. |
@@ -247,6 +248,100 @@ flowchart TD
     style H fill:#e2e8f0,stroke:#94a3b8,color:#000
     style I fill:#4ade80,stroke:#16a34a,color:#000
     style F fill:#ef4444,stroke:#dc2626,color:#fff
+```
+
+---
+
+## Flujo Completo de Autenticación con Token: `GET /usuarios/me`
+
+Este flujo ilustra el control de acceso implementado con **JWT**, validación de esquemas de token mediante **Zod**, consulta de revocaciones en **PostgreSQL** y entrega segura del perfil de usuario:
+
+```mermaid
+flowchart TD
+    CLI["1. Cliente envía GET /usuarios/me\nHeaders: Authorization: Bearer <token>"] --> LOG["2. logger"]
+    LOG --> ROUTE["3. usuario.routes.js\nrouter.get('/me', autenticarUsuario, obtenerMiPerfil)"]
+    
+    ROUTE --> AUTH["4. autenticarUsuario.js"]
+    AUTH -->|"¿Falta header?"| ERR_NO_HEADER["res.status(401)\nWWW-Authenticate: Bearer\n'Se requiere un token de acceso.'"]
+    AUTH -->|"¿Formato no es Bearer?"| ERR_BAD_FMT["res.status(400)\nWWW-Authenticate: Bearer error='invalid_request'\n'Usar Authorization: Bearer <token>.'"]
+    
+    AUTH -->|"Formato OK"| VERIF["5. verificarToken(token)\nValida firma HS256 y claims con Zod"]
+    VERIF -->|"[Error] Firma/exp inválida"| ERR_JWT["res.status(401)\nWWW-Authenticate: Bearer error='invalid_token'\n'Token inválido, vencido o revocado.'"]
+    
+    VERIF -->|"[OK] Token estructuralmente válido"| REVOC["6. tokenEstaRevocado(jti)\nprisma.tokenRevocado.findUnique({ where: { jti } })"]
+    REVOC -->|"[Revocado] jti en BD"| ERR_JWT
+    
+    REVOC -->|"[Activo] jti no revocado"| INJECT["7. req.usuario = { id, jti, exp }\nnext()"]
+    
+    INJECT --> CTRL["8. usuario.controllers.js (obtenerMiPerfil)\nobtenerUsuarioPorId(req.usuario.id)"]
+    CTRL --> SERV["9. usuario.services.js\nprisma.usuario.findUnique({ where: { id }, select: { id, nombre, email } })"]
+    
+    SERV -->|"Usuario no existe"| ERR_NOT_FOUND["res.status(401)\n'La cuenta asociada al token no existe.'"]
+    SERV -->|"Usuario existe"| RES_OK["10. res.status(200).json({ usuario })"]
+
+    style CLI fill:#38bdf8,stroke:#0284c7,color:#000
+    style LOG fill:#facc15,stroke:#ca8a04,color:#000
+    style ROUTE fill:#a78bfa,stroke:#7c3aed,color:#000
+    style AUTH fill:#fb923c,stroke:#ea580c,color:#000
+    style VERIF fill:#34d399,stroke:#059669,color:#000
+    style REVOC fill:#f87171,stroke:#dc2626,color:#fff
+    style INJECT fill:#38bdf8,stroke:#0284c7,color:#000
+    style CTRL fill:#fb923c,stroke:#ea580c,color:#000
+    style SERV fill:#f472b6,stroke:#db2777,color:#000
+    style RES_OK fill:#4ade80,stroke:#16a34a,color:#000
+    style ERR_NO_HEADER fill:#ef4444,stroke:#dc2626,color:#fff
+    style ERR_BAD_FMT fill:#ef4444,stroke:#dc2626,color:#fff
+    style ERR_JWT fill:#ef4444,stroke:#dc2626,color:#fff
+    style ERR_NOT_FOUND fill:#ef4444,stroke:#dc2626,color:#fff
+```
+
+---
+
+## Flujo Completo de Cierre de Sesión (Logout) y Revocación: `POST /usuarios/logout`
+
+Este flujo describe cómo la arquitectura stateless invalida de forma inmediata un token JWT persistiendo su identificador en la lista negra:
+
+```mermaid
+flowchart TD
+    CLI["1. Cliente envía POST /usuarios/logout\nHeaders: Authorization: Bearer <token>"] --> AUTH["2. autenticarUsuario.js\nValida token activo, inyecta req.usuario"]
+    AUTH --> CTRL["3. sesiones.controllers.js (cerrarSesion)"]
+    CTRL --> SERV["4. revocaciones.services.js (revocarToken)\nconst venceEn = new Date(exp * 1000)"]
+    SERV --> PRISMA["5. prisma.tokenRevocado.upsert({\n  where: { jti },\n  create: { jti, venceEn },\n  update: { venceEn }\n})"]
+    PRISMA --> BD[("PostgreSQL (Tabla TokenRevocado)")]
+    BD --> PRISMA
+    PRISMA --> SERV
+    SERV --> CTRL
+    CTRL --> RES["6. res.status(204).end()\n(Sesión cerrada, token invalidado)"]
+
+    style CLI fill:#38bdf8,stroke:#0284c7,color:#000
+    style AUTH fill:#fb923c,stroke:#ea580c,color:#000
+    style CTRL fill:#a78bfa,stroke:#7c3aed,color:#000
+    style SERV fill:#f472b6,stroke:#db2777,color:#000
+    style PRISMA fill:#f87171,stroke:#dc2626,color:#fff
+    style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style RES fill:#4ade80,stroke:#16a34a,color:#000
+```
+
+---
+
+## Flujo de la Tarea en Segundo Plano: Limpieza Automática de Tokens (`limpiezaRevocaciones.js`)
+
+Ciclo de vida de la tarea recurrente no bloqueante que purga periódicamente los tokens revocados cuya expiración natural ya ha transcurrido:
+
+```mermaid
+flowchart TD
+    INIT["1. app.listen() al arrancar el servidor\niniciarLimpiezaRevocaciones()"] --> LOOP["2. Bucle Asíncrono Desacoplado\nsetTimeout(ejecutar, INTERVALO_MS).unref()\nIntervalo = 1 hora (3.600.000 ms)"]
+    LOOP --> PURGE["3. eliminarRevocacionesVencidas()\nprisma.tokenRevocado.deleteMany({\n  where: { venceEn: { lte: new Date() } }\n})"]
+    PURGE --> BD[("PostgreSQL (TokenRevocado)")]
+    BD -->|"Elimina registros con venceEn <= NOW()"| PURGE
+    PURGE --> LOG_OUT["4. Consola: 'Revocaciones vencidas eliminadas: N'"]
+    LOG_OUT --> LOOP
+
+    style INIT fill:#38bdf8,stroke:#0284c7,color:#000
+    style LOOP fill:#facc15,stroke:#ca8a04,color:#000
+    style PURGE fill:#f87171,stroke:#dc2626,color:#fff
+    style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style LOG_OUT fill:#4ade80,stroke:#16a34a,color:#000
 ```
 
 

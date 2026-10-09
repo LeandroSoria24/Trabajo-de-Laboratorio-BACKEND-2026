@@ -148,6 +148,21 @@ const artesanoPorDni = await prisma.artesano.findUnique({
     dni: '28123456'
   }
 });
+
+// Por identificador UUID con proyección segura 'select' (excluye passwordHash):
+const perfilUsuario = await prisma.usuario.findUnique({
+  where: { id: usuarioId },
+  select: {
+    id: true,
+    nombre: true,
+    email: true
+  }
+});
+
+// Comprobar si un identificador de token (JTI) está registrado como revocado:
+const registroRevocado = await prisma.tokenRevocado.findUnique({
+  where: { jti: jti }
+});
 ```
 
 > [!IMPORTANT]
@@ -353,6 +368,7 @@ const artesanoEliminado = await prisma.artesano.delete({
 Si el registro existe lo actualiza, y si no existe lo inserta en una sola operación atómica.
 
 ```javascript
+// Caso 1: Actualizar o registrar datos de artesano
 const artesano = await prisma.artesano.upsert({
   where: { dni: '28123456' },
   update: {
@@ -363,10 +379,18 @@ const artesano = await prisma.artesano.upsert({
     apellido: 'Gómez',
     dni: '28123456',
     email: 'maria.gomez@gmail.com',
-    localidad: 'Belén',
+    localidadId: 1,
     rubro: 'Textil',
     nombreEmprendimiento: 'Tejidos del Valle'
   }
+});
+
+// Caso 2: Revocación idempotente de Token JWT (Cierre de sesión):
+// Si el JTI ya estaba revocado, actualiza venceEn; si no existía, lo inserta.
+await prisma.tokenRevocado.upsert({
+  where: { jti: jti },
+  create: { jti: jti, venceEn: venceEn },
+  update: { venceEn: venceEn }
 });
 ```
 
@@ -384,7 +408,7 @@ Para manipular múltiples registros a la vez:
         apellido: 'Gómez',
         dni: '28123456',
         email: 'maria@gmail.com',
-        localidad: 'Belén',
+        localidadId: 1,
         rubro: 'Textil',
         nombreEmprendimiento: 'Tejidos Belén'
       },
@@ -393,7 +417,7 @@ Para manipular múltiples registros a la vez:
         apellido: 'Rodríguez',
         dni: '30456789',
         email: 'carlos@gmail.com',
-        localidad: 'Santa María',
+        localidadId: 2,
         rubro: 'Cerámica',
         nombreEmprendimiento: 'Alfarería Santa María'
       }
@@ -402,20 +426,32 @@ Para manipular múltiples registros a la vez:
   ```
 * **`updateMany`**: Actualiza todos los registros que cumplan una condición.
 * **`deleteMany`**: Elimina todos los registros que cumplan una condición (o todos si se deja vacío `where: {}`).
+  ```javascript
+  // Ejemplo real de tarea programada (purga de tokens expirados en src/services/revocaciones.services.js):
+  const resultado = await prisma.tokenRevocado.deleteMany({
+    where: {
+      venceEn: { lte: new Date() } // 'lte' = Less Than or Equal (<= fecha actual)
+    }
+  });
+  console.log("Tokens vencidos purgados:", resultado.count);
+  ```
 
 ---
 
-## 5. Mapeo Práctico: De Memoria a Prisma en los Controladores
+## 5. Mapeo Práctico: De Memoria a Prisma en los Controladores y Servicios
 
-Así es como se transforman los métodos del controlador `src/controllers/artesano.controllers.js`:
+Así es como se transforman los métodos del proyecto con Prisma ORM:
 
-| Acción HTTP | Ruta | En Memoria (JavaScript) | Con Prisma ORM |
+| Acción HTTP | Ruta | Enfoque en Memoria | Con Prisma ORM |
 | :--- | :--- | :--- | :--- |
 | **GET** | `/artesanos` | `artesanos` | `await prisma.artesano.findMany()` |
 | **GET** | `/artesanos/:id` | `artesanos.find(a => a.id === id)` | `await prisma.artesano.findUnique({ where: { id } })` |
 | **POST** | `/artesanos` | `artesanos.push(nuevoArtesano)` | `await prisma.artesano.create({ data: { ... } })` |
 | **PUT** | `/artesanos/:id` | `artesano.nombre = ...` | `await prisma.artesano.update({ where: { id }, data: { ... } })` |
 | **DELETE** | `/artesanos/:id` | `artesanos.splice(indice, 1)` | `await prisma.artesano.delete({ where: { id } })` |
+| **GET** | `/usuarios/me` | `usuarios.find(u => u.id === req.usuario.id)` | `await prisma.usuario.findUnique({ where: { id }, select: { id: true, nombre: true, email: true } })` |
+| **POST** | `/usuarios/logout` | `tokensRevocados.add(req.usuario.jti)` | `await prisma.tokenRevocado.upsert({ where: { jti }, create: { jti, venceEn }, update: { venceEn } })` |
+| **CRON** | *Limpieza cada 1h* | `tokens.filter(t => t.exp > now)` | `await prisma.tokenRevocado.deleteMany({ where: { venceEn: { lte: new Date() } } })` |
 
 ---
 

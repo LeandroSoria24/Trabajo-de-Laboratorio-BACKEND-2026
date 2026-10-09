@@ -26,6 +26,7 @@ Plataforma digital para la gestión y difusión de los artesanos, productores y 
 | **PostgreSQL** | Supabase | Motor de base de datos relacional con tipos nativos (`UUID`, `DECIMAL`) |
 | **Prisma ORM** | v7.10.x | Acceso a datos (cliente con adaptador `@prisma/adapter-pg`) |
 | **Bcrypt** | v6.0.0 | Hashing seguro de contraseñas (salt factor 10) |
+| **JSON Web Tokens** | v9.0.3 | Autenticación basada en tokens JWT (`jsonwebtoken`), firmas HS256 y sesiones |
 | **Zod** | v4.4.3 | Validación declarativa de esquemas y contratos de entrada |
 | **Dotenv** | v17.x | Gestión segura de credenciales por variables de entorno |
 
@@ -49,6 +50,7 @@ npm install
 Crear un archivo `.env` en la raíz del proyecto tomando como referencia `.env.example`:
 ```env
 DATABASE_URL="postgresql://USUARIO:PASSWORD@HOST:5432/postgres?schema=public"
+JWT_SECRET="tu-clave-secreta-para-firmar-jwt-minimo-32-caracteres"
 ```
 
 ### 4. Ejecutar migraciones y generar el cliente de Prisma
@@ -160,6 +162,7 @@ Localidad (1) ──────────────────── (N) A
 | `Sector` | Sector interno del predio (ej: "Sector Norte"). | `id: Int` | — |
 | `Stand` | Espacio físico. Vinculado a Pabellón, Sector y asignación **1:1 opcional** con Artesano. | `id: Int` | — |
 | `SolicitudPostulacion` | Postulación de un artesano para un stand, evaluada por un usuario evaluador. | `id: Int` | — |
+| `TokenRevocado` | Lista negra persistente de tokens JWT invalidados (`jti`, `venceEn`). Permite logout seguro en arquitecturas sin estado. | `jti: String` | — (Purga programada) |
 
 ### Reglas de integridad clave
 - **`Usuario.id` es UUID (`@db.Uuid`)**: Identificador único global compatible con seguridad criptográfica.
@@ -168,16 +171,19 @@ Localidad (1) ──────────────────── (N) A
 - **`Stand ↔ Artesano` (1:1 opcional)**: `artesanoId Int? @unique` con `onDelete: SetNull`.
 - **`Producto ↔ Artesano`**: `onDelete: Cascade` (si se elimina el artesano, se eliminan sus productos).
 - **`SolicitudPostulacion`**: Relaciona `artesanoId` (postulante), `standId` (stand pedido) y `evaluadorId` (`Usuario` que dictamina).
+- **Gestión de Sesiones y Revocación JWT (`TokenRevocado`)**: Tokens firmados con algoritmo HS256, vigencia de 15 minutos e identificador criptográfico único `jti` (UUID). Al cerrar sesión (`/logout`), el `jti` se persiste en la lista negra. Una tarea en segundo plano purga automáticamente cada hora los registros cuya fecha `venceEn` haya expirado.
 
 ---
 
 ## Endpoints de la API
 
 ### Autenticación y Usuarios — `/usuarios`
-| Método | Ruta | Descripción | Validación Zod | Código Éxito |
-|---|---|---|---|---|
-| `POST` | `/usuarios/registro` | Registra un nuevo usuario con contraseña hasheada (bcrypt) y rol `VISITANTE` | `registrarUsuarioSchema` | `201 Created` |
-| `POST` | `/usuarios/login` | Inicia sesión verificando hash bcrypt y retorna datos del usuario y rol | `iniciarSesionSchema` | `200 OK` |
+| Método | Ruta | Descripción | Autenticación | Validación Zod | Código Éxito |
+|---|---|---|---|---|---|
+| `POST` | `/usuarios/registro` | Registra un nuevo usuario con contraseña hasheada (bcrypt) y rol `VISITANTE` | Pública | `registrarUsuarioSchema` | `201 Created` |
+| `POST` | `/usuarios/login` | Inicia sesión verificando hash bcrypt y retorna token JWT (15m) junto a datos del usuario | Pública | `iniciarSesionSchema` | `200 OK` |
+| `GET` | `/usuarios/me` | Obtiene el perfil del usuario autenticado (id, nombre, email) | `Bearer <token>` | — | `200 OK` |
+| `POST` | `/usuarios/logout` | Cierra sesión revocando el token JWT actual e ingresándolo a la lista negra | `Bearer <token>` | — | `204 No Content` |
 
 ---
 
@@ -248,7 +254,7 @@ En la carpeta [`documentacionPropia/`](documentacionPropia/) tambien se encuentr
 | 2 | [Estructura de Base de Datos](documentacionPropia/estructura-base-de-datos.md) | Explicacion teorica del modelo relacional, diagrama ER Mermaid, normalizacion y decisiones de diseño |
 | 3 | [Guia de Prisma ORM](documentacionPropia/guia-prisma.md) | Configuracion con PostgreSQL, Prisma 7, schema declarativo y cliente singleton |
 | 4 | [Guia de Validacion con Zod](documentacionPropia/guia-zod.md) | Esquemas Zod 4, validacion de UUIDs, sanitizacion automatica y DTOs |
-| 5 | [Middlewares y Utilidades](documentacionPropia/middlewares-y-utils.md) | `logger`, `validarSchema`, `crearError`, `rutaNoEncontrada`, `manejoErrores` |
+| 5 | [Middlewares y Utilidades](documentacionPropia/middlewares-y-utils.md) | `logger`, `validarSchema`, `autenticarUsuario` (Bearer JWT), `crearError`, `rutaNoEncontrada`, `manejoErrores` |
 | 6 | [Consultas y CRUD con Prisma](documentacionPropia/consultas-y-crud-prisma.md) | `findMany`, `findUnique`, `where`, `orderBy`, paginacion, mutaciones y transacciones |
 | 7 | [Flujograma de Ejecucion](documentacionPropia/flujoprograma.md) | Diagramas Mermaid del ciclo de vida de peticiones validas y captura de excepciones |
 

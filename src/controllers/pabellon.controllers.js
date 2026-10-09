@@ -6,6 +6,7 @@ import {
     eliminarPabellon
 } from '../services/pabellon.services.js';
 
+// GET 🟩 
 export const getPabellones = async (req, res, next) => {
     try {
         const resultado = await obtenerPabellones(req.consulta);
@@ -15,6 +16,7 @@ export const getPabellones = async (req, res, next) => {
     }
 };
 
+// GET por ID 🟩 
 export const getPabellonPorId = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -25,6 +27,7 @@ export const getPabellonPorId = async (req, res, next) => {
     }
 };
 
+// POST 🟩 
 export const createPabellon = async (req, res, next) => {
     try {
         const nuevoPabellon = await crearPabellon(req.body);
@@ -34,6 +37,7 @@ export const createPabellon = async (req, res, next) => {
     }
 };
 
+// PUT 🟩 
 export const updatePabellon = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -44,6 +48,7 @@ export const updatePabellon = async (req, res, next) => {
     }
 };
 
+// DELETE 🟩 
 export const deletePabellon = async (req, res, next) => {
     try {
         const id = Number(req.params.id);

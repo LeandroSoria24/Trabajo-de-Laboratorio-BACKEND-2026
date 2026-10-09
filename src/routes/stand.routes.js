@@ -19,12 +19,16 @@ import {
 
 const router = Router();
 
-router.get('/', validarSchema(obtenerStandsSchema, 'query'), getStands);
-router.get('/:id', validarSchema(idParamSchema, 'params'), getStandPorId);
-router.post('/', validarSchema(crearStandSchema, 'body'), createStand);
-router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarStandSchema, 'body'), updateStand);
-router.patch('/:id/asignar-artesano', validarSchema(idParamSchema, 'params'), validarSchema(asignarArtesanoSchema, 'body'), patchAsignarArtesano);
-router.patch('/:id/liberar', validarSchema(idParamSchema, 'params'), patchLiberarStand);
-router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteStand);
+router.get('/', validarSchema(obtenerStandsSchema, 'query'), getStands);/* 🟩 */
+router.get('/:id', validarSchema(idParamSchema, 'params'), getStandPorId);/* 🟩 */
+router.post('/', validarSchema(crearStandSchema, 'body'), createStand);/* 🟩 */
+router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarStandSchema, 'body'), updateStand);/* 🟩 */
+
+/* estos dos endpoints se deberian de cambiar para cuando veamos autorizacion, 
+   si solo un administrador pueda acceder a dichos endpoints */
+router.patch('/:id/asignar-artesano', validarSchema(idParamSchema, 'params'), validarSchema(asignarArtesanoSchema, 'body'), patchAsignarArtesano);/* 🟩 */
+router.patch('/:id/liberar', validarSchema(idParamSchema, 'params'), patchLiberarStand);//* 🟩 */
+
+router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteStand);/* 🟩 */
 
 export default router;

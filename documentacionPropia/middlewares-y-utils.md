@@ -9,11 +9,12 @@ Este documento explica en profundidad el funcionamiento, la lógica interna y la
 1. [¿Qué es un Middleware en Express?](#qué-es-un-middleware-en-express)
 2. [1. Logger de Peticiones (`logger.js`)](#1-logger-de-peticiones-loggerjs)
 3. [2. Validador Universal con Zod (`validarSchema.js`)](#2-validador-universal-con-zod-validarschemajs)
-4. [3. Creador de Errores HTTP (`crearError.js`)](#3-creador-de-errores-http-crearerrorjs)
-5. [4. Formateador de Errores Zod (`ErroresZod.js`)](#4-formateador-de-errores-zod-erroreszodjs)
-6. [5. Capturador 404 (`rutaNoEncontrada.js`)](#5-capturador-404-rutanoencontradajs)
-7. [6. Manejador Global Centralizado (`manejoErrores.js`)](#6-manejador-global-centralizado-manejoerroresjs)
-8. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
+4. [3. Autenticación JWT y Revocaciones (`autenticarUsuario.js`)](#3-autenticación-jwt-y-revocaciones-autenticarusuariojs)
+5. [4. Creador de Errores HTTP (`crearError.js`)](#4-creador-de-errores-http-crearerrorjs)
+6. [5. Formateador de Errores Zod (`ErroresZod.js`)](#5-formateador-de-errores-zod-erroreszodjs)
+7. [6. Capturador 404 (`rutaNoEncontrada.js`)](#6-capturador-404-rutanoencontradajs)
+8. [7. Manejador Global Centralizado (`manejoErrores.js`)](#7-manejador-global-centralizado-manejoerroresjs)
+9. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
 
 ---
 
@@ -115,7 +116,73 @@ export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
 
 ---
 
-## 3. Creador de Errores HTTP (`crearError.js`)
+## 3. Autenticación JWT y Revocaciones (`autenticarUsuario.js`)
+
+**Ubicación:** `src/middlewares/autenticarUsuario.js`  
+**Tipo:** Middleware de Seguridad, Autenticación y Autorización (Bearer JWT con RFC 6750)  
+**Posición en rutas:** En rutas privadas (`src/routes/usuario.routes.js`, ej. `/me`, `/logout`) antes de los controladores que requieren identidad verificada.
+
+### Código:
+```javascript
+import jwt from "jsonwebtoken";
+import { verificarToken } from "../services/token.services.js";
+import { tokenEstaRevocado } from "../services/revocaciones.services.js";
+
+export const autenticarUsuario = async (req, res, next) => {
+    const encabezado = req.get("Authorization")?.trim();
+    if (!encabezado) {
+        res.set("WWW-Authenticate", "Bearer");
+        return res.status(401).json({
+            mensaje: "Se requiere un token de acceso."
+        });
+    }
+
+    const coincidencia = /^Bearer\s+(\S+)$/i.exec(encabezado);
+    if (!coincidencia) {
+        res.set("WWW-Authenticate", 'Bearer error="invalid_request"');
+        return res.status(400).json({
+            mensaje: "Usar Authorization: Bearer <token>."
+        });
+    }
+
+    try {
+        req.usuario = verificarToken(coincidencia[1]);
+        if (await tokenEstaRevocado(req.usuario.jti)) {
+            throw new jwt.JsonWebTokenError("Token revocado.");
+        }
+    } catch (error) {
+        if (!(error instanceof jwt.JsonWebTokenError)) {
+            return next(error);
+        }
+        res.set("WWW-Authenticate", 'Bearer error="invalid_token"');
+        return res.status(401).json({
+            mensaje: "Token inválido, vencido o revocado."
+        });
+    }
+
+    return next();
+};
+```
+
+### ¿Cómo funciona paso a paso?
+1. **Extracción del encabezado (`req.get("Authorization")`):**
+   Obtiene el valor de la cabecera HTTP de forma insensible a mayúsculas/minúsculas y remueve espacios en los bordes.
+2. **Validación de presencia (RFC 6750):**
+   Si la petición carece de cabecera `Authorization`, responde HTTP `401 Unauthorized` e incluye la cabecera estándar `WWW-Authenticate: Bearer` exigida por la especificación OAuth 2.0 / Bearer Token.
+3. **Validación de formato sintáctico (`/^Bearer\s+(\S+)$/i`):**
+   Aplica una expresión regular insensible a mayúsculas para comprobar que el esquema sea `Bearer` seguido de una cadena no vacía (`<token>`). Si el cliente envía un formato incorrecto (ej: `Basic ...` o solo el token sin la palabra `Bearer`), responde HTTP `400 Bad Request` con cabecera `WWW-Authenticate: Bearer error="invalid_request"`.
+4. **Verificación criptográfica y estructural (`verificarToken`):**
+   Extrae el token del grupo de captura (`coincidencia[1]`) y lo delega al servicio `src/services/token.services.js`. Allí se valida la firma con `JWT_SECRET`, algoritmo `HS256`, y se comprueban con **Zod** los claims requeridos (`sub` tipo UUID, `exp` número y `jti` cadena válida).
+5. **Comprobación de Lista Negra en Base de Datos (`tokenEstaRevocado`):**
+   Consulta de forma asíncrona en PostgreSQL si el identificador único del token (`req.usuario.jti`) figura en la tabla `TokenRevocado`. Si fue revocado (por ejemplo, porque el usuario cerró sesión con `/logout`), fuerza el lanzamiento de una excepción `jwt.JsonWebTokenError("Token revocado.")`.
+6. **Captura y diagnóstico de errores:**
+   Si la excepción capturada es una instancia de `jwt.JsonWebTokenError` (token alterado, firma inválida, expirado por tiempo o revocado), emite `401 Unauthorized` con cabecera `WWW-Authenticate: Bearer error="invalid_token"` y mensaje unificado `"Token inválido, vencido o revocado."`. Si se produce cualquier otro fallo imprevisto (ej. caída de conexión con la base de datos), lo remite a `next(error)` para su gestión en el middleware global de 500.
+7. **Inyección de identidad (`req.usuario`) y prosecución (`next()`):**
+   Al superar exitosamente todas las etapas, asocia el objeto `{ id: payload.sub, jti, exp }` a `req.usuario` y llama a `next()`, permitiendo que los controladores dependientes consuman la identidad del usuario autenticado sin volver a consultar o decodificar el token.
+
+---
+
+## 4. Creador de Errores HTTP (`crearError.js`)
 
 **Ubicación:** `src/utils/crearError.js`  
 **Tipo:** Función Utilitaria (Factory Pattern)  
@@ -152,7 +219,7 @@ export const crearError = (mensaje, status = 500, details = null) => {
 
 ---
 
-## 4. Formateador de Errores Zod (`ErroresZod.js`)
+## 5. Formateador de Errores Zod (`ErroresZod.js`)
 
 **Ubicación:** `src/utils/ErroresZod.js`  
 **Tipo:** Utilidad especializada de formateo para Zod  
@@ -175,7 +242,7 @@ export const detallarErroresZod = (ZodError) =>
 
 ---
 
-## 5. Capturador 404 (`rutaNoEncontrada.js`)
+## 6. Capturador 404 (`rutaNoEncontrada.js`)
 
 **Ubicación:** `src/middlewares/rutaNoEncontrada.js`  
 **Tipo:** Middleware de Enrutamiento / Ruta Comodín  
@@ -197,7 +264,7 @@ export const rutaNoEncontrada = (req, res, next) => {
 
 ---
 
-## 6. Manejador Global Centralizado (`manejoErrores.js`)
+## 7. Manejador Global Centralizado (`manejoErrores.js`)
 
 **Ubicación:** `src/middlewares/manejoErrores.js`  
 **Tipo:** Middleware de Errores (Error Handling Middleware)  
@@ -238,6 +305,7 @@ export const manejoErrores = (err, req, res, next) => {
 |---|---|---|---|
 | **`logger.js`** | Monitoreo HTTP | Express al recibir cualquier petición | Deja pasar la petición limpia con `next()` |
 | **`validarSchema.js`** | Validación universal (body, params, query) | Rutas HTTP antes de los controladores | `req[origen]` como DTO limpio y tipado o error 400 |
+| **`autenticarUsuario.js`** | Autenticación Bearer JWT y Lista Negra | Rutas privadas (`/me`, `/logout`) | Inyecta `req.usuario = { id, jti, exp }` o rechaza 401/400 |
 | **`comun.schemas.js`** | Esquemas Zod compartidos | Rutas con parámetros comunes (`:id`) | Regla para validar identificadores numéricos |
 | **`producto.schemas.js`** | Esquemas Zod de Producto | Rutas de `/productos` | Reglas de validación Zod con `.safeParse()` |
 | **`ErroresZod.js`** | Formateador de fallos Zod | `validarSchema` | Array estructurado `[{ path, message }]` |

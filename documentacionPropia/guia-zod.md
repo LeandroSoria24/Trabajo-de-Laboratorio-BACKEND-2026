@@ -575,6 +575,35 @@ Cliente envía POST /productos con body: { nombre: "  Poncho  ", precio: 150000,
 └───────────────────────────┘
 ```
 
+### Caso Especial: Validación de Claims JWT en Capa de Servicios (`token.services.js`)
+
+Zod no solo se utiliza como middleware en los endpoints HTTP, sino también como mecanismo de **defensa en profundidad** dentro de la capa de servicios para verificar la integridad de las cargas útiles (*claims*) de tokens criptográficos:
+
+```javascript
+// src/services/token.services.js
+import { z } from "zod";
+import jwt from "jsonwebtoken";
+
+export const verificarToken = (token) => {
+    const payload = jwt.verify(token, secretoJWT, { algorithms: ["HS256"] });
+
+    // Zod valida en tiempo de ejecución que el subject sea estrictamente un UUID v4
+    if (typeof payload !== "object" || payload === null ||
+        !z.uuid().safeParse(payload.sub).success ||
+        !Number.isFinite(payload.exp)) {
+        throw new jwt.JsonWebTokenError("Contenido del token inválido.");
+    }
+
+    if (typeof payload.jti !== "string" || !payload.jti.trim()) {
+        throw new jwt.JsonWebTokenError("Falta el identificador del token.");
+    }
+
+    return { id: payload.sub, jti: payload.jti, exp: payload.exp };
+};
+```
+
+Esto garantiza que ningún token alterado o malformado pueda inyectar identificadores incompatibles en las consultas de Prisma o en `req.usuario`.
+
 ---
 
 ## Referencia Rápida de Métodos

@@ -8,6 +8,7 @@ import {
     eliminarStand
 } from '../services/stand.services.js';
 
+// GET 🟩 
 export const getStands = async (req, res, next) => {
     try {
         const resultado = await obtenerStands(req.consulta);
@@ -17,6 +18,7 @@ export const getStands = async (req, res, next) => {
     }
 };
 
+// GET por ID 🟩 
 export const getStandPorId = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -27,6 +29,7 @@ export const getStandPorId = async (req, res, next) => {
     }
 };
 
+// POST 🟩 
 export const createStand = async (req, res, next) => {
     try {
         const nuevoStand = await crearStand(req.body);
@@ -36,6 +39,7 @@ export const createStand = async (req, res, next) => {
     }
 };
 
+// PUT 🟩 
 export const updateStand = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -46,6 +50,7 @@ export const updateStand = async (req, res, next) => {
     }
 };
 
+// PATCH 🟩 
 export const patchAsignarArtesano = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -57,6 +62,7 @@ export const patchAsignarArtesano = async (req, res, next) => {
     }
 };
 
+// PATCH 🟩 
 export const patchLiberarStand = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
@@ -67,6 +73,7 @@ export const patchLiberarStand = async (req, res, next) => {
     }
 };
 
+// DELETE 🟩 
 export const deleteStand = async (req, res, next) => {
     try {
         const id = Number(req.params.id);

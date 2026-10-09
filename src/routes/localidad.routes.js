@@ -10,8 +10,11 @@ import { obtenerLocalidadesSchema } from '../validators/localidad.schemas.js';
 
 const router = Router();
 
-router.get('/', validarSchema(obtenerLocalidadesSchema, 'query'), getLocalidades);
-router.get('/:id', validarSchema(idParamSchema, 'params'), getLocalidadPorId);
-/* router.post('/sincronizar-georef', postSincronizarGeoref); */
 
+/* todos estos endpoints deberian ser protegidos, lo haremos cuando veamos el tema de autorizaciones */
+/* solo un administrador deberia poder acceder a estos endpoints */
+router.get('/', validarSchema(obtenerLocalidadesSchema, 'query'), getLocalidades); /* 🟩 */
+router.get('/:id', validarSchema(idParamSchema, 'params'), getLocalidadPorId);/* 🟩 */
+/* router.post('/sincronizar-georef', postSincronizarGeoref);  servicio para sincronizar todas las localidad de argentina */
+/* solo hay que hacer un post sin nada en el body a este endpoint para poblar la bd*/
 export default router;

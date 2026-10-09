@@ -2,6 +2,7 @@ import { registrarUsuario, iniciarSesion as loginService } from '../services/usu
 import { generarToken } from "../services/token.services.js";
 import { obtenerUsuarioPorId } from "../services/usuario.services.js"; 
 
+// POST 🟩 
 export const postUsuario = async (req, res, next) => {
     try {
         const nuevoUsuario = await registrarUsuario(req.body);
@@ -14,7 +15,8 @@ export const postUsuario = async (req, res, next) => {
     }
 };
 
-export const iniciarSesion = async (req, res, next) => { /*🟨 */
+// POST 🟨 
+export const iniciarSesion = async (req, res, next) => { 
     try {
         const usuario = await loginService(req.body);
         const token = generarToken(usuario);
@@ -28,8 +30,8 @@ export const iniciarSesion = async (req, res, next) => { /*🟨 */
     }
 };
 
-
-export const obtenerMiPerfil = async (req, res, next) => { /*🟨 */
+// GET 🟨 
+export const obtenerMiPerfil = async (req, res, next) => {
     try {
         const usuario = await obtenerUsuarioPorId(req.usuario.id);
         if (!usuario) {

@@ -19,6 +19,8 @@ El modelo de datos de **Poncho Digital** fue diseñado bajo los principios de **
    En `Producto`, el precio se define como `Decimal(10, 2)` en lugar de coma flotante (`Float`), garantizando exactitud matemática sin pérdidas por redondeo binario.
 4. **Soft Delete (Baja Lógica):**  
    Tanto `Artesano` como `Producto` poseen una columna `activo Boolean @default(true)`, lo que permite preservar el histórico de ventas o stands ocupados sin perder trazabilidad al dar de baja un registro.
+5. **Lista Negra Persistente de Tokens Revocados (`TokenRevocado`):**  
+   Para implementar un cierre de sesión seguro en un esquema de autenticación sin estado (stateless JWT), se modela una entidad dedicada con clave primaria `jti` (JWT ID criptográfico) y marca de tiempo `venceEn`. Un índice B-Tree sobre `venceEn` garantiza consultas ultrarrápidas y permite a tareas en segundo plano purgar masivamente registros expirados sin penalizar el rendimiento.
 
 ---
 
@@ -32,6 +34,11 @@ El modelo de datos de **Poncho Digital** fue diseñado bajo los principios de **
 
 ```mermaid
 erDiagram
+    TOKEN_REVOCADO {
+        String jti PK "Identificador único JWT (UUID)"
+        DateTime venceEn "Fecha de expiración del token"
+    }
+
     USUARIO {
         Uuid id PK "UUID autogenerado"
         RolUsuario rol "default(VISITANTE)"
@@ -207,6 +214,16 @@ Trámite digital mediante el cual los artesanos postulan a la feria:
   - Si el artesano postulante se elimina, sus solicitudes se suprimen en cascada (`onDelete: Cascade`).
   - Si el evaluador o el stand se desvinculan, la solicitud se conserva con valor nulo para auditoría (`onDelete: SetNull`).
 
+### 4.7. `TokenRevocado`
+Entidad técnica de seguridad para invalidación prematura de tokens JWT (Lista Negra de Sesiones):
+- **`jti` (`String`, `@id`)**: Clave primaria que almacena el *JWT ID* (UUID v4 criptográfico asignado unívocamente a cada token emitido en `/login`).
+- **`venceEn` (`DateTime`)**: Timestamp que refleja el vencimiento natural del token (`exp`).
+- **Índice secundario `@@index([venceEn])`**: Crea un índice B-Tree dedicado sobre la fecha de expiración, posibilitando que la tarea de fondo elimine en lote (`deleteMany`) registros antiguos sin bloqueos de tabla.
+- **Conectividad y ciclo de vida:**
+  - No posee claves foráneas para mantener desacoplada la infraestructura de revocación de la tabla `Usuario`.
+  - Los registros se insertan de forma idempotente con `upsert` al invocarse `POST /usuarios/logout`.
+  - Permite denegar el acceso inmediato en el middleware `autenticarUsuario` aun si el token no superó sus 15 minutos de vida.
+
 ---
 
 ## 5. Resumen de Políticas de Integridad Referencial (`onDelete`)
@@ -220,12 +237,13 @@ Trámite digital mediante el cual los artesanos postulan a la feria:
 | `Stand` | `Sector` | N a 1 | **`Restrict`** | No se puede eliminar un sector mientras existan stands asignados a él. |
 | `Solicitud` | `Artesano` | N a 1 | **`Cascade`** | Las postulaciones son propiedad del artesano solicitante. |
 | `Solicitud` | `Usuario` | N a 1 | **`SetNull`** | Si un evaluador renuncia o se borra, la postulación preserva su histórico y queda lista para ser reasignada. |
+| `TokenRevocado` | *Independiente* | Sin FK | **—** | Tabla de revocación técnica; administración de ciclo de vida por purga automática temporal (`deleteMany`). |
 
 ---
 
 ## 6. Verificación en el Entorno
 
-El esquema actual se encuentra aplicado y validado contra PostgreSQL (Supabase):
+El esquema actual incluye la migración `20261008000300_create_token_revocado` y se encuentra completamente aplicado y validado contra PostgreSQL (Supabase):
 ```bash
 # Validar consistencia del schema
 npx prisma validate

@@ -15,8 +15,8 @@ import { cerrarSesion } from"../controllers/sesiones.controllers.js";/*🟨 */
 
 const router = Router();
 
-router.post("/registro", validarSchema(registrarUsuarioSchema, 'body'), postUsuario);
-router.post("/login", validarSchema(iniciarSesionSchema, 'body'), iniciarSesion);
+router.post("/registro", validarSchema(registrarUsuarioSchema, 'body'), postUsuario); /* 🟩 */
+router.post("/login", validarSchema(iniciarSesionSchema, 'body'), iniciarSesion); /* 🟩 */
 router.get("/me",autenticarUsuario,obtenerMiPerfil);/*🟨 */
 router.post("/logout",autenticarUsuario,cerrarSesion);/*🟨 */
 export default router;

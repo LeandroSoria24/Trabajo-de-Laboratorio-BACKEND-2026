@@ -38,15 +38,16 @@ Es un patrón de diseño que divide el software en niveles jerárquicos donde **
 
 ```text
 src/
-├── app.js                              ← Punto de entrada (configura Express, middlewares y rutas)
+├── app.js                              ← Punto de entrada (configura Express, middlewares, rutas e inicia tareas)
 │
 ├── routes/                             ← Capa de Enrutamiento (define endpoints y handlers)
 │   ├── artesano.routes.js
 │   ├── producto.routes.js
-│   └── usuario.routes.js
+│   └── usuario.routes.js              ← Endpoints de registro, login, /me y /logout
 │
 ├── middlewares/                         ← Capa de Middlewares (filtros intermedios)
 │   ├── logger.js                       ← Monitoreo de tiempos y estado HTTP
+│   ├── autenticarUsuario.js            ← Verificación de Bearer JWT y consulta de lista negra (revocaciones)
 │   ├── manejoErrores.js                ← Red de seguridad global para respuestas JSON
 │   ├── rutaNoEncontrada.js             ← Captura de 404
 │   └── validarSchema.js                ← Fábrica universal de validación Zod (body, params, query)
@@ -61,15 +62,22 @@ src/
 ├── controllers/                        ← Capa de Controladores (gestión HTTP y delegación DTO)
 │   ├── artesano.controllers.js
 │   ├── producto.controllers.js
-│   └── usuario.controllers.js
+│   ├── sesiones.controllers.js        ← Controlador de cierre de sesión (revocación de token)
+│   └── usuario.controllers.js         ← Registro, login con emisión de JWT y perfil (/me)
 │
 ├── services/                           ← Capa de Servicios (lógica de negocio y persistencia con Prisma)
 │   ├── artesano.services.js
 │   ├── producto.services.js
-│   └── usuario.services.js
+│   ├── usuario.services.js            ← Registro, verificación bcrypt y búsqueda por ID
+│   ├── token.services.js              ← Emisión HS256 (15m, JTI) y validación de claims con Zod
+│   └── revocaciones.services.js       ← Comprobación, inserción y purga de tokens revocados
+│
+├── tareas/                             ← Tareas Programadas y Asíncronas en Segundo Plano
+│   └── limpiezaRevocaciones.js        ← Purga periódica por hora de tokens expirados en la BD
 │
 ├── config/                             ← Capa de Configuración
-│   └── prisma.js                      ← Instancia singleton de Prisma Client con adapter-pg
+│   ├── prisma.js                      ← Instancia singleton de Prisma Client con adapter-pg
+│   └── jwt.js                         ← Carga y validación estricta de variable JWT_SECRET
 │
 ├── utils/                              ← Utilidades transversales
 │   ├── crearError.js                  ← Fábrica de errores HTTP con status y details
@@ -83,32 +91,49 @@ src/
 ## Capa 1: Punto de Entrada (`app.js`)
 
 **Archivo:** `src/app.js`  
-**Responsabilidad:** Configurar Express, registrar middlewares globales y montar los enrutadores principales.
+**Responsabilidad:** Configurar Express, registrar middlewares globales, montar los enrutadores principales e inicializar servicios en segundo plano y configuraciones críticas:
 
 ```javascript
+import "./config/jwt.js"; // Valida presencia de JWT_SECRET en el entorno
+import { iniciarLimpiezaRevocaciones } from "./tareas/limpiezaRevocaciones.js";
+
+// Montaje de rutas
 app.use('/artesanos',  artesanosRoutes);
 app.use('/productos',  productosRoutes);
 app.use('/usuarios',   usuariosRoutes);
 app.use(rutaNoEncontrada);
 app.use(manejoErrores);
+
+app.listen(PORT, () => {
+    console.log(`Servidor iniciado en puerto ${PORT}`);
+    iniciarLimpiezaRevocaciones(); // Inicia daemon de purga periódica de tokens
+});
 ```
 
 ---
 
 ## Capa 2: Rutas (`routes/`)
 
-**Archivos:** `src/routes/artesano.routes.js`, `src/routes/producto.routes.js`  
+**Archivos:** `src/routes/artesano.routes.js`, `src/routes/producto.routes.js`, `src/routes/usuario.routes.js`  
 **Responsabilidad:** Declarar los endpoints y establecer el orden de ejecución:
 1. Validaciones previas con `validarSchema` (`query`, `params`, `body`).
-2. Controlador final.
+2. Middlewares de seguridad y sesión (`autenticarUsuario`).
+3. Controlador final.
 
 ```javascript
+// Rutas de productos:
 router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);
 router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);
 router.post('/', validarSchema(crearProductoSchema, 'body'), createProducto);
 router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarProductoSchema, 'body'), updateProducto);
 router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProducto);
 router.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogico);
+
+// Rutas de autenticación y usuarios:
+router.post("/registro", validarSchema(registrarUsuarioSchema, 'body'), postUsuario);
+router.post("/login", validarSchema(iniciarSesionSchema, 'body'), iniciarSesion);
+router.get("/me", autenticarUsuario, obtenerMiPerfil);
+router.post("/logout", autenticarUsuario, cerrarSesion);
 ```
 
 ---
@@ -119,6 +144,12 @@ router.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogic
 
 * **`logger.js`**: Mide con precisión milisegundos y status HTTP al completarse la respuesta (`res.on('finish')`).
 * **`validarSchema.js`**: Middleware fábrica universal de validación. Recibe el esquema Zod y el origen (`body`, `params`, `query`), aplica `safeParse()`, sanitiza y limpia los datos en `req[origen]`. Si hay fallos, delega a `detallarErroresZod` y `crearError(400)`.
+* **`autenticarUsuario.js`**: Middleware de autenticación y seguridad mediante tokens JWT según estándar **RFC 6750**:
+  - Extrae y valida el encabezado `Authorization: Bearer <token>`.
+  - Verifica la firma criptográfica y expiración usando `verificarToken()`.
+  - Consulta en base de datos si el identificador único `jti` está en la lista negra (`tokenEstaRevocado()`).
+  - Emite cabeceras de respuesta `WWW-Authenticate` con diagnósticos ante fallos (`Bearer`, `error="invalid_request"`, `error="invalid_token"`).
+  - Inyecta la identidad decodificada en `req.usuario = { id, jti, exp }` para los siguientes controladores.
 * **`rutaNoEncontrada.js`**: Captura URLs que no coincidan con ninguna ruta registrada y arroja 404.
 * **`manejoErrores.js`**: Middleware final de 4 parámetros `(err, req, res, next)` que estandariza las respuestas de error en formato JSON homogéneo `{ error, details? }`.
 
@@ -143,24 +174,28 @@ export const obtenerProductosSchema = z.object({ ... });
 
 ## Capa 5: Controladores (`controllers/`)
 
-**Archivos:** `src/controllers/artesano.controllers.js`, `src/controllers/producto.controllers.js`  
+**Archivos:** `src/controllers/artesano.controllers.js`, `src/controllers/producto.controllers.js`, `src/controllers/usuario.controllers.js`, `src/controllers/sesiones.controllers.js`  
 **Responsabilidad:** Coordinar el flujo HTTP.
 * Recibe los datos validados desde `req.body` como un **DTO** o el `id` desde `req.params`.
 * Invoca a la capa de servicios:
   ```javascript
+  // Creación de producto
   const crearProductoDto = req.body;
   const nuevoProducto = await crearProducto(crearProductoDto);
   return res.status(201).json(nuevoProducto);
-  ```
-* Para borrado físico y lógico:
-  ```javascript
-  // Borrado físico:
-  await eliminarProducto(id);
-  res.status(200).send("Producto eliminado exitosamente");
 
-  // Borrado lógico:
-  await deleteLogico(id);
-  res.status(200).json({ message: "Producto eliminado logicamente" });
+  // Inicio de sesión y emisión de JWT:
+  const usuario = await loginService(req.body);
+  const token = generarToken(usuario);
+  return res.status(200).json({ mensaje: "Inicio de sesión exitoso.", token, usuario });
+
+  // Perfil autenticado (/me):
+  const usuario = await obtenerUsuarioPorId(req.usuario.id);
+  return res.status(200).json({ usuario });
+
+  // Cierre de sesión (/logout):
+  await revocarToken(req.usuario);
+  return res.status(204).end();
   ```
 * En caso de error, el bloque `try/catch` lo remite a `next(error)`.
 
@@ -168,23 +203,27 @@ export const obtenerProductosSchema = z.object({ ... });
 
 ## Capa 6: Servicios (`services/`)
 
-**Archivo:** `src/services/producto.services.js`  
-**Responsabilidad:** Contener la lógica de negocio y comunicarse directamente con Prisma Client.
+**Archivos:** `src/services/producto.services.js`, `src/services/usuario.services.js`, `src/services/token.services.js`, `src/services/revocaciones.services.js`  
+**Responsabilidad:** Contener la lógica de negocio, seguridad criptográfica y comunicarse directamente con Prisma Client.
 
 * **Desacoplado de Express:** No recibe `req`, `res` ni `next`. Trabaja únicamente con tipos primitivos y DTOs planos. Si ocurre un fallo de negocio, lanza excepciones mediante `throw crearError(...)` que el controlador captura en su bloque `catch`.
 * **Reglas de negocio y persistencia limpia:**
-  - `crearProducto`: comprueba la existencia previa del artesano.
-  - `actualizarProducto`: valida existencia del producto y del artesano si se envía.
-  - `obtenerProductoPorId`: busca el producto y lanza 404 si no existe.
-  - `eliminarProducto`: verifica existencia previa y elimina definitivamente el registro con `prisma.producto.delete`.
-  - `deleteLogico`: verifica existencia y actualiza el flag `activo: false` con `prisma.producto.update`.
+  - `producto.services.js`: comprueba existencia de artesanos, alta, modificación, bajas físicas (`delete`) y lógicas (`update activo: false`).
+  - `usuario.services.js`: registra cuentas con hash Bcrypt (cost 10), valida login y provee `obtenerUsuarioPorId` con proyección segura (`select: { id, nombre, email }`).
+  - `token.services.js`:
+    - `generarToken`: emite un JWT firmado con HS256, expiración a 15 minutos (`expiresIn: "15m"`), subject `sub: usuario.id` y `jti: randomUUID()`.
+    - `verificarToken`: verifica firma contra `secretoJWT`, algoritmos permitidos, y valida defensivamente los claims con **Zod** (`z.uuid().safeParse(payload.sub)` y `payload.jti`).
+  - `revocaciones.services.js`:
+    - `tokenEstaRevocado(jti)`: comprueba existencia del token en la tabla `TokenRevocado`.
+    - `revocarToken({ jti, exp })`: almacena el `jti` y su fecha de expiración usando `prisma.tokenRevocado.upsert`.
+    - `eliminarRevocacionesVencidas()`: elimina masivamente registros cuyo `venceEn` sea menor o igual a la fecha actual (`deleteMany`).
 
 ---
 
-## Capa 7: Acceso a Datos — Prisma ORM (`config/`, `prisma/`)
+## Capa 7: Acceso a Datos y Configuración (`config/`, `prisma/`)
 
-**Archivos:** `src/config/prisma.js`, `prisma/schema.prisma`  
-**Responsabilidad:** Definir las tablas relacionales en PostgreSQL y proveer el cliente de consultas.
+**Archivos:** `src/config/prisma.js`, `src/config/jwt.js`, `prisma/schema.prisma`  
+**Responsabilidad:** Definir las tablas relacionales en PostgreSQL, validar secretos del entorno y proveer el cliente singleton de consultas.
 
 ```prisma
 model Usuario {
@@ -233,7 +272,23 @@ model Producto {
 
   @@index([artesanoId])
 }
+
+model TokenRevocado {
+  jti     String   @id
+  venceEn DateTime
+
+  @@index([venceEn])
+}
 ```
+
+---
+
+## Capa 8: Tareas Programadas en Segundo Plano (`tareas/`)
+
+**Archivo:** `src/tareas/limpiezaRevocaciones.js`  
+**Responsabilidad:** Ejecutar procesos de mantenimiento en segundo plano sin bloquear el bucle de eventos de Node.js.
+* **`iniciarLimpiezaRevocaciones()`**: Configura un bucle recurrente cada 1 hora (`60 * 60 * 1000` ms) utilizando `setTimeout(ejecutar, INTERVALO_MS).unref()`.
+* Invoca `eliminarRevocacionesVencidas()` para purgar registros de la lista negra cuyos tokens ya hayan expirado naturalmente, evitando el crecimiento desmedido de la tabla `TokenRevocado`.
 
 ---
 
@@ -364,20 +419,32 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 | Rol controlado | `RolUsuario` enum | `ADMINISTRADOR`, `EVALUADOR`, `ARTESANO`, `VISITANTE` (por defecto) |
 | Rol por defecto | `@default(VISITANTE)` | Todo nuevo registro adquiere rol visitante automáticamente |
 
+### Sesiones y Autenticación JWT (`TokenRevocado`)
+| Regla | Capa | Detalle |
+|---|---|---|
+| Firma y expiración | `services/token.services.js` | Algoritmo HS256, vigencia de 15 minutos (`expiresIn: "15m"`) y secreto en `JWT_SECRET` |
+| Identificador de token (JTI) | `services/token.services.js` | Cada token emitido genera un `jti` criptográfico con `crypto.randomUUID()` |
+| Verificación defensiva Zod | `services/token.services.js` | Valida que `sub` sea UUID válido (`z.uuid()`), `exp` sea número y `jti` no esté vacío |
+| Autenticación Bearer | `middlewares/autenticarUsuario.js` | Extrae encabezado `Authorization: Bearer <token>`, valida formato y firma, e inyecta `req.usuario` |
+| Cierre de sesión (Revocación) | `services/revocaciones.services.js` | Invalida el token guardando `{ jti, venceEn }` en la tabla `TokenRevocado` con `upsert` |
+| Verificación de lista negra | `middlewares/autenticarUsuario.js` | Rechaza peticiones si el token se encuentra registrado como revocado en la BD |
+| Purga periódica en segundo plano | `tareas/limpiezaRevocaciones.js` | Tarea recurrente cada 1 hora que elimina tokens vencidos de `TokenRevocado` con `deleteMany` |
+
 ---
 
 ## Tabla Resumen: Quién Hace Qué
 
 | Capa | Carpeta | Responsabilidad | Importa | NO importa |
 |---|---|---|---|---|
-| **Punto de Entrada** | `app.js` | Configura Express y monta rutas | `express`, `routes`, `middlewares` | `prisma`, `validators` |
+| **Punto de Entrada** | `app.js` | Configura Express, monta rutas e inicia tareas | `express`, `routes`, `middlewares`, `tareas` | `prisma`, `validators` |
 | **Rutas** | `routes/` | Declara endpoints y orden de handlers | `controllers`, `middlewares` | `prisma`, `validators` |
-| **Middlewares** | `middlewares/` | Valida con Zod, monitorea y captura errores | `utils`, `validators` | `prisma`, `controllers` |
+| **Middlewares** | `middlewares/` | Valida con Zod, autentica JWT (`autenticarUsuario`), captura errores | `utils`, `validators`, `services/token`, `services/revocaciones` | `controllers` |
 | **Validadores** | `validators/` | Define contratos Zod | `zod` | Todo lo demás |
-| **Controladores** | `controllers/` | Recibe HTTP, transfiere DTO, responde | `services`, `utils`, `prisma` (GETs) | `express.Router`, `validators` |
-| **Servicios** | `services/` | Lógica de negocio y persistencia | `prisma`, `utils` | `express` (`req`/`res`), `validators` |
-| **Acceso a Datos** | `config/`, `prisma/` | Conexión y modelos de base de datos | `@prisma`, `dotenv` | Todo lo demás |
-| **Utilidades** | `utils/` | Estandarización de errores | Independiente | Todo lo demás |
+| **Controladores** | `controllers/` | Recibe HTTP, transfiere DTO, responde | `services`, `utils` | `express.Router`, `validators` |
+| **Servicios** | `services/` | Lógica de negocio, persistencia, emisión/verificación JWT | `prisma`, `utils`, `jsonwebtoken`, `zod`, `crypto` | `express` (`req`/`res`) |
+| **Tareas en 2do Plano** | `tareas/` | Daemons recurrentes de mantenimiento y purga | `services/revocaciones` | `express`, `routes` |
+| **Acceso a Datos** | `config/`, `prisma/` | Conexión, secretos de entorno y modelos BD | `@prisma`, `dotenv` | Todo lo demás |
+| **Utilidades** | `utils/` | Estandarización de errores y formateo Zod | Independiente | Todo lo demás |
 
 ---
 

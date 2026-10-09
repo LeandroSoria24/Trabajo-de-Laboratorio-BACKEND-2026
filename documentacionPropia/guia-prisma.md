@@ -284,6 +284,13 @@ model Producto {
 
   @@index([artesanoId])
 }
+
+model TokenRevocado {
+  jti     String   @id
+  venceEn DateTime
+
+  @@index([venceEn])
+}
 ```
 
 ---
