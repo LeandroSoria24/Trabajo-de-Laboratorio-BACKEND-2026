@@ -20,3 +20,15 @@ router.post("/login", validarSchema(iniciarSesionSchema, 'body'), iniciarSesion)
 router.get("/me",autenticarUsuario,obtenerMiPerfil);/*🟨 */
 router.post("/logout",autenticarUsuario,cerrarSesion);/*🟨 */
 export default router;
+
+import { validarBody }
+from "../middlewares/validacion.middleware.js";
+import { registroParticipanteSchema }
+from "../validators/usuarios.schemas.js";
+import { registrarUsuarioParticipante }
+from "../controllers/usuarios.controller.js";
+
+router.post("/registro-participante",
+    validarBody(registroParticipanteSchema),
+    registrarUsuarioParticipante);
+    // Registro público: no requiere JWT.
