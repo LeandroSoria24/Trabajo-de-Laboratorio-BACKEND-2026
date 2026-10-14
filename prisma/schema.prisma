@@ -47,6 +47,8 @@ model Usuario {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  roles UsuarioRol[]
+  participante Participante?
 }
 
 model Localidad {
@@ -165,4 +167,32 @@ model TokenRevocado {
   venceEn DateTime
 
   @@index([venceEn])
+}
+
+model Rol {
+  id Int @id @default(autoincrement())
+  nombre String @unique
+  usuarios UsuarioRol[]
+}
+
+model UsuarioRol {
+  usuarioId String @db.Uuid
+  rolId Int
+  usuario Usuario @relation(fields:[usuarioId],
+  references: [id], onDelete: Cascade)
+  rol Rol @relation(fields: [rolId],
+  references: [id], onDelete: Restrict)
+  @@id([usuarioId, rolId])
+  
+}
+
+model Participante {
+  id Int @id @default(autoincrement())
+  nombre String
+  email String
+  dni String @unique
+  direccion String
+  usuarioId String @unique @db.Uuid
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  inscripciones Inscripcion[]
 }
