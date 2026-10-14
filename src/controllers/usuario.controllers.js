@@ -1,6 +1,10 @@
-import { registrarUsuario, iniciarSesion as loginService } from '../services/usuario.services.js';
+import {
+    registrarUsuario,
+    iniciarSesion as loginService,
+    obtenerUsuarioPorId,
+    registrarUsuarioParticipante as registrarUsuarioParticipanteService
+} from '../services/usuario.services.js';
 import { generarToken } from "../services/token.services.js";
-import { obtenerUsuarioPorId } from "../services/usuario.services.js"; 
 
 // POST 🟩 
 export const postUsuario = async (req, res, next) => {
@@ -47,15 +51,13 @@ export const obtenerMiPerfil = async (req, res, next) => {
     }
 };
 
-import {
-    registrarUsuarioParticipante
-    as registrarUsuarioParticipanteService
-} from "../services/usuarios.service.js";
-
-
-export const registrarUsuarioParticipante = async (req, res) => {
-    const usuario = await
-        registrarUsuarioParticipanteService(
-        req.bodyValidado);
-    return res.status(201).json(usuario);
-}
+// POST - Registro público de Participante
+export const registrarUsuarioParticipante = async (req, res, next) => {
+    try {
+        const datos = req.bodyValidado || req.body;
+        const usuario = await registrarUsuarioParticipanteService(datos);
+        return res.status(201).json(usuario);
+    } catch (error) {
+        return next(error);
+    }
+};

@@ -41,6 +41,7 @@ model Usuario {
   nombre       String
   email        String     @unique
   passwordHash String
+  activo       Boolean    @default(true)
 
   artesano             Artesano?
   solicitudesEvaluadas SolicitudPostulacion[] @relation("EvaluadorSolicitud")

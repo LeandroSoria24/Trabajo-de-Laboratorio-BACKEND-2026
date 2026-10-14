@@ -1,32 +1,33 @@
 export const manejoErrores = (err, req, res, next) => { /* 🟩 */
-    // Manejo de errores específicos de Prisma
-    if (err.code === 'P2025') {
-        return res.status(404).json({
-            error: 'Recurso no encontrado'
-        });
-    }
+    if (res.headersSent) return next(err);
 
-    if (err.code === 'P2002') {
-        const target = err.meta?.target ? ` (${err.meta.target})` : '';
-        return res.status(400).json({
-            error: `Violación de restricción única${target}: ya existe un registro con esos datos`
-        });
-    }
+    // Mapeo de errores conocidos de Prisma
+    const mensajes = {
+        P2002: "Ya existe un registro con esos datos únicos.",
+        P2003: "La operación afecta registros relacionados.",
+        P2025: "Registro no encontrado.",
+        P2034: "Hubo otro cambio simultáneo. Reintentar."
+    };
 
-    // Si el error trae un código de estado (ej: 400, 404) lo usa; si no, asume 500 (error del servidor)
-    const estado = err.status || 500;
+    const mensajeErrorPrisma = mensajes[err.code];
+    const estado = mensajeErrorPrisma
+        ? (err.code === "P2025" ? 404 : 409)
+        : (err.status || 500);
+
+    const mensaje = estado >= 500
+        ? "Error interno del servidor."
+        : (mensajeErrorPrisma || err.message);
 
     if (estado >= 500) {
         console.error(err);
-        return res.status(500).json({
-            error: 'Error interno del servidor'
-        });
     }
-    const cuerpo = { error: err.message };
+
+    const respuesta = { mensaje, error: mensaje };
 
     if (err.details) {
-        cuerpo.details = err.details;
+        respuesta.details = err.details;
     }
-    // Errores controlados del cliente (4xx): devuelve el código y el mensaje específico
-    res.status(estado).json(cuerpo);
+
+    return res.status(estado).json(respuesta);
 };
+

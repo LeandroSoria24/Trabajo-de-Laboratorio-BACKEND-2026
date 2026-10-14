@@ -17,5 +17,11 @@ export const validarSchema = (schema, origen) => (req, res, next) => {
         req[origen] = resultado.data;
     }
 
+    if (origen === 'body') {
+        req.bodyValidado = resultado.data;
+    }
+
     next();
 };
+
+export const validarBody = (schema) => validarSchema(schema, 'body');
