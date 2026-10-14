@@ -54,8 +54,8 @@ import {
 
 
 export const registrarUsuarioParticipante = async (req, res) => {
-     const usuario = await
-    registrarUsuarioParticipanteService(
-    req.bodyValidado);
+    const usuario = await
+        registrarUsuarioParticipanteService(
+        req.bodyValidado);
     return res.status(201).json(usuario);
 }
