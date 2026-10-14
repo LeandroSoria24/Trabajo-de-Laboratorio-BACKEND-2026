@@ -71,3 +71,22 @@ select: {
         }
     });
 };
+
+export const registrarUsuarioParticipante = async (dto) => {
+    const { nombre, email, password, dni, direccion } = dto;
+    const passwordHash = await bcrypt.hash(password, 10);
+    return prisma.usuario.create({
+        data: {
+            nombre, email, passwordHash, activo: true,
+            roles: { create: {rol: { connect: { nombre: "PARTICIPANTE" } } } },
+            participante: { create: { nombre, email, dni, direccion } }
+        },
+        select: {
+            id: true, nombre: true, email: true,
+            activo: true,
+            participante: { select: { id: true } }
+        }
+    });
+} // Prisma guardará Usuario, Participante y UsuarioRol en una creación anidada. Si un email o DNI está repetido, se
+  //  revierte toda la creación
+
