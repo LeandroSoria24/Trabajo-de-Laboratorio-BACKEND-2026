@@ -46,3 +46,16 @@ export const obtenerMiPerfil = async (req, res, next) => {
         return next(error);
     }
 };
+
+import {
+    registrarUsuarioParticipante
+    as registrarUsuarioParticipanteService
+} from "../services/usuarios.service.js";
+
+
+export const registrarUsuarioParticipante = async (req, res) => {
+     const usuario = await
+    registrarUsuarioParticipanteService(
+    req.bodyValidado);
+    return res.status(201).json(usuario);
+}
