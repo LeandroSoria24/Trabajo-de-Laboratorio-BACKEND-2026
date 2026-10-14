@@ -90,3 +90,9 @@ export const registrarUsuarioParticipante = async (dto) => {
 } // Prisma guardará Usuario, Participante y UsuarioRol en una creación anidada. Si un email o DNI está repetido, se
   //  revierte toda la creación
 
+// La relación anidada completa el
+// campo “Participante.usuarioId".
+// El cliente no elige rol ni modifica
+// el campo “activo".
+// La respuesta excluye
+// passwordHash.
