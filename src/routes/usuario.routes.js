@@ -49,3 +49,22 @@ autorizarRoles("ADMINISTRADOR"),
 validarBody(asignarParticipanteSchema),
 asociarParticipante
 )
+
+router.post("/:id/roles",
+autenticarUsuario,
+cargarContextoUsuario,
+autorizarRoles("ADMINISTRADOR"),
+validarParametros(
+usuarioIdParametrosSchema, "ID inválido."),
+validarBody(asignarAdministradorSchema,
+"Solo se puede asignar ADMINISTRADOR."),
+agregarRol
+)
+
+router.delete("/:id/roles/:rol",
+autenticarUsuario,
+cargarContextoUsuario,
+autorizarRoles("ADMINISTRADOR"),
+validarParametros(retirarRolParametrosSchema),
+eliminarRol
+)
