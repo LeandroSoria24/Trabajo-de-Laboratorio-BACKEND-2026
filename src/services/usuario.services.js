@@ -48,9 +48,11 @@ export const iniciarSesion = async (iniciarSesionDto) => {
         usuario.passwordHash
     );
 
-    if (!passwordValida) {
-        throw crearError("Contraseña incorrecta.", 401);
-    }
+   if (!passwordValida || !usuario.activo) {
+    const error = new Error("Las credenciales son inválidas.");
+    error.status = 401;
+    throw error;
+}
 
     // Respuesta del servicio.
     return {

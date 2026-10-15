@@ -45,7 +45,7 @@ export const obtenerMiPerfil = async (req, res, next) => {
                 mensaje: "La cuenta asociada al token no existe."
             });
         }
-        return res.status(200).json({ usuario: usuario });
+        return res.status(200).json({ usuario: req.contextoUsuario });
     } catch (error) {
         return next(error);
     }
@@ -60,4 +60,4 @@ export const registrarUsuarioParticipante = async (req, res, next) => {
     } catch (error) {
         return next(error);
     }
-};
+};

@@ -14,6 +14,8 @@ import {
     registroParticipanteSchema
 } from '../validators/usuario.schemas.js';
 
+import { cargarContextoUsuario } from "../middlewares/autorizacion.js";
+
 const router = Router();
 
 // Rutas públicas de autenticación y registro
@@ -26,7 +28,8 @@ router.post(
 );
 
 // Rutas protegidas (requieren token JWT)
-router.get("/me", autenticarUsuario, obtenerMiPerfil);
+router.get("/me", autenticarUsuario,
+    cargarContextoUsuario, obtenerMiPerfil)
 router.post("/logout", autenticarUsuario, cerrarSesion);
 
-export default router;
+export default router;
