@@ -1,5 +1,5 @@
 import { asignarAdministrador }
-from "../services/roles.service.js";
+from "../services/roles.services.js";
 export const agregarRol = async (req, res) => {
     await asignarAdministrador(
         req.parametrosValidados.id);
