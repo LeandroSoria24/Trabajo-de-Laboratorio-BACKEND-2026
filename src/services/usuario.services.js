@@ -2,9 +2,9 @@ import bcrypt from "bcrypt";
 import prisma from '../config/prisma.js';
 import { crearError } from '../utils/crearError.js';
 
-
 const FACTOR_COSTO = 10;
 
+// POST - Registro público de usuario (adquiere rol ARTESANO por defecto)
 export const registrarUsuario = async (registrarUsuarioDto) => {
     const { nombre, email, password } = registrarUsuarioDto;
     const usuarioExistente = await prisma.usuario.findUnique({
@@ -15,106 +15,145 @@ export const registrarUsuario = async (registrarUsuarioDto) => {
     }
     const passwordHash = await bcrypt.hash(password, FACTOR_COSTO);
 
-    // Guarda el usuario; el rol se asigna como 'VISITANTE' automáticamente por default
-    return prisma.usuario.create({
+    const nuevoUsuario = await prisma.usuario.create({
         data: {
-            nombre: nombre,
-            email: email,
-            passwordHash: passwordHash
+            nombre,
+            email,
+            passwordHash,
+            activo: true,
+            roles: {
+                create: {
+                    rol: {
+                        connectOrCreate: {
+                            where: { nombre: "ARTESANO" },
+                            create: { nombre: "ARTESANO" }
+                        }
+                    }
+                }
+            }
         },
         select: {
             id: true,
             nombre: true,
             email: true,
-            rol: true,
-            createdAt: true
+            activo: true,
+            createdAt: true,
+            roles: { select: { rol: { select: { nombre: true } } } }
         }
     });
+
+    return {
+        ...nuevoUsuario,
+        roles: nuevoUsuario.roles.map((r) => r.rol.nombre)
+    };
 };
 
 export const iniciarSesion = async (iniciarSesionDto) => {
     const { email, password } = iniciarSesionDto;
     const usuario = await prisma.usuario.findUnique({
-        where: { email: email }
+        where: { email: email },
+        include: {
+            roles: { select: { rol: { select: { nombre: true } } } }
+        }
     });
 
     if (!usuario) {
         throw crearError("Las credenciales son inválidas.", 401);
     }
 
-    // Compara la contraseña con el hash almacenado.
     const passwordValida = await bcrypt.compare(
         password,
         usuario.passwordHash
     );
 
-   if (!passwordValida || !usuario.activo) {
-    const error = new Error("Las credenciales son inválidas.");
-    error.status = 401;
-    throw error;
-}
+    if (!passwordValida || !usuario.activo) {
+        const error = new Error("Las credenciales son inválidas.");
+        error.status = 401;
+        throw error;
+    }
 
-    // Respuesta del servicio.
     return {
         id: usuario.id,
         nombre: usuario.nombre,
         email: usuario.email,
-        rol: usuario.rol
+        activo: usuario.activo,
+        roles: usuario.roles.map((a) => a.rol.nombre)
     };
 };
 
 export const obtenerUsuarioPorId = async (id) => {
     const usuario = await prisma.usuario.findUnique({
-    where: { id },
-    select: {
-id: true, nombre: true, email: true, activo: true,
-roles: {
-select: { rol: { select: { nombre: true } } }
-}, participante: { select: { id: true } }
-}
-});
-if (!usuario) return null;
-return {
-...usuario,
-roles: usuario.roles.map(asignacion =>
-asignacion.rol.nombre)
-};
-};
-
-export const registrarUsuarioParticipante = async (dto) => {
-    const { nombre, email, password, dni, direccion } = dto;
-    const passwordHash = await bcrypt.hash(password, 10);
-    return prisma.usuario.create({
-        data: {
-            nombre, email, passwordHash, activo: true,
-            roles: { create: {rol: { connect: { nombre: "PARTICIPANTE" } } } },
-            participante: { create: { nombre, email, dni, direccion } }
-        },
+        where: { id },
         select: {
-            id: true, nombre: true, email: true,
+            id: true,
+            nombre: true,
+            email: true,
             activo: true,
-            participante: { select: { id: true } }
+            roles: {
+                select: { rol: { select: { nombre: true } } }
+            },
+            artesano: {
+                select: {
+                    id: true,
+                    nombre: true,
+                    apellido: true,
+                    dni: true,
+                    rubro: true,
+                    nombreEmprendimiento: true,
+                    activo: true,
+                    stand: { select: { id: true, codigo: true, estado: true } }
+                }
+            }
         }
     });
-} // Prisma guardará Usuario, Participante y UsuarioRol en una creación anidada. Si un email o DNI está repetido, se
-  //  revierte toda la creación
 
-// La relación anidada completa el campo “Participante.usuarioId”.
-// El cliente no elige rol ni modifica el campo “activo”.
-// La respuesta excluye passwordHash.
+    if (!usuario) return null;
+
+    return {
+        ...usuario,
+        roles: usuario.roles.map((asignacion) => asignacion.rol.nombre)
+    };
+};
 
 export const registrarAdministrador = async (dto) => {
     const { nombre, email, password } = dto;
-    const passwordHash = await bcrypt.hash(password, 10);
-    return prisma.usuario.create({
+    const usuarioExistente = await prisma.usuario.findUnique({
+        where: { email: email }
+    });
+    if (usuarioExistente) {
+        throw crearError("Ya existe usuario con ese email.", 409);
+    }
+    const passwordHash = await bcrypt.hash(password, FACTOR_COSTO);
+
+    const nuevoAdmin = await prisma.usuario.create({
         data: {
-            nombre, email, passwordHash, activo: true,
-            roles: { create: {
-                rol: { connect: { nombre: "ADMINISTRADOR" } }
-            } }
+            nombre,
+            email,
+            passwordHash,
+            activo: true,
+            roles: {
+                create: {
+                    rol: {
+                        connectOrCreate: {
+                            where: { nombre: "ADMINISTRADOR" },
+                            create: { nombre: "ADMINISTRADOR" }
+                        }
+                    }
+                }
+            }
         },
         select: {
-            id: true, nombre: true, email: true, activo: true
+            id: true,
+            nombre: true,
+            email: true,
+            activo: true,
+            createdAt: true,
+            roles: { select: { rol: { select: { nombre: true } } } }
         }
-});
-}
+    });
+
+    return {
+        ...nuevoAdmin,
+        roles: nuevoAdmin.roles.map((r) => r.rol.nombre)
+    };
+};

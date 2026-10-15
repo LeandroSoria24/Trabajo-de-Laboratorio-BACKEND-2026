@@ -11,13 +11,6 @@ datasource db {
 // ENUMS
 // ----------------------------------------------------
 
-enum RolUsuario {
-  ADMINISTRADOR
-  EVALUADOR
-  ARTESANO
-  VISITANTE
-}
-
 enum EstadoStand {
   DISPONIBLE
   OCUPADO
@@ -29,6 +22,7 @@ enum EstadoSolicitud {
   EN_REVISION
   APROBADA
   RECHAZADA
+  CANCELADA
 }
 
 // ----------------------------------------------------
@@ -36,20 +30,33 @@ enum EstadoSolicitud {
 // ----------------------------------------------------
 
 model Usuario {
-  id           String     @id @default(uuid()) @db.Uuid
-  rol          RolUsuario @default(VISITANTE)
+  id           String   @id @default(uuid()) @db.Uuid
   nombre       String
-  email        String     @unique
+  email        String   @unique
   passwordHash String
-  activo       Boolean    @default(true)
+  activo       Boolean  @default(true)
 
   artesano             Artesano?
   solicitudesEvaluadas SolicitudPostulacion[] @relation("EvaluadorSolicitud")
 
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  roles        UsuarioRol[]
-  participante Participante?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  roles     UsuarioRol[]
+}
+
+model Rol {
+  id       Int          @id @default(autoincrement())
+  nombre   String       @unique
+  usuarios UsuarioRol[]
+}
+
+model UsuarioRol {
+  usuarioId String  @db.Uuid
+  rolId     Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, rolId])
 }
 
 model Localidad {
@@ -63,7 +70,7 @@ model Localidad {
 model Artesano {
   id          Int       @id @default(autoincrement())
   usuarioId   String    @unique @db.Uuid
-  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   localidadId Int
   localidad   Localidad @relation(fields: [localidadId], references: [id])
 
@@ -75,7 +82,7 @@ model Artesano {
   nombreEmprendimiento   String
   rubro                  String
   descripcionTrayectoria String? @db.Text
-  activo                 Boolean @default(true)
+  activo                 Boolean @default(false)
 
   productos   Producto[]
   stand       Stand? // Relación 1:1 con Stand (un artesano tiene como máximo un stand)
@@ -168,29 +175,4 @@ model TokenRevocado {
   venceEn DateTime
 
   @@index([venceEn])
-}
-
-model Rol {
-  id       Int          @id @default(autoincrement())
-  nombre   String       @unique
-  usuarios UsuarioRol[]
-}
-
-model UsuarioRol {
-  usuarioId String  @db.Uuid
-  rolId     Int
-  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
-
-  @@id([usuarioId, rolId])
-}
-
-model Participante {
-  id        Int     @id @default(autoincrement())
-  nombre    String
-  email     String
-  dni       String  @unique
-  direccion String
-  usuarioId String  @unique @db.Uuid
-  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
 }

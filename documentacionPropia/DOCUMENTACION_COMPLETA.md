@@ -25,7 +25,10 @@
 
 ---
 
+
 # Parte 1: Arquitectura por Capas — API Poncho Digital
+
+# Arquitectura por Capas — API Poncho Digital
 ### Fiesta Nacional e Internacional del Poncho (Catamarca)
 **Cátedra:** Desarrollo Backend — **Carrera:** Tecnicatura Universitaria en Diseño de Software (UNCa)
 
@@ -65,50 +68,76 @@ Es un patrón de diseño que divide el software en niveles jerárquicos donde **
 
 ```text
 src/
-├── app.js                              ← Punto de entrada (configura Express, middlewares, rutas e inicia tareas)
+├── app.js                              ← Punto de entrada (Express, middlewares globales, rutas e inicio de daemons)
 │
-├── routes/                             ← Capa de Enrutamiento (define endpoints y handlers)
-│   ├── artesano.routes.js
-│   ├── producto.routes.js
-│   └── usuario.routes.js              ← Endpoints de registro, login, /me y /logout
+├── routes/                             ← Capa de Enrutamiento (define endpoints, autorizaciones y validaciones)
+│   ├── artesano.routes.js              ← Perfil /me (artesano), catálogo público y administración
+│   ├── producto.routes.js              ← Catálogo público y gestión con filtro de propiedad
+│   ├── stand.routes.js                 ← Catálogo ferial público y administración de stands 1:1
+│   ├── pabellon.routes.js              ← Consulta pública y gestión de pabellones feriales
+│   ├── sector.routes.js                ← Consulta pública y gestión de sectores feriales
+│   ├── localidad.routes.js             ← Consulta de localidades de Catamarca
+│   ├── solicitud.routes.js             ← Postulaciones de artesanos, dictamen y asignación de stands
+│   └── usuario.routes.js               ← Registro (rol ARTESANO), login, /me, roles y control de cuentas activas
 │
-├── middlewares/                         ← Capa de Middlewares (filtros intermedios)
-│   ├── logger.js                       ← Monitoreo de tiempos y estado HTTP
+├── middlewares/                         ← Capa de Middlewares (filtros de seguridad y ciclo de vida)
+│   ├── logger.js                       ← Monitoreo de tiempos de respuesta y estado HTTP
 │   ├── autenticarUsuario.js            ← Verificación de Bearer JWT y consulta de lista negra (revocaciones)
-│   ├── manejoErrores.js                ← Red de seguridad global para respuestas JSON
+│   ├── autorizacion.js                 ← Contexto de usuario (`cargarContextoUsuario`) y RBAC (`autorizarRoles`)
+│   ├── manejoErrores.js                ← Mapeo canónico de errores de Prisma (404/409) y respuesta JSON homogénea
 │   ├── rutaNoEncontrada.js             ← Captura de 404
 │   └── validarSchema.js                ← Fábrica universal de validación Zod (body, params, query)
 │
 ├── validators/                         ← Capa de Esquemas de Validación (Zod 4)
-│   ├── comun.schemas.js                ← Esquemas compartidos (validación de :id y enums)
-│   ├── artesano.schemas.js
-│   ├── producto.schemas.js
-│   ├── stand.schemas.js
-│   └── usuario.schemas.js
+│   ├── comun.schemas.js                ← Esquemas compartidos (validación de :id numérico y :id UUID)
+│   ├── artesano.schemas.js             ← Validación de alta, edición y filtros de artesanos
+│   ├── producto.schemas.js             ← Validación de productos y catálogo
+│   ├── stand.schemas.js                ← Validación de stands y asignación ferial
+│   ├── pabellon.schemas.js             ← Validación de pabellones
+│   ├── sector.schemas.js               ← Validación de sectores
+│   ├── localidad.schemas.js            ← Validación de localidades
+│   ├── solicitud.schemas.js            ← Validación de postulación ferial, evaluación y stands
+│   ├── roles.schemas.js                ← Validación de asignación y retiro de roles
+│   ├── estado.schemas.js               ← Validación de cambio de estado activo
+│   └── usuario.schemas.js              ← Validación de registro y login
 │
 ├── controllers/                        ← Capa de Controladores (gestión HTTP y delegación DTO)
 │   ├── artesano.controllers.js
 │   ├── producto.controllers.js
-│   ├── sesiones.controllers.js        ← Controlador de cierre de sesión (revocación de token)
-│   └── usuario.controllers.js         ← Registro, login con emisión de JWT y perfil (/me)
+│   ├── stand.controllers.js
+│   ├── pabellon.controllers.js
+│   ├── sector.controllers.js
+│   ├── localidad.controllers.js
+│   ├── solicitud.controllers.js
+│   ├── roles.controllers.js
+│   ├── estado.controllers.js
+│   ├── sesiones.controllers.js         ← Cierre de sesión y revocación de JWT
+│   └── usuario.controllers.js          ← Registro, login con emisión de JWT y perfil (/me)
 │
 ├── services/                           ← Capa de Servicios (lógica de negocio y persistencia con Prisma)
-│   ├── artesano.services.js
-│   ├── producto.services.js
-│   ├── usuario.services.js            ← Registro, verificación bcrypt y búsqueda por ID
-│   ├── token.services.js              ← Emisión HS256 (15m, JTI) y validación de claims con Zod
-│   └── revocaciones.services.js       ← Comprobación, inserción y purga de tokens revocados
+│   ├── artesano.services.js            ← Gestión de perfil, moderación y soft delete
+│   ├── producto.services.js            ← CRUD de productos con control de stock y propiedad
+│   ├── stand.services.js               ← Asignación atómica 1:1 y liberación de stands
+│   ├── pabellon.services.js            ← Mantenimiento de pabellones
+│   ├── sector.services.js              ← Mantenimiento de sectores
+│   ├── localidad.services.js           ← Catálogo de localidades
+│   ├── solicitud.services.js           ← Circuito de postulación, evaluación y asignación
+│   ├── roles.services.js               ← Asignación y retiro seguro de roles (RBAC)
+│   ├── estado.services.js              ← Activación/desactivación de cuentas (regla de admin activo)
+│   ├── usuario.services.js             ← Registro, verificación bcrypt y contexto de cuenta
+│   ├── token.services.js               ← Emisión HS256 (15m, JTI) y validación de claims con Zod
+│   └── revocaciones.services.js        ← Comprobación, inserción y purga de tokens revocados
 │
 ├── tareas/                             ← Tareas Programadas y Asíncronas en Segundo Plano
-│   └── limpiezaRevocaciones.js        ← Purga periódica por hora de tokens expirados en la BD
+│   └── limpiezaRevocaciones.js         ← Purga periódica por hora de tokens expirados en la BD
 │
 ├── config/                             ← Capa de Configuración
-│   ├── prisma.js                      ← Instancia singleton de Prisma Client con adapter-pg
-│   └── jwt.js                         ← Carga y validación estricta de variable JWT_SECRET
+│   ├── prisma.js                       ← Instancia singleton de Prisma Client con adapter-pg
+│   └── jwt.js                          ← Carga y validación estricta de variable JWT_SECRET
 │
 ├── utils/                              ← Utilidades transversales
-│   ├── crearError.js                  ← Fábrica de errores HTTP con status y details
-│   └── ErroresZod.js                  ← Formateador estructurado de errores Zod { path, message }
+│   ├── crearError.js                   ← Fábrica de errores HTTP con status y details
+│   └── ErroresZod.js                   ← Formateador estructurado de errores Zod { path, message }
 │
 └── generated/prisma/                   ← Cliente generado por Prisma ORM
 ```
@@ -125,9 +154,15 @@ import "./config/jwt.js"; // Valida presencia de JWT_SECRET en el entorno
 import { iniciarLimpiezaRevocaciones } from "./tareas/limpiezaRevocaciones.js";
 
 // Montaje de rutas
-app.use('/artesanos',  artesanosRoutes);
-app.use('/productos',  productosRoutes);
-app.use('/usuarios',   usuariosRoutes);
+app.use('/artesanos',   artesanosRoutes);
+app.use('/productos',   productosRoutes);
+app.use('/usuarios',    usuariosRoutes);
+app.use('/stands',      standsRoutes);
+app.use('/pabellones',  pabellonesRoutes);
+app.use('/sectores',    sectoresRoutes);
+app.use('/localidades', localidadesRoutes);
+app.use('/solicitudes', solicitudesRoutes);
+
 app.use(rutaNoEncontrada);
 app.use(manejoErrores);
 
@@ -254,25 +289,43 @@ export const obtenerProductosSchema = z.object({ ... });
 
 ```prisma
 model Usuario {
-  id           String     @id @default(uuid()) @db.Uuid
-  rol          RolUsuario @default(VISITANTE)
+  id           String       @id @default(uuid()) @db.Uuid
   nombre       String
-  email        String     @unique
+  email        String       @unique
   passwordHash String
+  activo       Boolean      @default(true)
   artesano     Artesano?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  roles        UsuarioRol[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Rol {
+  id       Int          @id @default(autoincrement())
+  nombre   String       @unique // "ADMINISTRADOR", "ARTESANO"
+  usuarios UsuarioRol[]
+}
+
+model UsuarioRol {
+  usuarioId String  @db.Uuid
+  rolId     Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, rolId])
 }
 
 model Artesano {
   id                     Int        @id @default(autoincrement())
   usuarioId              String     @unique @db.Uuid
-  usuario                Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario                Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   localidadId            Int
   localidad              Localidad  @relation(fields: [localidadId], references: [id])
   nombre                 String
   apellido               String
   dni                    String     @unique
+  email                  String     @unique
+  activo                 Boolean    @default(false)
   email                  String     @unique
   telefono               String?
   nombreEmprendimiento   String
@@ -433,8 +486,8 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 ### SolicitudPostulacion
 | Regla | Capa | Detalle |
 |---|---|---|
-| Estado controlado | `EstadoSolicitud` enum | `PENDIENTE`, `EN_REVISION`, `APROBADA`, `RECHAZADA` |
-| Evaluación por evaluador | `evaluadorId UUID?` | Asignado a un usuario evaluador (`@relation("EvaluadorSolicitud")`) |
+| Estado controlado | `EstadoSolicitud` enum | `PENDIENTE`, `EN_REVISION`, `APROBADA`, `RECHAZADA`, `CANCELADA` |
+| Evaluación por administración | `evaluadorId UUID?` | Asignado al administrador dictaminador |
 | Postulante obligatorio | `artesanoId Int` | Vínculo requerido con el artesano solicitante |
 
 ### Usuario
@@ -443,8 +496,9 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 | ID seguro | `id UUID` | Generado con `default(uuid())` a nivel base de datos |
 | Email único | `@unique` en Prisma | Un solo usuario por dirección de email |
 | Password hasheada | `services/usuario.services.js` | Encriptada de forma unidireccional con Bcrypt (cost 10) |
-| Rol controlado | `RolUsuario` enum | `ADMINISTRADOR`, `EVALUADOR`, `ARTESANO`, `VISITANTE` (por defecto) |
-| Rol por defecto | `@default(VISITANTE)` | Todo nuevo registro adquiere rol visitante automáticamente |
+| Roles relacionales (RBAC) | `Rol` y `UsuarioRol` | Roles M:N (`ADMINISTRADOR`, `ARTESANO`). Un usuario puede tener múltiples roles |
+| Rol por defecto | `services/usuario.services.js` | Todo nuevo registro público adquiere rol `ARTESANO` automáticamente |
+| Cuenta activa | `Usuario.activo` | Control de habilitación/desactivación por administración |
 
 ### Sesiones y Autenticación JWT (`TokenRevocado`)
 | Regla | Capa | Detalle |
@@ -512,9 +566,13 @@ flowchart TD
     style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
 ```
 
+
 ---
 
-# Parte 2: Estructura del Esquema de Base de Datos
+
+# Parte 2: Estructura del Esquema de Base de Datos — Poncho Digital
+
+# Estructura del Esquema de Base de Datos — Poncho Digital
 
 **Cátedra:** Desarrollo Backend  
 **Proyecto:** Poncho Digital — API REST de la Fiesta Nacional e Internacional del Poncho  
@@ -524,29 +582,28 @@ flowchart TD
 
 ## 1. Introducción y Fundamentos Teóricos
 
-El modelo de datos de **Poncho Digital** fue diseñado bajo los principios de **diseño relacional en Tercera Forma Normal (3FN)** para garantizar la integridad referencial, evitar redundancias innecesarias y representar con precisión las reglas del dominio de la feria artesanal.
+El modelo de datos de **Poncho Digital** fue diseñado bajo los principios de **diseño relacional en Tercera Forma Normal (3FN)** para garantizar la integridad referencial, evitar redundancias innecesarias y representar con precisión las reglas del dominio de la feria artesanal y la seguridad de la Unidad 4 (Autorización y RBAC).
 
 ### Principales decisiones de diseño:
-1. **Identificadores Criptográficos (UUID) para Cuentas de Usuario:**  
-   Se utiliza el tipo nativo `UUID` de PostgreSQL para la entidad `Usuario`. Esto previene ataques de enumeración (adivinación secuencial de IDs de usuarios), desacopla la generación de identificadores y se alinea con estándares de seguridad modernos.
-2. **Identificadores Enteros Autoincrementales para Entidades de Negocio:**  
-   Las entidades del dominio físico o de catálogo (`Artesano`, `Producto`, `Stand`, `Pabellon`, `Sector`, `Localidad`) emplean enteros autoincrementales (`SERIAL / Int`), optimizando el tamaño de los índices B-Tree en llaves foráneas y búsquedas por clave primaria.
-3. **Manejo de Moneda con `Decimal(10, 2)`:**  
+1. **Control de Acceso Basado en Roles (RBAC Relacional M:N):**  
+   Se reemplazó el enum estático por una estructura normalizada `Rol` y `UsuarioRol`. Esto permite que un usuario pueda poseer múltiples roles (`ADMINISTRADOR`, `ARTESANO`), desacopla los permisos del registro de usuario y cumple con los estándares de seguridad de la cátedra.
+2. **Cuentas Activas y Moderación:**  
+   - `Usuario.activo` (`Boolean @default(true)`): permite inhabilitar el acceso al sistema de una cuenta comprometida o dada de baja.
+   - `Artesano.activo` (`Boolean @default(false)`): los nuevos artesanos inician inactivos hasta que su postulación a la feria (`SolicitudPostulacion`) sea aprobada formalmente por un administrador.
+3. **Identificadores Criptográficos (UUID) para Cuentas de Usuario:**  
+   Se utiliza el tipo nativo `UUID` de PostgreSQL para la entidad `Usuario`. Esto previene ataques de enumeración (adivinación secuencial de IDs), desacopla la generación de identificadores y se alinea con estándares de seguridad modernos.
+4. **Identificadores Enteros Autoincrementales para Entidades de Negocio:**  
+   Las entidades del dominio físico o de catálogo (`Artesano`, `Producto`, `Stand`, `Pabellon`, `Sector`, `Localidad`, `SolicitudPostulacion`) emplean enteros autoincrementales (`SERIAL / Int`), optimizando el tamaño de los índices B-Tree en llaves foráneas y búsquedas por clave primaria.
+5. **Manejo de Moneda con `Decimal(10, 2)`:**  
    En `Producto`, el precio se define como `Decimal(10, 2)` en lugar de coma flotante (`Float`), garantizando exactitud matemática sin pérdidas por redondeo binario.
-4. **Soft Delete (Baja Lógica):**  
-   Tanto `Artesano` como `Producto` poseen una columna `activo Boolean @default(true)`, lo que permite preservar el histórico de ventas o stands ocupados sin perder trazabilidad al dar de baja un registro.
-5. **Lista Negra Persistente de Tokens Revocados (`TokenRevocado`):**  
-   Para implementar un cierre de sesión seguro en un esquema de autenticación sin estado (stateless JWT), se modela una entidad dedicada con clave primaria `jti` (JWT ID criptográfico) y marca de tiempo `venceEn`. Un índice B-Tree sobre `venceEn` garantiza consultas ultrarrápidas y permite a tareas en segundo plano purgar masivamente registros expirados sin penalizar el rendimiento.
+6. **Soft Delete (Baja Lógica):**  
+   `Artesano` y `Producto` implementan baja lógica vía `activo: false`, preservando el histórico de asignaciones feriales y ventas sin destruir registros.
+7. **Lista Negra Persistente de Tokens Revocados (`TokenRevocado`):**  
+   Para implementar un cierre de sesión seguro en un esquema de autenticación sin estado (stateless JWT), se modela una entidad dedicada con clave primaria `jti` (JWT ID criptográfico) y marca de tiempo `venceEn`. Un índice B-Tree sobre `venceEn` garantiza consultas ultrarrápidas y permite a tareas en segundo plano purgar masivamente registros expirados.
 
 ---
 
-## 2. Diagrama Entidad-Relación
-
-### Esquema Gráfico del Modelo (DER)
-
-![Diagrama Entidad-Relación - Poncho Digital](der-poncho-digital.png)
-
-### Representación en Código Mermaid
+## 2. Diagrama Entidad-Relación (Mermaid)
 
 ```mermaid
 erDiagram
@@ -557,12 +614,22 @@ erDiagram
 
     USUARIO {
         Uuid id PK "UUID autogenerado"
-        RolUsuario rol "default(VISITANTE)"
         String nombre
         String email UK
         String passwordHash "Hash Bcrypt"
+        Boolean activo "default(true)"
         DateTime createdAt
         DateTime updatedAt
+    }
+
+    ROL {
+        Int id PK "autoincrement()"
+        String nombre UK "ADMINISTRADOR | ARTESANO"
+    }
+
+    USUARIO_ROL {
+        Uuid usuarioId PK, FK
+        Int rolId PK, FK
     }
 
     LOCALIDAD {
@@ -574,7 +641,7 @@ erDiagram
 
     ARTESANO {
         Int id PK "autoincrement()"
-        Uuid usuarioId FK,UK "1 a 1 obligatorio con Usuario"
+        Uuid usuarioId FK,UK "1 a 1 estricto con Usuario (Restrict)"
         Int localidadId FK
         String nombre
         String apellido
@@ -584,7 +651,7 @@ erDiagram
         String nombreEmprendimiento
         String rubro
         Text descripcionTrayectoria "nullable"
-        Boolean activo "default(true)"
+        Boolean activo "default(false) - Habilitado tras aprobación"
         DateTime createdAt
         DateTime updatedAt
     }
@@ -637,29 +704,22 @@ erDiagram
     }
 
     %% Relaciones
-    USUARIO ||--|| ARTESANO : "posee perfil (1 a 1 obligatorio)"
-    USUARIO ||--o{ SOLICITUD_POSTULACION : "evalúa (1 a N)"
+    USUARIO ||--o{ USUARIO_ROL : "posee (1 a N)"
+    ROL ||--o{ USUARIO_ROL : "asignado a (1 a N)"
+    USUARIO ||--|| ARTESANO : "perfil artesanal (1 a 1)"
+    USUARIO ||--o{ SOLICITUD_POSTULACION : "evalúa como admin (1 a N)"
     LOCALIDAD ||--o{ ARTESANO : "radica en (1 a N)"
     ARTESANO ||--o{ PRODUCTO : "publica (1 a N)"
-    ARTESANO ||--o| STAND : "ocupa (1 a 1 opcional)"
-    ARTESANO ||--o{ SOLICITUD_POSTULACION : "solicita (1 a N)"
+    ARTESANO ||--o| STAND : "ocupa stand ferial (1 a 1 opcional)"
+    ARTESANO ||--o{ SOLICITUD_POSTULACION : "postula (1 a N)"
     PABELLON ||--o{ STAND : "alberga (1 a N)"
     SECTOR ||--o{ STAND : "ubica (1 a N)"
-    STAND ||--o{ SOLICITUD_POSTULACION : "postulado en (1 a N)"
+    STAND ||--o{ SOLICITUD_POSTULACION : "asignado en (1 a N)"
 ```
 
 ---
 
 ## 3. Tipos Enumerados (Enums)
-
-Los enums representan conjuntos cerrados de valores a nivel de motor de base de datos (`CREATE TYPE ... AS ENUM`):
-
-### `RolUsuario`
-Define los niveles de acceso y responsabilidades en la plataforma:
-- **`ADMINISTRADOR`**: Control total del sistema, gestión de usuarios, asignación de roles y stands.
-- **`EVALUADOR`**: Personal del jurado o comité ferial encargado de auditar y dictaminar las solicitudes de postulación (`SolicitudPostulacion`).
-- **`ARTESANO`**: Usuario habilitado para administrar su propio emprendimiento y catálogo de productos.
-- **`VISITANTE`**: Rol por defecto al registrarse (`@default(VISITANTE)`). Usuario general que explora la feria.
 
 ### `EstadoStand`
 Controla la disponibilidad física y operativa de los espacios:
@@ -668,77 +728,34 @@ Controla la disponibilidad física y operativa de los espacios:
 - **`MANTENIMIENTO`**: Stand inhabilitado temporalmente por refacciones técnicas, cableado o inspección.
 
 ### `EstadoSolicitud`
-Gestiona el ciclo de vida del trámite de postulación de stands:
-- **`PENDIENTE`**: Solicitud enviada por el artesano en espera de revisión inicial.
-- **`EN_REVISION`**: La solicitud está siendo analizada por un evaluador.
-- **`APROBADA`**: Postulación aceptada formalmente (habilita la asignación del stand).
+Gestiona el ciclo de vida del trámite de postulación ferial:
+- **`PENDIENTE`**: Solicitud enviada por el artesano en espera de revisión administrativa.
+- **`EN_REVISION`**: La solicitud está siendo analizada por el equipo evaluador.
+- **`APROBADA`**: Postulación aceptada formalmente (activa al artesano y habilita la asignación del stand).
 - **`RECHAZADA`**: Postulación desestimada con observaciones explicativas.
+- **`CANCELADA`**: Postulación cancelada voluntariamente por el propio artesano solicitante antes de ser evaluada.
 
 ---
 
-## 4. Modelos en Detalle y Conectividad Relacional
+## 4. Modelos en Detalle
 
-### 4.1. `Usuario`
-Representa las credenciales y la identidad de autenticación:
-- **`id` (`UUID`)**: Clave primaria global.
-- **`rol` (`RolUsuario`)**: Asignado como `VISITANTE` por defecto en PostgreSQL.
-- **`passwordHash` (`String`)**: Contraseña cifrada de forma unidireccional con **Bcrypt** (cost factor 10). La contraseña en plano nunca se persiste.
-- **Conectividad:**
-  - Relación `1:1` con `Artesano`: si un usuario adquiere perfil de artesano, se vincula de manera biunívoca.
-  - Relación `1:N` con `SolicitudPostulacion` (`@relation("EvaluadorSolicitud")`): un usuario con rol evaluador o admin puede dictaminar múltiples postulaciones.
+### 4.1. `Usuario`, `Rol` y `UsuarioRol` (RBAC)
+- **`Usuario`**: Representa las credenciales de acceso (`email`, `passwordHash` con Bcrypt) y la bandera `activo`.
+- **`Rol`**: Entidad de catálogo con valores únicos (`ADMINISTRADOR`, `ARTESANO`).
+- **`UsuarioRol`**: Tabla intermedia que vincula usuarios con roles (`usuarioId_rolId`). Permite que un usuario administrador también pueda poseer el rol de artesano si participa en la feria.
 
 ### 4.2. `Artesano`
 Entidad central del negocio. Representa al productor artesanal y su taller:
-- **`usuarioId` (`UUID`, `@unique`)**: **1 a 1 Obligatorio**. Un artesano no puede existir sin una cuenta de usuario vinculada. Posee regla `onDelete: Cascade` (si se elimina la cuenta de usuario, se elimina el perfil de artesano).
-- **`dni` y `email` (`@unique`)**: Garantizan que no existan perfiles duplicados de la misma persona.
-- **Conectividad:**
-  - `N:1` con `Localidad`: indica la procedencia geográfica dentro de Catamarca.
-  - `1:N` con `Producto`: un artesano elabora y administra su lista de artículos.
-  - `1:1` con `Stand` (`stand Stand?`): un artesano tiene como máximo **un stand físico** asignado.
-  - `1:N` con `SolicitudPostulacion`: el artesano puede generar solicitudes para participar en la feria.
+- **`usuarioId` (`UUID`, `@unique`)**: Relación 1:1 con `Usuario` bajo política `onDelete: Restrict` para impedir eliminar accidentalmente una cuenta de usuario que mantenga un perfil de artesano activo.
+- **`activo` (`Boolean`, `@default(false)`)**: Se inicializa en `false` al completar el perfil y pasa a `true` automáticamente cuando la administración dictamina `APROBADA` su postulación.
 
-### 4.3. `Producto`
-Artículos comercializados por los artesanos:
-- **`artesanoId` (`Int`, FK)**: Clave foránea que referencia al creador del producto.
-- **`precio` (`Decimal(10,2)`)**: Soporta valores hasta `$99,999,999.99` con precisión exacta de centavos.
-- **`activo` (`Boolean`)**: Bandera para soft delete. Permite ocultar productos sin stock o discontinuados sin borrar registros históricos.
-- **Conectividad:**
-  - Posee regla `onDelete: Cascade`: la baja física de un artesano elimina en cascada sus productos vinculados.
+### 4.3. `Stand` y Asignación 1:1
+- **`artesanoId` (`Int? @unique`)**: Relación 1:1 opcional con `Artesano`. Al ser `@unique`, el motor PostgreSQL impide a nivel relacional que un artesano posea más de un stand simultáneamente.
+- **`onDelete: SetNull`**: Si el artesano se desvincula o da de baja, el espacio físico permanece intacto en el predio ferial en estado `DISPONIBLE`.
 
-### 4.4. `Pabellon` y `Sector`
-Normalización de la infraestructura del predio ferial:
-- **`Pabellon`**: Grandes naves edilicias de la feria (ej: "Pabellón de Artesanías Tradicionales", "Pabellón Industrial").
-- **`Sector`**: Subdivisión espacial interna (ej: "Sector Norte", "Sector Textil", "Pasillo A").
-- **Conectividad:**
-  - Cada stand pertenece obligatoriamente a un pabellón (`pabellonId`) y a un sector (`sectorId`). Ambas claves foráneas cuentan con índices de base de datos (`@@index`) para optimizar filtros rápidos en el mapa y la web.
-
-### 4.5. `Stand`
-Puesto físico asignable durante la fiesta:
-- **`codigo` (`String @unique`)**: Identificador único visible en el plano (ej: `STD-A01`).
-- **`artesanoId` (`Int? @unique`)**: Llave foránea única anulable.
-  - Si es `null`, el stand se encuentra disponible.
-  - Al poseer `@unique`, el motor de base de datos rechaza cualquier intento de asignar un artesano a más de un stand a la vez (**restricción 1 a 1 estricta**).
-  - Regla `onDelete: SetNull`: si se da de baja al artesano, el stand no se destruye, sino que se libera su asignación.
-
-### 4.6. `SolicitudPostulacion`
-Trámite digital mediante el cual los artesanos postulan a la feria:
-- **`artesanoId` (`Int`)**: Artesano solicitante.
-- **`standId` (`Int?`)**: Stand específico al que aspira o que le fue preasignado.
-- **`evaluadorId` (`UUID?`)**: Usuario evaluador asignado a auditar la solicitud.
-- **`estado` (`EstadoSolicitud`)**: Estado actual del trámite.
-- **Conectividad:**
-  - Si el artesano postulante se elimina, sus solicitudes se suprimen en cascada (`onDelete: Cascade`).
-  - Si el evaluador o el stand se desvinculan, la solicitud se conserva con valor nulo para auditoría (`onDelete: SetNull`).
-
-### 4.7. `TokenRevocado`
-Entidad técnica de seguridad para invalidación prematura de tokens JWT (Lista Negra de Sesiones):
-- **`jti` (`String`, `@id`)**: Clave primaria que almacena el *JWT ID* (UUID v4 criptográfico asignado unívocamente a cada token emitido en `/login`).
-- **`venceEn` (`DateTime`)**: Timestamp que refleja el vencimiento natural del token (`exp`).
-- **Índice secundario `@@index([venceEn])`**: Crea un índice B-Tree dedicado sobre la fecha de expiración, posibilitando que la tarea de fondo elimine en lote (`deleteMany`) registros antiguos sin bloqueos de tabla.
-- **Conectividad y ciclo de vida:**
-  - No posee claves foráneas para mantener desacoplada la infraestructura de revocación de la tabla `Usuario`.
-  - Los registros se insertan de forma idempotente con `upsert` al invocarse `POST /usuarios/logout`.
-  - Permite denegar el acceso inmediato en el middleware `autenticarUsuario` aun si el token no superó sus 15 minutos de vida.
+### 4.4. `SolicitudPostulacion`
+- Registra el pedido formal del artesano para obtener espacio en la fiesta.
+- Vincula al `artesanoId` (solicitante), `evaluadorId` (`Usuario` administrador que dictamina) y `standId` (stand asignado).
 
 ---
 
@@ -746,36 +763,24 @@ Entidad técnica de seguridad para invalidación prematura de tokens JWT (Lista 
 
 | Origen | Destino | Relación | Política `onDelete` | Justificación de Negocio |
 |---|---|---|---|---|
-| `Artesano` | `Usuario` | 1 a 1 | **`Cascade`** | Un artesano no puede existir sin su cuenta de acceso; si la cuenta se borra, el perfil artesanal se elimina. |
-| `Producto` | `Artesano` | N a 1 | **`Cascade`** | El catálogo depende íntegramente de la existencia de su artesano creador. |
-| `Stand` | `Artesano` | 1 a 1 | **`SetNull`** | Si un artesano cancela o se da de baja, el espacio físico del stand permanece intacto para otro participante. |
-| `Stand` | `Pabellon` | N a 1 | **`Restrict`** | No se puede eliminar un pabellón que aún contenga stands registrados. |
-| `Stand` | `Sector` | N a 1 | **`Restrict`** | No se puede eliminar un sector mientras existan stands asignados a él. |
-| `Solicitud` | `Artesano` | N a 1 | **`Cascade`** | Las postulaciones son propiedad del artesano solicitante. |
-| `Solicitud` | `Usuario` | N a 1 | **`SetNull`** | Si un evaluador renuncia o se borra, la postulación preserva su histórico y queda lista para ser reasignada. |
-| `TokenRevocado` | *Independiente* | Sin FK | **—** | Tabla de revocación técnica; administración de ciclo de vida por purga automática temporal (`deleteMany`). |
+| `UsuarioRol` | `Usuario` | N a 1 | **`Cascade`** | Si se borra la cuenta, se eliminan sus asignaciones de roles. |
+| `UsuarioRol` | `Rol` | N a 1 | **`Restrict`** | No se puede eliminar un rol del sistema si está asignado a usuarios. |
+| `Artesano` | `Usuario` | 1 a 1 | **`Restrict`** | Evita la eliminación accidental de un usuario con perfil ferial registrado. |
+| `Producto` | `Artesano` | N a 1 | **`Cascade`** | El catálogo depende íntegramente de la existencia de su artesano titular. |
+| `Stand` | `Artesano` | 1 a 1 | **`SetNull`** | Si un artesano se da de baja, el stand físico se conserva y se libera. |
+| `Stand` | `Pabellon` | N a 1 | **`Restrict`** | No se puede eliminar un pabellón que albergue stands. |
+| `Stand` | `Sector` | N a 1 | **`Restrict`** | No se puede eliminar un sector mientras contenga stands. |
+| `Solicitud` | `Artesano` | N a 1 | **`Cascade`** | Las postulaciones son propiedad exclusiva del artesano solicitante. |
+| `Solicitud` | `Usuario` | N a 1 | **`SetNull`** | Si un evaluador se elimina, la postulación preserva su histórico de auditoría. |
+| `TokenRevocado` | *Independiente* | Sin FK | **—** | Tabla de revocación técnica administrada por purga automática temporal (`deleteMany`). |
+
 
 ---
 
-## 6. Verificación en el Entorno
-
-El esquema actual incluye la migración `20261008000300_create_token_revocado` y se encuentra completamente aplicado y validado contra PostgreSQL (Supabase):
-```bash
-# Validar consistencia del schema
-npx prisma validate
-
-# Comprobar sincronización con la base de datos
-npx prisma migrate status
-```
-Salida confirmada:
-```
-Database schema is up to date!
-The schema at prisma\schema.prisma is valid
-```
-
----
 
 # Parte 3: Guía Completa de Prisma ORM (v7) + PostgreSQL
+
+# Guía Completa de Prisma ORM (v7) + PostgreSQL
 ### Cátedra: Desarrollo Backend — Facultad de Tecnología y Ciencias Aplicadas (UNCa)
 
 Guía técnica, conceptual y paso a paso que recopila todos los comandos, archivos de configuración, definiciones del lenguaje y buenas prácticas utilizadas en el proyecto para integrar **Prisma ORM 7** con **PostgreSQL**.
@@ -1000,35 +1005,52 @@ model Evento {
 Aplicando exactamente las mismas reglas y tipos de datos a los recursos de nuestra API:
 
 ```prisma
-enum RolUsuario {
-  ADMINISTRADOR
-  EVALUADOR
-  ARTESANO
-  VISITANTE
-}
-
 enum EstadoStand {
   DISPONIBLE
   OCUPADO
   MANTENIMIENTO
 }
 
+enum EstadoSolicitud {
+  PENDIENTE
+  EN_REVISION
+  APROBADA
+  RECHAZADA
+  CANCELADA
+}
+
 model Usuario {
   id                   String                 @id @default(uuid()) @db.Uuid
-  rol                  RolUsuario             @default(VISITANTE)
   nombre               String
   email                String                 @unique
   passwordHash         String
+  activo               Boolean                @default(true)
   artesano             Artesano?
   solicitudesEvaluadas SolicitudPostulacion[] @relation("EvaluadorSolicitud")
+  roles                UsuarioRol[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
+}
+
+model Rol {
+  id       Int          @id @default(autoincrement())
+  nombre   String       @unique // "ADMINISTRADOR", "ARTESANO"
+  usuarios UsuarioRol[]
+}
+
+model UsuarioRol {
+  usuarioId String  @db.Uuid
+  rolId     Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, rolId])
 }
 
 model Artesano {
   id                     Int                    @id @default(autoincrement())
   usuarioId              String                 @unique @db.Uuid
-  usuario                Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario                Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   localidadId            Int
   localidad              Localidad              @relation(fields: [localidadId], references: [id])
   nombre                 String
@@ -1200,9 +1222,13 @@ Es una interfaz gráfica web de desarrollo que permite visualizar, filtrar, crea
 | `npx prisma generate` | Construye los archivos del cliente en `src/generated/prisma` | No | **Sí (compila el cliente)** |
 | `npx prisma studio` | Abre la consola web en el puerto `5555` | Solo si editas registros | No |
 
+
 ---
 
+
 # Parte 4: Métodos de Consulta y Operaciones CRUD en Prisma ORM
+
+# Guía de Métodos de Consulta y Operaciones CRUD en Prisma ORM
 ### Cátedra: Desarrollo Backend — Facultad de Tecnología y Ciencias Aplicadas (UNCa)
 
 Esta guía recopila todas las formas de pedir, filtrar, ordenar, paginar y modificar datos en PostgreSQL utilizando **Prisma Client**, con ejemplos prácticos aplicados a los modelos de nuestro proyecto (`Artesano` y `Producto`).
@@ -1268,7 +1294,7 @@ Cuando defines modelos en `prisma/schema.prisma`:
 model Artesano {
   id                     Int        @id @default(autoincrement())
   usuarioId              String     @unique @db.Uuid
-  usuario                Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario                Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   localidadId            Int
   localidad              Localidad  @relation(fields: [localidadId], references: [id])
   nombre                 String
@@ -1279,7 +1305,7 @@ model Artesano {
   rubro                  String
   nombreEmprendimiento   String
   descripcionTrayectoria String?    @db.Text
-  activo                 Boolean    @default(true)
+  activo                 Boolean    @default(false)
   productos              Producto[]
   stand                  Stand?
   createdAt              DateTime   @default(now())
@@ -2320,9 +2346,14 @@ const total = Number(conteo[0].total);
 | `npx prisma generate` | Regenera Prisma Client a partir del archivo `schema.prisma` | N/A (no toca la B.D.) | No |
 | `npx prisma studio` | Abre panel visual interactivo en el navegador (`localhost:5555`) | N/A (interfaz gráfica) | No |
 
+
+
 ---
 
+
 # Parte 5: Guía Completa: Zod — Validación de Datos en JavaScript
+
+# Guía Completa: Zod — Validación de Datos en JavaScript
 
 Este documento explica qué es Zod, cómo funciona internamente, y cómo lo utilizamos en nuestra API Poncho Digital para validar los datos que envía el cliente.
 
@@ -3009,9 +3040,13 @@ const schema = z.object({
 }).strict(); // [Error] rechaza campos que no estén en el esquema
 ```
 
+
 ---
 
+
 # Parte 6: Guía Detallada: Middlewares y Utilidades
+
+# Guía Detallada: Middlewares y Utilidades
 ### API Poncho Digital — Cátedra Desarrollo Backend (UNCa)
 
 Este documento explica en profundidad el funcionamiento, la lógica interna y las mejores prácticas de cada uno de los middlewares y utilidades (`utils`) creados para la API **Poncho Digital**.
@@ -3277,38 +3312,129 @@ export const rutaNoEncontrada = (req, res, next) => {
 
 ---
 
-## 7. Manejador Global Centralizado (`manejoErrores.js`)
+## 4. Control de Autorización y Contexto (`autorizacion.js`)
+
+**Ubicación:** `src/middlewares/autorizacion.js`  
+**Tipo:** Middlewares de Autorización y RBAC (Unidad 4)  
+**Posición:** Entre `autenticarUsuario` y los controladores en rutas privadas.
+
+### Código:
+```javascript
+import { obtenerUsuarioPorId } from "../services/usuario.services.js";
+
+export const cargarContextoUsuario = async (req, res, next) => {
+    try {
+        const usuario = await obtenerUsuarioPorId(req.usuario.id);
+        if (!usuario) {
+            res.set("WWW-Authenticate", "Bearer");
+            return res.status(401).json({ mensaje: "Cuenta inexistente." });
+        }
+        if (!usuario.activo) {
+            return res.status(403).json({ mensaje: "Cuenta inactiva." });
+        }
+        req.contextoUsuario = usuario;
+        return next();
+    } catch (error) {
+        return next(error);
+    }
+};
+
+export const autorizarRoles = (...rolesPermitidos) => {
+    return (req, res, next) => {
+        const usuario = req.contextoUsuario;
+        const permitido = (usuario?.roles ?? []).some(rol => rolesPermitidos.includes(rol));
+        if (!permitido) {
+            return res.status(403).json({
+                mensaje: "No tiene permiso para esta operación."
+            });
+        }
+        return next();
+    };
+};
+```
+
+### ¿Cómo funciona?
+1. **`cargarContextoUsuario`**:
+   - Toma el `req.usuario.id` que dejó verificado `autenticarUsuario`.
+   - Consulta a la base de datos para obtener el estado actual de la cuenta, sus roles relacionales (`['ARTESANO']`, `['ADMINISTRADOR']`) y si posee perfil de artesano vinculado.
+   - Comprueba `usuario.activo === true`. Si la cuenta fue desactivada por un administrador, rechaza inmediatamente con `403 Cuenta inactiva`.
+   - Inyecta `req.contextoUsuario` con los datos listos para el resto del pipeline.
+2. **`autorizarRoles(...rolesPermitidos)`**:
+   - Función de orden superior (retorna un middleware) que verifica si al menos uno de los roles del usuario coincide con los autorizados (ej: `autorizarRoles("ADMINISTRADOR")` o `autorizarRoles("ARTESANO", "ADMINISTRADOR")`).
+   - Si no cumple, rechaza de forma homogénea con `403 No tiene permiso para esta operación`.
+
+---
+
+## 5. Creador de Errores HTTP (`crearError.js`)
+*(Permite instanciar errores con código HTTP y detalles).*
+
+---
+
+## 6. Formateador de Errores Zod (`ErroresZod.js`)
+*(Transforma las violaciones de esquema de Zod en arreglos legibles `{ path, message }`).*
+
+---
+
+## 7. Capturador 404 (`rutaNoEncontrada.js`)
+
+**Ubicación:** `src/middlewares/rutaNoEncontrada.js`  
+**Tipo:** Middleware 404  
+
+```javascript
+import { crearError } from "../utils/crearError.js";
+
+export const rutaNoEncontrada = (req, res, next) => {
+    next(crearError(`Ruta no encontrada: ${req.method} ${req.originalUrl}`, 404));
+};
+```
+
+---
+
+## 8. Manejador Global Centralizado de Errores (`manejoErrores.js`)
 
 **Ubicación:** `src/middlewares/manejoErrores.js`  
-**Tipo:** Middleware de Errores (Error Handling Middleware)  
-**Posición en `app.js`:** En la última posición absoluta de la aplicación.
+**Tipo:** Error Handling Middleware (última posición en `app.js`)
 
 ### Código:
 ```javascript
 export const manejoErrores = (err, req, res, next) => {
-    const estado = err.status || 500;
+    if (res.headersSent) return next(err);
+
+    // Mapeo canónico de errores de Prisma según la cátedra
+    const mensajes = {
+        P2002: "Ya existe un registro con esos datos únicos.",
+        P2003: "La operación afecta registros relacionados.",
+        P2025: "Registro no encontrado.",
+        P2034: "Hubo otro cambio simultáneo. Reintentar."
+    };
+
+    const mensajeErrorPrisma = mensajes[err.code];
+    const estado = mensajeErrorPrisma
+        ? (err.code === "P2025" ? 404 : 409)
+        : (err.status || 500);
+
+    const mensaje = estado >= 500
+        ? "Error interno del servidor."
+        : (mensajeErrorPrisma || err.message);
 
     if (estado >= 500) {
         console.error(err);
-        return res.status(500).json({
-            error: 'Error interno del servidor'
-        });
     }
 
-    const cuerpo = { error: err.message };
-
+    const respuesta = { mensaje, error: mensaje };
     if (err.details) {
-        cuerpo.details = err.details;
+        respuesta.details = err.details;
     }
 
-    res.status(estado).json(cuerpo);
+    return res.status(estado).json(respuesta);
 };
 ```
 
-### Aspectos Clave:
-* **Firma de 4 Parámetros `(err, req, res, next)`:** Obligatoria en Express para que la función sea reconocida como capturadora de errores.
-* **Seguridad en errores 500:** Registra `err` en consola para los desarrolladores, pero responde un mensaje genérico `{ "error": "Error interno del servidor" }` para no filtrar datos sensibles al cliente.
-* **Respuesta unificada en errores 4xx:** Devuelve `{ error: err.message }` y, si contiene `err.details`, incluye el desglose de validaciones en la propiedad `details`.
+### Reglas aplicadas:
+* **`P2002` (Unicidad violada):** Responde `409 Conflict`.
+* **`P2003` (Clave foránea / Restricción):** Responde `409 Conflict`.
+* **`P2025` (Registro no encontrado en `findUniqueOrThrow` / `update`):** Responde `404 Not Found`.
+* **Protección contra fugas en errores 500:** Solo emite log en consola interna sin exponer detalles sensibles al cliente.
 
 ---
 
@@ -3317,18 +3443,22 @@ export const manejoErrores = (err, req, res, next) => {
 | Archivo | Rol | ¿Quién lo invoca o llama? | ¿Qué entrega al siguiente eslabón? |
 |---|---|---|---|
 | **`logger.js`** | Monitoreo HTTP | Express al recibir cualquier petición | Deja pasar la petición limpia con `next()` |
-| **`validarSchema.js`** | Validación universal (body, params, query) | Rutas HTTP antes de los controladores | `req[origen]` como DTO limpio y tipado o error 400 |
-| **`autenticarUsuario.js`** | Autenticación Bearer JWT y Lista Negra | Rutas privadas (`/me`, `/logout`) | Inyecta `req.usuario = { id, jti, exp }` o rechaza 401/400 |
-| **`comun.schemas.js`** | Esquemas Zod compartidos | Rutas con parámetros comunes (`:id`) | Regla para validar identificadores numéricos |
-| **`producto.schemas.js`** | Esquemas Zod de Producto | Rutas de `/productos` | Reglas de validación Zod con `.safeParse()` |
+| **`validarSchema.js`** | Validación universal (body, params, query) | Rutas HTTP antes de los controladores | `req.bodyValidado` / `req.parametrosValidados` |
+| **`autenticarUsuario.js`** | Autenticación Bearer JWT y Lista Negra | Rutas privadas | Inyecta `req.usuario = { id, jti, exp }` o rechaza 401 |
+| **`autorizacion.js`** | Contexto y RBAC de roles | Rutas privadas protegidas | Inyecta `req.contextoUsuario` y valida permisos (403 si falla) |
+| **`comun.schemas.js`** | Esquemas Zod compartidos | Rutas con parámetros comunes (`:id` int o uuid) | Validación de IDs enteros o UUIDs |
 | **`ErroresZod.js`** | Formateador de fallos Zod | `validarSchema` | Array estructurado `[{ path, message }]` |
 | **`crearError.js`** | Fabricador de Errores | Controladores, servicios y validadores | Objeto `Error` con `.status`, `.message` y `.details` |
 | **`rutaNoEncontrada.js`** | Detección de rutas 404 | Express cuando no hay coincidencias | Error 404 transferido a `next(error)` |
-| **`manejoErrores.js`** | Respuesta final de fallos | Express cuando se invoca `next(error)` | Respuesta JSON homogénea `{ error, details? }` |
+| **`manejoErrores.js`** | Respuesta final de fallos | Express cuando se invoca `next(error)` | Mapeo Prisma (404/409) y respuesta JSON homogénea |
+
 
 ---
 
+
 # Parte 7: Flujo de Ejecución y Manejo de Errores en Express
+
+# Flujo de Ejecución y Manejo de Errores en Express
 
 > **Caso de ejemplo:** El cliente realiza una petición a una ruta que no existe:  
 > `GET http://localhost:3000/pokemon`
@@ -3673,3 +3803,8 @@ flowchart TD
     style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
     style LOG_OUT fill:#4ade80,stroke:#16a34a,color:#000
 ```
+
+
+
+
+---

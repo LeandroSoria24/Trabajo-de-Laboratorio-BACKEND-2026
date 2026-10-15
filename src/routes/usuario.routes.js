@@ -3,79 +3,69 @@ import {
     postUsuario,
     iniciarSesion,
     obtenerMiPerfil,
-    registrarUsuarioParticipante
+    crearAdministrador,
+    actualizarActivo
 } from '../controllers/usuario.controllers.js';
 import { cerrarSesion } from "../controllers/sesiones.controllers.js";
-import { validarSchema } from '../middlewares/validarSchema.js';
+import { agregarRol, eliminarRol } from "../controllers/roles.controllers.js";
+import { validarSchema, validarBody, validarParametros } from '../middlewares/validarSchema.js';
 import { autenticarUsuario } from "../middlewares/autenticarUsuario.js";
+import { cargarContextoUsuario, autorizarRoles } from "../middlewares/autorizacion.js";
 import {
     registrarUsuarioSchema,
     iniciarSesionSchema,
-    registroParticipanteSchema
+    registroAdminSchema
 } from '../validators/usuario.schemas.js';
-
-import { cargarContextoUsuario } from "../middlewares/autorizacion.js";
+import { asignarAdministradorSchema, retirarRolParametrosSchema } from '../validators/roles.schemas.js';
+import { actualizarActivoSchema } from '../validators/estado.schemas.js';
+import { uuidParamSchema } from '../validators/comun.schemas.js';
 
 const router = Router();
 
-// Rutas públicas de autenticación y registro
+// ──────────────────────────────────────────────────────
+// RUTAS PÚBLICAS (sin JWT)
+// ──────────────────────────────────────────────────────
+
 router.post("/registro", validarSchema(registrarUsuarioSchema, 'body'), postUsuario);
 router.post("/login", validarSchema(iniciarSesionSchema, 'body'), iniciarSesion);
-router.post(
-    "/registro-participante",
-    validarSchema(registroParticipanteSchema, 'body'),
-    registrarUsuarioParticipante
-);
 
-// Rutas protegidas (requieren token JWT)
-router.get("/me", autenticarUsuario,
-    cargarContextoUsuario, obtenerMiPerfil)
+// ──────────────────────────────────────────────────────
+// RUTAS PROTEGIDAS (requieren JWT)
+// ──────────────────────────────────────────────────────
+
+router.get("/me", autenticarUsuario, cargarContextoUsuario, obtenerMiPerfil);
 router.post("/logout", autenticarUsuario, cerrarSesion);
 
-export default router;
+// ──────────────────────────────────────────────────────
+// RUTAS DE ADMINISTRACIÓN (requieren rol ADMINISTRADOR)
+// ──────────────────────────────────────────────────────
+
+const controlesAdmin = [autenticarUsuario, cargarContextoUsuario, autorizarRoles("ADMINISTRADOR")];
 
 router.post("/registro-administrador",
-autenticarUsuario,
-cargarContextoUsuario,
-autorizarRoles("ADMINISTRADOR"),
-validarBody(registroAdminSchema),
-crearAdministrador
-)
-
-router.post("/asignar-participante",
-autenticarUsuario,
-cargarContextoUsuario,
-autorizarRoles("ADMINISTRADOR"),
-validarBody(asignarParticipanteSchema),
-asociarParticipante
-)
+    ...controlesAdmin,
+    validarBody(registroAdminSchema),
+    crearAdministrador
+);
 
 router.post("/:id/roles",
-autenticarUsuario,
-cargarContextoUsuario,
-autorizarRoles("ADMINISTRADOR"),
-validarParametros(
-usuarioIdParametrosSchema, "ID inválido."),
-validarBody(asignarAdministradorSchema,
-"Solo se puede asignar ADMINISTRADOR."),
-agregarRol
-)
+    ...controlesAdmin,
+    validarParametros(uuidParamSchema),
+    validarBody(asignarAdministradorSchema),
+    agregarRol
+);
 
 router.delete("/:id/roles/:rol",
-autenticarUsuario,
-cargarContextoUsuario,
-autorizarRoles("ADMINISTRADOR"),
-validarParametros(retirarRolParametrosSchema),
-eliminarRol
-)
+    ...controlesAdmin,
+    validarParametros(retirarRolParametrosSchema),
+    eliminarRol
+);
 
 router.patch("/:id/activo",
-autenticarUsuario,
-cargarContextoUsuario,
-autorizarRoles("ADMINISTRADOR"),
-validarParametros(
-usuarioIdParametrosSchema, "ID inválido."),
-validarBody(actualizarActivoSchema,
-"Campo activo inválido."),
-actualizarActivo
-)
+    ...controlesAdmin,
+    validarParametros(uuidParamSchema),
+    validarBody(actualizarActivoSchema),
+    actualizarActivo
+);
+
+export default router;

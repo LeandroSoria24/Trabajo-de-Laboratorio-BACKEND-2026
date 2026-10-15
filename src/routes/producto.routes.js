@@ -4,10 +4,11 @@ import {
     getProductoPorId,
     createProducto,
     updateProducto,
-    deleteProducto,
     deleteProductoLogico
 } from '../controllers/producto.controllers.js';
 import { validarSchema } from '../middlewares/validarSchema.js';
+import { autenticarUsuario } from '../middlewares/autenticarUsuario.js';
+import { cargarContextoUsuario, autorizarRoles } from '../middlewares/autorizacion.js';
 import { idParamSchema } from '../validators/comun.schemas.js';
 import {
     crearProductoSchema,
@@ -17,12 +18,22 @@ import {
 
 const router = Router();
 
-router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);/* 🟩 Estándar REST */
-router.get('/all', validarSchema(obtenerProductosSchema, 'query'), getProductos);/* 🟩 */
-router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);/* 🟩 */
-router.post('/', validarSchema(crearProductoSchema, 'body'), createProducto);/* 🟩 */
-router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarProductoSchema, 'body'), updateProducto);/* 🟩 */
-router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProducto);/* 🟩 */
-router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogico);/* 🟩 */
+// ──────────────────────────────────────────────────────
+// CONSULTA PÚBLICA (Visitantes y catálogo)
+// ──────────────────────────────────────────────────────
+
+router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);
+router.get('/all', validarSchema(obtenerProductosSchema, 'query'), getProductos);
+router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);
+
+// ──────────────────────────────────────────────────────
+// GESTIÓN DE PRODUCTOS (Artesano autenticado o Administrador)
+// ──────────────────────────────────────────────────────
+
+const artesanoOAdmin = [autenticarUsuario, cargarContextoUsuario, autorizarRoles("ARTESANO", "ADMINISTRADOR")];
+
+router.post('/', ...artesanoOAdmin, validarSchema(crearProductoSchema, 'body'), createProducto);
+router.put('/:id', ...artesanoOAdmin, validarSchema(idParamSchema, 'params'), validarSchema(actualizarProductoSchema, 'body'), updateProducto);
+router.delete('/:id', ...artesanoOAdmin, validarSchema(idParamSchema, 'params'), deleteProductoLogico);
 
 export default router;

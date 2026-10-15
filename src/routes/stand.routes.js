@@ -9,6 +9,8 @@ import {
     deleteStand
 } from '../controllers/stand.controllers.js';
 import { validarSchema } from '../middlewares/validarSchema.js';
+import { autenticarUsuario } from '../middlewares/autenticarUsuario.js';
+import { cargarContextoUsuario, autorizarRoles } from '../middlewares/autorizacion.js';
 import { idParamSchema } from '../validators/comun.schemas.js';
 import {
     crearStandSchema,
@@ -19,16 +21,23 @@ import {
 
 const router = Router();
 
-router.get('/', validarSchema(obtenerStandsSchema, 'query'), getStands);/* 🟩 */
-router.get('/:id', validarSchema(idParamSchema, 'params'), getStandPorId);/* 🟩 */
-router.post('/', validarSchema(crearStandSchema, 'body'), createStand);/* 🟩 */
-router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarStandSchema, 'body'), updateStand);/* 🟩 */
+// ──────────────────────────────────────────────────────
+// RUTAS PÚBLICAS (Visitantes y consulta de catálogo)
+// ──────────────────────────────────────────────────────
 
-/* estos dos endpoints se deberian de cambiar para cuando veamos autorizacion, 
-   si solo un administrador pueda acceder a dichos endpoints */
-router.patch('/:id/asignar-artesano', validarSchema(idParamSchema, 'params'), validarSchema(asignarArtesanoSchema, 'body'), patchAsignarArtesano);/* 🟩 */
-router.patch('/:id/liberar', validarSchema(idParamSchema, 'params'), patchLiberarStand);//* 🟩 */
+router.get('/', validarSchema(obtenerStandsSchema, 'query'), getStands);
+router.get('/:id', validarSchema(idParamSchema, 'params'), getStandPorId);
 
-router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteStand);/* 🟩 */
+// ──────────────────────────────────────────────────────
+// RUTAS PROTEGIDAS - SOLO ADMINISTRADOR
+// ──────────────────────────────────────────────────────
+
+const soloAdmin = [autenticarUsuario, cargarContextoUsuario, autorizarRoles("ADMINISTRADOR")];
+
+router.post('/', ...soloAdmin, validarSchema(crearStandSchema, 'body'), createStand);
+router.put('/:id', ...soloAdmin, validarSchema(idParamSchema, 'params'), validarSchema(actualizarStandSchema, 'body'), updateStand);
+router.patch('/:id/asignar-artesano', ...soloAdmin, validarSchema(idParamSchema, 'params'), validarSchema(asignarArtesanoSchema, 'body'), patchAsignarArtesano);
+router.patch('/:id/liberar', ...soloAdmin, validarSchema(idParamSchema, 'params'), patchLiberarStand);
+router.delete('/:id', ...soloAdmin, validarSchema(idParamSchema, 'params'), deleteStand);
 
 export default router;

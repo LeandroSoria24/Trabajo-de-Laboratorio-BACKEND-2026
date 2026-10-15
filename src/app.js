@@ -7,6 +7,7 @@ import standsRoutes from './routes/stand.routes.js';
 import pabellonesRoutes from './routes/pabellon.routes.js';
 import sectoresRoutes from './routes/sector.routes.js';
 import localidadesRoutes from './routes/localidad.routes.js';
+import solicitudesRoutes from './routes/solicitud.routes.js';
 
 import { logger } from "./middlewares/logger.js"
 import { manejoErrores } from "./middlewares/manejoErrores.js"
@@ -52,6 +53,7 @@ app.use('/stands', standsRoutes);
 app.use('/pabellones', pabellonesRoutes);
 app.use('/sectores', sectoresRoutes);
 app.use('/localidades', localidadesRoutes);
+app.use('/solicitudes', solicitudesRoutes);
 
 
 

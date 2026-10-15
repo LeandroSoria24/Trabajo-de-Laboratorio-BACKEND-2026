@@ -1,34 +1,30 @@
 import {
     registrarUsuario,
     iniciarSesion as loginService,
-    obtenerUsuarioPorId,
-    registrarUsuarioParticipante as registrarUsuarioParticipanteService
+    registrarAdministrador as registrarAdministradorService
 } from '../services/usuario.services.js';
 import { generarToken } from "../services/token.services.js";
+import { cambiarActivo } from "../services/estado.services.js";
 
-import { registrarAdministrador }
-from "../services/usuarios.service.js";
-
-import { asignarParticipante }
-from "../services/participantes.service.js"
-
-// POST 🟩 
+// POST - Registro público de usuario (adquiere rol ARTESANO por defecto)
 export const postUsuario = async (req, res, next) => {
     try {
-        const nuevoUsuario = await registrarUsuario(req.body);
-        res.status(201).json({
-            mensaje: "Usuario registrado exitosamente",
+        const datos = req.bodyValidado || req.body;
+        const nuevoUsuario = await registrarUsuario(datos);
+        return res.status(201).json({
+            mensaje: "Usuario registrado exitosamente con rol ARTESANO.",
             nuevoUsuario: nuevoUsuario
         });
     } catch (error) {
-        next(error);
+        return next(error);
     }
 };
 
-// POST 🟨 
-export const iniciarSesion = async (req, res, next) => { 
+// POST - Inicio de sesión
+export const iniciarSesion = async (req, res, next) => {
     try {
-        const usuario = await loginService(req.body);
+        const datos = req.bodyValidado || req.body;
+        const usuario = await loginService(datos);
         const token = generarToken(usuario);
         return res.status(200).json({
             mensaje: "Inicio de sesión exitoso.",
@@ -40,40 +36,33 @@ export const iniciarSesion = async (req, res, next) => {
     }
 };
 
-// GET 🟨 
-export const obtenerMiPerfil = async (req, res, next) => {
+// GET - Perfil del usuario autenticado (cuenta, activo, roles y perfil artesano si existe)
+export const obtenerMiPerfil = (req, res) => {
+    return res.status(200).json({ usuario: req.contextoUsuario });
+};
+
+// POST - Crear un usuario administrador (solo ADMINISTRADOR puede hacerlo)
+export const crearAdministrador = async (req, res, next) => {
     try {
-        const usuario = await obtenerUsuarioPorId(req.usuario.id);
-        if (!usuario) {
-            res.set("WWW-Authenticate",
-                'Bearer error="invalid_token"');
-            return res.status(401).json({
-                mensaje: "La cuenta asociada al token no existe."
-            });
-        }
-        return res.status(200).json({ usuario: req.contextoUsuario });
+        const usuario = await registrarAdministradorService(req.bodyValidado || req.body);
+        return res.status(201).json({
+            mensaje: "Administrador registrado exitosamente.",
+            usuario: usuario
+        });
     } catch (error) {
         return next(error);
     }
 };
 
-// POST - Registro público de Participante
-export const registrarUsuarioParticipante = async (req, res, next) => {
+// PATCH - Activar o desactivar una cuenta de usuario
+export const actualizarActivo = async (req, res, next) => {
     try {
-        const datos = req.bodyValidado || req.body;
-        const usuario = await registrarUsuarioParticipanteService(datos);
-        return res.status(201).json(usuario);
+        const usuario = await cambiarActivo(
+            req.parametrosValidados.id,
+            req.bodyValidado.activo
+        );
+        return res.json(usuario);
     } catch (error) {
         return next(error);
     }
 };
-
-export const crearAdministrador = async (req, res) => {
-    const usuario = await registrarAdministrador(req.bodyValidado);
-    return res.status(201).json(usuario);
-};
-
-export const asociarParticipante = async (req, res) => {
-    const participante = await asignarParticipante(req.bodyValidado);
-    return res.status(201).json(participante);
-}

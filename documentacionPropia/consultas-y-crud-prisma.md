@@ -64,7 +64,7 @@ Cuando defines modelos en `prisma/schema.prisma`:
 model Artesano {
   id                     Int        @id @default(autoincrement())
   usuarioId              String     @unique @db.Uuid
-  usuario                Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario                Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   localidadId            Int
   localidad              Localidad  @relation(fields: [localidadId], references: [id])
   nombre                 String
@@ -75,7 +75,7 @@ model Artesano {
   rubro                  String
   nombreEmprendimiento   String
   descripcionTrayectoria String?    @db.Text
-  activo                 Boolean    @default(true)
+  activo                 Boolean    @default(false)
   productos              Producto[]
   stand                  Stand?
   createdAt              DateTime   @default(now())

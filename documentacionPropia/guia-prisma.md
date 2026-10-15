@@ -223,35 +223,52 @@ model Evento {
 Aplicando exactamente las mismas reglas y tipos de datos a los recursos de nuestra API:
 
 ```prisma
-enum RolUsuario {
-  ADMINISTRADOR
-  EVALUADOR
-  ARTESANO
-  VISITANTE
-}
-
 enum EstadoStand {
   DISPONIBLE
   OCUPADO
   MANTENIMIENTO
 }
 
+enum EstadoSolicitud {
+  PENDIENTE
+  EN_REVISION
+  APROBADA
+  RECHAZADA
+  CANCELADA
+}
+
 model Usuario {
   id                   String                 @id @default(uuid()) @db.Uuid
-  rol                  RolUsuario             @default(VISITANTE)
   nombre               String
   email                String                 @unique
   passwordHash         String
+  activo               Boolean                @default(true)
   artesano             Artesano?
   solicitudesEvaluadas SolicitudPostulacion[] @relation("EvaluadorSolicitud")
+  roles                UsuarioRol[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
+}
+
+model Rol {
+  id       Int          @id @default(autoincrement())
+  nombre   String       @unique // "ADMINISTRADOR", "ARTESANO"
+  usuarios UsuarioRol[]
+}
+
+model UsuarioRol {
+  usuarioId String  @db.Uuid
+  rolId     Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, rolId])
 }
 
 model Artesano {
   id                     Int                    @id @default(autoincrement())
   usuarioId              String                 @unique @db.Uuid
-  usuario                Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario                Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   localidadId            Int
   localidad              Localidad              @relation(fields: [localidadId], references: [id])
   nombre                 String

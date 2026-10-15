@@ -11,6 +11,13 @@ export const idParamSchema = z.object({
 });
 
 /*
+  Esquema común para validar parámetros de ruta con identificador UUID (:id).
+*/
+export const uuidParamSchema = z.object({
+  id: z.string().uuid("El ID debe ser un UUID válido")
+});
+
+/*
   Enums coincidentes con schema.prisma para Zod 4
 */
 export const RolUsuarioEnum = z.enum(["ADMINISTRADOR", "EVALUADOR", "ARTESANO", "VISITANTE"]);
