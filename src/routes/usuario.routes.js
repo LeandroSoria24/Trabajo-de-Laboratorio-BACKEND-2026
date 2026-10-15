@@ -33,3 +33,19 @@ router.get("/me", autenticarUsuario,
 router.post("/logout", autenticarUsuario, cerrarSesion);
 
 export default router;
+
+router.post("/registro-administrador",
+autenticarUsuario,
+cargarContextoUsuario,
+autorizarRoles("ADMINISTRADOR"),
+validarBody(registroAdminSchema),
+crearAdministrador
+)
+
+router.post("/asignar-participante",
+autenticarUsuario,
+cargarContextoUsuario,
+autorizarRoles("ADMINISTRADOR"),
+validarBody(asignarParticipanteSchema),
+asociarParticipante
+)

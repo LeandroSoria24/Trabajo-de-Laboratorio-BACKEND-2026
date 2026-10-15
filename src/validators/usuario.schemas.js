@@ -30,3 +30,8 @@ export const registroParticipanteSchema =
     dni: participanteSchema.shape.dni,
     direccion: participanteSchema.shape.direccion
   }).strict();
+
+export const registroAdminSchema = registrarUsuarioSchema.strict();
+
+export const asignarParticipanteSchema =
+  participanteSchema.extend({ usuarioId: z.uuid() });

@@ -6,6 +6,12 @@ import {
 } from '../services/usuario.services.js';
 import { generarToken } from "../services/token.services.js";
 
+import { registrarAdministrador }
+from "../services/usuarios.service.js";
+
+import { asignarParticipante }
+from "../services/participantes.service.js"
+
 // POST 🟩 
 export const postUsuario = async (req, res, next) => {
     try {
@@ -61,3 +67,13 @@ export const registrarUsuarioParticipante = async (req, res, next) => {
         return next(error);
     }
 };
+
+export const crearAdministrador = async (req, res) => {
+    const usuario = await registrarAdministrador(req.bodyValidado);
+    return res.status(201).json(usuario);
+};
+
+export const asociarParticipante = async (req, res) => {
+    const participante = await asignarParticipante(req.bodyValidado);
+    return res.status(201).json(participante);
+}

@@ -102,3 +102,19 @@ export const registrarUsuarioParticipante = async (dto) => {
 // La relación anidada completa el campo “Participante.usuarioId”.
 // El cliente no elige rol ni modifica el campo “activo”.
 // La respuesta excluye passwordHash.
+
+export const registrarAdministrador = async (dto) => {
+    const { nombre, email, password } = dto;
+    const passwordHash = await bcrypt.hash(password, 10);
+    return prisma.usuario.create({
+        data: {
+            nombre, email, passwordHash, activo: true,
+            roles: { create: {
+                rol: { connect: { nombre: "ADMINISTRADOR" } }
+            } }
+        },
+        select: {
+            id: true, nombre: true, email: true, activo: true
+        }
+});
+}
