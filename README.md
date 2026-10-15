@@ -142,11 +142,11 @@ Toda petición a rutas protegidas atraviesa la siguiente cadena desacoplada:
 
 ```mermaid
 flowchart TD
-    Req["Petición HTTP"] --> M1["1. autenticarUsuario\n(Verifica firma JWT, expiración y TokenRevocado)"]
-    M1 -->|req.usuario = { id }| M2["2. cargarContextoUsuario\n(Consulta BD, extrae roles y verifica activo === true)"]
-    M2 -->|req.contextoUsuario| M3["3. autorizarRoles('ARTESANO' / 'ADMINISTRADOR')\n(Verifica si posee el rol requerido)"]
-    M3 --> M4["4. validarSchema (Zod)\n(Valida body, params o query)"]
-    M4 --> C["5. Controlador & Servicio\n(Aplica reglas de negocio y transacciones)"]
+    Req["Petición HTTP"] --> M1["1. autenticarUsuario<br>(Verifica firma JWT, expiración y TokenRevocado)"]
+    M1 -->|req.usuario con id| M2["2. cargarContextoUsuario<br>(Consulta BD, extrae roles y verifica activo = true)"]
+    M2 -->|req.contextoUsuario| M3["3. autorizarRoles(ARTESANO / ADMINISTRADOR)<br>(Verifica si posee el rol requerido)"]
+    M3 --> M4["4. validarSchema (Zod)<br>(Valida body, params o query)"]
+    M4 --> C["5. Controlador y Servicio<br>(Aplica reglas de negocio y transacciones)"]
 ```
 
 ---

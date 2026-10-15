@@ -107,11 +107,11 @@ Toda ruta protegida ejecutará la secuencia de control:
 
 ```mermaid
 flowchart TD
-    Req["Petición HTTP"] --> M1["1. autenticarUsuario\n(Verifica JWT, expiración y TokenRevocado)"]
-    M1 -->|req.usuario = { id }| M2["2. cargarContextoUsuario\n(Consulta BD, roles y verifica activo === true)"]
-    M2 -->|req.contextoUsuario| M3["3. autorizarRoles('ARTESANO' / 'ADMINISTRADOR')\n(Verifica si posee el rol requerido)"]
-    M3 --> M4["4. validarSchema (Zod .strict())\n(Valida body, params o query)"]
-    M4 --> C["5. Controlador & Servicio\n(Aplica reglas y filtro de propiedad)"]
+    Req["Petición HTTP"] --> M1["1. autenticarUsuario<br>(Verifica JWT, expiración y TokenRevocado)"]
+    M1 -->|req.usuario con id| M2["2. cargarContextoUsuario<br>(Consulta BD, roles y verifica activo = true)"]
+    M2 -->|req.contextoUsuario| M3["3. autorizarRoles(ARTESANO / ADMINISTRADOR)<br>(Verifica si posee el rol requerido)"]
+    M3 --> M4["4. validarSchema (Zod .strict())<br>(Valida body, params o query)"]
+    M4 --> C["5. Controlador y Servicio<br>(Aplica reglas y filtro de propiedad)"]
 ```
 
 ### Compatibilidad con `validarSchema.js`:
