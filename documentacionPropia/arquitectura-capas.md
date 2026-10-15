@@ -19,8 +19,9 @@ Este documento explica la organización modular en capas del proyecto, qué resp
 10. [Capa Transversal: Utilidades (`utils/`)](#capa-transversal-utilidades-utils)
 11. [Flujo Completo de una Petición](#flujo-completo-de-una-petición)
 12. [Reglas de Negocio por Entidad](#reglas-de-negocio-por-entidad)
-13. [Tabla Resumen: Quién Hace Qué](#tabla-resumen-quién-hace-qué)
-14. [Diagrama de Dependencias entre Capas](#diagrama-de-dependencias-entre-capas)
+13. [Mapeo y Correspondencia: Cátedra UNCa (Unidad 4) vs Poncho Digital](#mapeo-y-correspondencia-cátedra-unca-unidad-4-vs-poncho-digital)
+14. [Tabla Resumen: Quién Hace Qué](#tabla-resumen-quién-hace-qué)
+15. [Diagrama de Dependencias entre Capas](#diagrama-de-dependencias-entre-capas)
 
 ---
 
@@ -436,7 +437,7 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 | Stock no negativo | `validators/producto.schemas.js` | Mayor o igual a 0 |
 | Artesano existente | `services/producto.services.js` | El producto debe vincularse a un artesano registrado |
 | Eliminación en cascada | `prisma/schema.prisma` | `onDelete: Cascade` — si se elimina un artesano, sus productos se eliminan |
-| Soft delete | `services/producto.services.js` | `PATCH /productos/:id` → `eliminado: true` |
+| Soft delete | `services/producto.services.js` | `DELETE /productos/:id` → baja lógica (`activo = false`) |
 
 ### Localidad
 | Regla | Capa | Detalle |
@@ -483,7 +484,50 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 
 ---
 
-## Tabla Resumen: Quién Hace Qué
+## 13. Mapeo y Correspondencia: Cátedra UNCa (Unidad 4) vs Poncho Digital
+
+En las diapositivas de la cátedra (**Unidad 4: Autorización y Protección de Recursos**) se utiliza un proyecto didáctico genérico basado en *Usuarios, Participantes, Eventos e Inscripciones*. 
+
+En **Poncho Digital**, todas las directivas, patrones arquitectónicos y buenas prácticas de seguridad enseñadas por la cátedra fueron **estrictamente respetadas y aplicadas al dominio real de la Fiesta Nacional e Internacional del Poncho**:
+
+### Comparativa de Modelos y Dominio
+
+| Componente Teórico Cátedra (`1.md`) | Implementación en Poncho Digital | Justificación de Negocio Ferial |
+|---|---|---|
+| **Modelo `Usuario`** | **`Usuario`** | Idéntico: Credenciales, hash Bcrypt, `activo: Boolean @default(true)`, y relación M:N con `Rol`. |
+| **Modelo `Rol`** | **`Rol`** | Idéntico: Catálogo con nombres únicos. En Poncho Digital: `ARTESANO` y `ADMINISTRADOR`. |
+| **Modelo `UsuarioRol`** | **`UsuarioRol`** | Idéntico: Tabla intermedia con clave compuesta `@@id([usuarioId, rolId])` para RBAC múltiple. |
+| **Modelo `Participante`** | **`Artesano`** | El artesano es el expositor participante del evento ferial. Relación 1:1 estricta con `Usuario` (`usuarioId @unique @db.Uuid`, `onDelete: Restrict`). Nace con `activo = false`. |
+| **Modelo `Inscripcion`** | **`SolicitudPostulacion`** | Trámite formal del artesano para solicitar un espacio. Posee ciclo de vida (`PENDIENTE`, `EN_REVISION`, `APROBADA`, `RECHAZADA`, `CANCELADA`). |
+| **Modelo `Evento`** | **`Stand` (en `Pabellon` y `Sector`)** | El recurso físico administrado por la organización para albergar artesanos expositores. |
+
+---
+
+### Comparativa de Endpoints y Matriz de Acceso
+
+| Endpoint Didáctico Cátedra | Endpoint Real Poncho Digital | Quién tiene acceso | Acción que realiza |
+|---|---|---|---|
+| `POST /usuarios/registro-participante` | `POST /usuarios/registro` | 🟢 **Público** | Registro inicial. Crea `Usuario` y le asigna el rol `ARTESANO` por defecto en una sola transacción. |
+| `POST /usuarios/login` | `POST /usuarios/login` | 🟢 **Público** | Valida credenciales Bcrypt y emite JWT firmado (15 min) con identificador `jti`. |
+| `GET /participantes/me` | `GET /artesanos/me` | 🟡 **ARTESANO** | Filtro de propiedad: consulta únicamente los datos de perfil del artesano autenticado. |
+| `POST /participantes` | `POST /artesanos/me` | 🟡 **ARTESANO** | Completa los datos personales y de taller del expositor (nace con `activo: false`). |
+| `PUT /participantes/me` | `PUT /artesanos/me` | 🟡 **ARTESANO** | Modifica datos comerciales propios (teléfono, emprendimiento). |
+| `POST /inscripciones` | `POST /solicitudes` | 🟡 **ARTESANO** | Presenta postulación para participar en la feria (inicia en `PENDIENTE`). |
+| `GET /inscripciones/me` | `GET /solicitudes/me` | 🟡 **ARTESANO** | Lista únicamente el historial de postulaciones del usuario solicitante. |
+| — | `PATCH /solicitudes/:id/cancelar` | 🟡 **ARTESANO** | Permite al artesano cancelar su postulación antes de que sea evaluada. |
+| `POST /eventos` | `POST /stands` (y `/pabellones`) | 🔴 **ADMINISTRADOR** | Alta de stands y pabellones físicos en el predio ferial. |
+| `PUT/DELETE /eventos/:id` | `PUT/DELETE /stands/:id` | 🔴 **ADMINISTRADOR** | Modificación física y mantenimiento de stands. |
+| — | `GET /solicitudes` | 🔴 **ADMINISTRADOR** | Auditoría global de todas las postulaciones con filtros por estado. |
+| — | `PATCH /solicitudes/:id/evaluar` | 🔴 **ADMINISTRADOR** | Dictamina la solicitud. Al dictaminar `APROBADA`, activa automáticamente al artesano en BD (`activo = true`). |
+| — | `PATCH /solicitudes/:id/asignar-stand` | 🔴 **ADMINISTRADOR** | Asigna un stand libre (`DISPONIBLE` $\rightarrow$ `OCUPADO`) vinculándolo 1:1 al artesano. |
+| `POST /usuarios/registro-administrador` | `POST /usuarios/registro-administrador` | 🔴 **ADMINISTRADOR** | Alta de una nueva cuenta con rol `ADMINISTRADOR`. |
+| `POST /usuarios/:id/roles` | `POST /usuarios/:id/roles` | 🔴 **ADMINISTRADOR** | Asigna un nuevo rol a un usuario existente. |
+| `DELETE /usuarios/:id/roles/:rol` | `DELETE /usuarios/:id/roles/:rol` | 🔴 **ADMINISTRADOR** | Retira un rol aplicando reglas de seguridad (conservar al menos 1 rol y 1 admin activo). |
+| `PATCH /usuarios/:id/activo` | `PATCH /usuarios/:id/activo` | 🔴 **ADMINISTRADOR** | Habilita o inhabilita una cuenta en el sistema (no permite desactivar el último admin). |
+
+---
+
+## 14. Tabla Resumen: Quién Hace Qué
 
 | Capa | Carpeta | Responsabilidad | Importa | NO importa |
 |---|---|---|---|---|

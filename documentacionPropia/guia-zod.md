@@ -15,7 +15,7 @@ Este documento explica qué es Zod, cómo funciona internamente, y cómo lo util
 8. [Esquemas de Objetos (`z.object`)](#esquemas-de-objetos-zobject)
 9. [Validación: `.parse()` vs `.safeParse()`](#validación-parse-vs-safeparse)
 10. [Estructura de Errores de Zod](#estructura-de-errores-de-zod)
-11. [Cómo lo usamos en la API de Poncho Digital](#cómo-lo-usamos-en-la-api-de-biblioteca)
+11. [Cómo lo usamos en la API de Poncho Digital](#cómo-lo-usamos-en-la-api-de-poncho-digital)
 12. [Referencia Rápida de Métodos](#referencia-rápida-de-métodos)
 13. [Errores Comunes y Soluciones](#errores-comunes-y-soluciones)
 
@@ -465,13 +465,14 @@ export const obtenerProductosSchema = z.object({
 
 ### Paso 2: Crear el middleware genérico de validación (`src/middlewares/validarSchema.js`)
 
-En lugar de crear middlewares duplicados para cada tabla o cada propiedad (`body`, `params`, `query`), implementamos una **función fábrica** de middleware que evalúa cualquier esquema de Zod contra la fuente de datos elegida:
+En lugar de crear middlewares duplicados para cada tabla o cada propiedad (`body`, `params`, `query`), implementamos una **función fábrica** de middleware que evalúa cualquier esquema de Zod contra la fuente de datos elegida, asegurando además **100% de compatibilidad con las nomenclaturas de la cátedra UNCa**:
 
 ```javascript
 import { crearError } from '../utils/crearError.js';
 import { detallarErroresZod } from '../utils/ErroresZod.js';
 
-export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
+// Middleware universal para validar datos (body, params o query) con Zod
+export const validarSchema = (schema, origen) => (req, res, next) => {
     const datos = req[origen] ?? {};
     const resultado = schema.safeParse(datos);
 
@@ -486,8 +487,20 @@ export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
         req[origen] = resultado.data; // Almacena el body o params limpio y tipado
     }
 
+    // Compatibilidad total con la nomenclatura de la cátedra UNCa
+    if (origen === 'body') {
+        req.bodyValidado = resultado.data;
+    }
+    if (origen === 'params') {
+        req.parametrosValidados = resultado.data;
+    }
+
     next();
 };
+
+// Atajos que usa la cátedra en sus diapositivas
+export const validarBody = (schema) => validarSchema(schema, 'body');
+export const validarParametros = (schema) => validarSchema(schema, 'params');
 ```
 
 ### Paso 3: Conectar en las rutas (`producto.routes.js`)

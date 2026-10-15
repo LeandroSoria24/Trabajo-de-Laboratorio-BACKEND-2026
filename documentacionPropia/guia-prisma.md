@@ -15,8 +15,8 @@ Guía técnica, conceptual y paso a paso que recopila todos los comandos, archiv
    - [¿Qué es Prisma Schema Language (PSL)?](#qué-es-prisma-schema-language-psl)
    - [Bloques `generator` y `datasource`](#bloques-generator-y-datasource)
    - [Tipos de Datos y Atributos](#tipos-de-datos-y-atributos)
-   - [Modelo de Ejemplo de Cátedra (`Evento`)](#modelo-de-ejemplo-de-cátedra-evento)
-   - [Modelos del Proyecto Poncho Digital (`Artesano` y `Producto`)](#modelos-del-proyecto-poncho-digital-artesano-y-producto)
+   - [Mapeo Conceptual: Cátedra vs Poncho Digital](#mapeo-conceptual-cátedra-vs-poncho-digital)
+   - [Modelos del Proyecto Poncho Digital (`Usuario`, `Artesano`, `Producto`, etc.)](#modelos-del-proyecto-poncho-digital-usuario-artesano-producto-stand-etc)
 7. [Migraciones con Prisma Migrate (`migrate dev`)](#7-migraciones-con-prisma-migrate-migrate-dev)
 8. [Generación de Prisma Client (`generate`)](#8-generación-de-prisma-client-generate)
 9. [Centralización del Cliente (`src/config/prisma.js`)](#9-centralización-del-cliente-srcconfigprismajs)
@@ -36,7 +36,7 @@ flowchart TD
 
     subgraph BaseDeDatos ["2. Persistencia en PostgreSQL"]
         MIGRATE["npx prisma migrate dev --name init"]
-        MIGRATE -->|"1. Compara cambios\n2. Genera SQL versionado\n3. Crea tablas"| DB[("gestion_eventos_db (localhost:5432)")]
+        MIGRATE -->|"1. Compara cambios<br>2. Genera SQL versionado<br>3. Crea tablas"| DB[("PostgreSQL / Supabase (poncho_digital)")]
     end
 
     subgraph CodigoCliente ["3. Código y Aplicación"]
@@ -199,23 +199,32 @@ Establecen restricciones, valores predeterminados o comportamientos especiales:
 
 ---
 
-### Modelo de Ejemplo de Cátedra (`Evento`)
+### Mapeo Conceptual: Cátedra vs Poncho Digital
+
+En las diapositivas de la cátedra se utiliza un modelo ilustrativo genérico (`Evento`, `Participante`, `Inscripcion`). En **Poncho Digital**, estos conceptos se traducen de forma 1 a 1 a las entidades reales del predio ferial:
+
+| Concepto Teórico Cátedra | Modelo en Poncho Digital | Rol en el Dominio Ferial |
+|---|---|---|
+| Sujeto que se registra | `Artesano` (1:1 con `Usuario`) | Expositor ferial que postula y gestiona productos |
+| Trámite de inscripción | `SolicitudPostulacion` | Petición formal de stand (`PENDIENTE` $\rightarrow$ `APROBADA`) |
+| Recurso asignado | `Stand` (en `Pabellon` / `Sector`) | Espacio físico asignado tras la aprobación del jurado |
+| Catálogo ofertado | `Producto` | Artículos artesanales vinculados al artesano |
+
+Ejemplo de modelo básico con clave primaria y atributos estándar:
 ```prisma
-model Evento {
-  id          Int      @id @default(autoincrement())
-  nombre      String
-  descripcion String?
-  lugar       String
-  fecha       DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Localidad {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  provincia String     @default("Catamarca")
+  artesanos Artesano[]
+  createdAt DateTime   @default(now())
 }
 ```
 
 **Convenciones utilizadas:**
-* El modelo se escribe en singular y con formato **PascalCase**: `Evento`.
-* Los campos se escriben con **camelCase**: `createdAt`.
-* Los campos sin `?` son obligatorios (`nombre`, `lugar`, `fecha`).
+* Los modelos se escriben en singular y con formato **PascalCase**: `Localidad`, `Artesano`.
+* Los campos se escriben con **camelCase**: `createdAt`, `usuarioId`.
+* Los campos sin `?` son obligatorios (`nombre`, `dni`).
 
 ---
 
@@ -279,7 +288,7 @@ model Artesano {
   nombreEmprendimiento   String
   rubro                  String
   descripcionTrayectoria String?                @db.Text
-  activo                 Boolean                @default(true)
+  activo                 Boolean                @default(false) // Se activa al aprobar su postulación
   productos              Producto[]
   stand                  Stand?
   solicitudes            SolicitudPostulacion[]

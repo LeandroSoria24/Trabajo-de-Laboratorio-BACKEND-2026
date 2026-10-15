@@ -10,11 +10,12 @@ Este documento explica en profundidad el funcionamiento, la lógica interna y la
 2. [1. Logger de Peticiones (`logger.js`)](#1-logger-de-peticiones-loggerjs)
 3. [2. Validador Universal con Zod (`validarSchema.js`)](#2-validador-universal-con-zod-validarschemajs)
 4. [3. Autenticación JWT y Revocaciones (`autenticarUsuario.js`)](#3-autenticación-jwt-y-revocaciones-autenticarusuariojs)
-5. [4. Creador de Errores HTTP (`crearError.js`)](#4-creador-de-errores-http-crearerrorjs)
-6. [5. Formateador de Errores Zod (`ErroresZod.js`)](#5-formateador-de-errores-zod-erroreszodjs)
-7. [6. Capturador 404 (`rutaNoEncontrada.js`)](#6-capturador-404-rutanoencontradajs)
-8. [7. Manejador Global Centralizado (`manejoErrores.js`)](#7-manejador-global-centralizado-manejoerroresjs)
-9. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
+5. [4. Autorización y Contexto de Usuario (`autorizacion.js`)](#4-autorización-y-contexto-de-usuario-autorizacionjs)
+6. [5. Creador de Errores HTTP (`crearError.js`)](#5-creador-de-errores-http-crearerrorjs)
+7. [6. Formateador de Errores Zod (`ErroresZod.js`)](#6-formateador-de-errores-zod-erroreszodjs)
+8. [7. Capturador 404 (`rutaNoEncontrada.js`)](#7-capturador-404-rutanoencontradajs)
+9. [8. Manejador Global Centralizado de Errores (`manejoErrores.js`)](#8-manejador-global-centralizado-de-errores-manejoerroresjs)
+10. [Mapa de Relación entre Componentes y Pipeline](#mapa-de-relación-entre-componentes)
 
 ---
 
@@ -82,7 +83,8 @@ GET /ruta-falsa - 404 (1ms)
 import { crearError } from '../utils/crearError.js';
 import { detallarErroresZod } from '../utils/ErroresZod.js';
 
-export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
+// Middleware para validar datos (body, params o query) con Zod
+export const validarSchema = (schema, origen) => (req, res, next) => {
     const datos = req[origen] ?? {};
     const resultado = schema.safeParse(datos);
 
@@ -97,21 +99,34 @@ export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
         req[origen] = resultado.data;
     }
 
+    // Compatibilidad total con la nomenclatura de la cátedra UNCa
+    if (origen === 'body') {
+        req.bodyValidado = resultado.data;
+    }
+    if (origen === 'params') {
+        req.parametrosValidados = resultado.data;
+    }
+
     next();
 };
+
+// Atajos que usa la cátedra
+export const validarBody = (schema) => validarSchema(schema, 'body');
+export const validarParametros = (schema) => validarSchema(schema, 'params');
 ```
 
 ### ¿Cómo funciona?
 1. **Patrón Fábrica (Factory Function):** Recibe el esquema declarativo de Zod (`schema`) y el segmento de la petición a evaluar (`origen`: `'body'`, `'params'` o `'query'`). Retorna la función middleware estándar `(req, res, next)` que Express puede ejecutar.
-2. **Acceso dinámico mediante corchetes (`req[origen]`):**
+2. **Atajos de la cátedra (`validarBody` y `validarParametros`):** Permite escribir rutas exactamente como se enseñan en las clases (`validarBody(crearArtesanoSchema)` o `validarParametros(idParamSchema)`).
+3. **Acceso dinámico mediante corchetes (`req[origen]`):**
    - Si `origen = 'query'`, evalúa `req.query`.
    - Si `origen = 'params'`, evalúa `req.params`.
    - Si `origen = 'body'`, evalúa `req.body`.
-3. **Blindaje ante `undefined` (`req[origen] ?? {}`):** Evita fallos de ejecución si el cliente omite el body o no envía cabeceras `Content-Type`.
-4. **Validación y sanitización (`schema.safeParse`):** Zod comprueba tipos, coerciones automáticas (`z.coerce.number()`) y valores por defecto (`.default()`).
-5. **Formateo y delegación de errores:** Si la validación falla, transforma los errores con `detallarErroresZod(resultado.error)` y pasa un error HTTP 400 a `next(...)`.
-6. **Inyección de datos limpios (DTO):**
-   - Para el cuerpo (`body`) o parámetros de ruta (`params`), actualiza `req[origen] = resultado.data`.
+4. **Blindaje ante `undefined` (`req[origen] ?? {}`):** Evita fallos de ejecución si el cliente omite el body o no envía cabeceras `Content-Type`.
+5. **Validación y sanitización (`schema.safeParse`):** Zod comprueba tipos, coerciones automáticas (`z.coerce.number()`), límites (`min`, `max`) y valores por defecto (`.default()`).
+6. **Formateo y delegación de errores:** Si la validación falla, transforma los errores con `detallarErroresZod(resultado.error)` y pasa un error HTTP 400 a `next(...)`.
+7. **Inyección de datos limpios (DTO y compatibilidad):**
+   - Inyecta tanto en `req[origen]` como en las propiedades estándar de la cátedra: **`req.bodyValidado`** y **`req.parametrosValidados`**.
    - Para consultas URL (`query`), inyecta los filtros y paginación sanitizados en **`req.consulta`**. Esto previene conflictos con el *getter* nativo de sólo lectura de Express 5 sobre `req.query` y brinda a los controladores un acceso unificado y seguro.
 
 ---

@@ -38,11 +38,12 @@ flowchart TD
   * `/info` (No coincide)
   * `/artesanos` (No coincide)
   * `/productos` (No coincide)
-  * `/localidades` (No coincide)
   * `/stands` (No coincide)
+  * `/pabellones` (No coincide)
+  * `/sectores` (No coincide)
+  * `/localidades` (No coincide)
   * `/solicitudes` (No coincide)
   * `/usuarios` (No coincide)
-  * `/consultas` (No coincide)
 * Al no coincidir con ninguna, la petición continúa descendiendo por la cadena de middlewares.
 
 ### 3. Captura de Ruta Inexistente: `app.use(rutaNoEncontrada)`
@@ -81,8 +82,10 @@ flowchart TD
 | Middleware / Utilidad | Tipo | Responsabilidad Principal |
 |---|---|---|
 | **`logger`** | Informativo | Cronometra y registra en consola el resultado final de cada petición. |
-| **`validarSchema`** | Middleware Fábrica Zod | Valida y sanitiza entradas (`body`, `params`, `query`) según esquemas declarativos. |
-| **`autenticarUsuario`** | Seguridad / Auth JWT | Valida cabeceras Bearer (RFC 6750), verifica firma y consulta lista negra de revocaciones. |
+| **`autenticarUsuario`** | Seguridad / Auth JWT | Valida cabeceras Bearer (RFC 6750), verifica firma y consulta lista negra de revocaciones. Inyecta `req.usuario = { id }`. |
+| **`cargarContextoUsuario`** | Autorización / Contexto | Consulta la BD, verifica cuenta activa (`activo === true`) e inyecta `req.contextoUsuario` con sus roles. |
+| **`autorizarRoles`** | Autorización / RBAC | Fábrica de middleware que verifica si el usuario autenticado posee al menos uno de los roles autorizados. |
+| **`validarSchema`** | Middleware Fábrica Zod | Valida y sanitiza entradas (`body`, `params`, `query`) según esquemas declarativos. Expone `req.bodyValidado` y `req.parametrosValidados`. |
 | **`ErroresZod`** | Utilidad (`utils`) | Transforma `issues` de Zod 4 en un array estructurado `[{ path, message }]`. |
 | **`crearError`** | Utilidad (`utils`) | Estandariza objetos `Error` adjuntando `status` HTTP y `details` opcionales. |
 | **`rutaNoEncontrada`** | Middleware 404 | Intercepta peticiones huérfanas y delega un error 404 mediante `next(...)`. |
@@ -90,46 +93,54 @@ flowchart TD
 
 ---
 
-## Flujo Completo de un Endpoint CRUD: `POST /productos`
+## Flujo Completo de un Endpoint Protegido: `POST /productos` (Unidad 4)
 
-Este flujo muestra la separación de responsabilidades de la **Unidad 3**: el validador (Zod) detiene entradas inválidas en el middleware, el controlador transfiere los datos limpios como **DTO** y el servicio ejecuta la lógica y persistencia con Prisma.
+Este flujo muestra la cadena completa de seguridad desacoplada de la **Unidad 4**: autenticación Bearer JWT, carga de contexto con verificación de cuenta activa, autorización por roles (RBAC), validación de datos con Zod, control de propiedad en el servicio y persistencia atómica en PostgreSQL.
 
 ```mermaid
 flowchart TD
-    CLI["1. Cliente envía POST /productos\n{ nombre, precio, stock, artesanoId }"] --> LOG["2. logger"]
-    LOG --> ROUTE["3. producto.routes.js\nrouter.post('/', validarSchema(crearProductoSchema), createProducto)"]
+    CLI["1. Cliente envía POST /productos<br>Headers: Authorization: Bearer token<br>Body: { nombre, precio, stock, artesanoId }"] --> LOG["2. logger"]
+    LOG --> AUTH["3. autenticarUsuario<br>(Valida firma JWT, vigencia y consulta TokenRevocado)"]
     
-    ROUTE --> MW["4. validarSchema.js (Middleware Zod)\ncrearProductoSchema.safeParse(req.body)"]
+    AUTH -->|"[Error] Token inválido o revocado"| ERR_AUTH["next(crearError(..., 401))"]
+    ERR_AUTH --> HANDLER["manejoErrores.js<br>res.status(401).json(...)"]
     
-    MW -->|"[Error] Falló validación"| ERR["next(crearError(..., 400))"]
-    ERR --> HANDLER["manejoErrores.js\nres.status(400).json(...)"]
-    HANDLER --> RES_ERR["Cliente recibe 400 Bad Request"]
+    AUTH -->|req.usuario con id| CTX["4. cargarContextoUsuario<br>(Consulta BD, verifica activo = true e inyecta roles)"]
+    CTX -->|"[Error] Cuenta inactiva o inexistente"| ERR_CTX["next(crearError(..., 403))"]
+    ERR_CTX --> HANDLER
     
-    MW -->|"[OK] Éxito: req.body = resultado.data"| CTRL["5. producto.controllers.js\nconst crearProductoDto = req.body"]
+    CTX -->|req.contextoUsuario| RBAC["5. autorizarRoles('ARTESANO', 'ADMINISTRADOR')<br>(Verifica si posee el rol requerido)"]
+    RBAC -->|"[Error] Rol no autorizado"| ERR_RBAC["next(crearError(..., 403))"]
+    ERR_RBAC --> HANDLER
     
-    CTRL --> SERV["6. producto.services.js\ncrearProducto(crearProductoDto)"]
+    RBAC --> ZOD["6. validarSchema (Zod)<br>crearProductoSchema.safeParse(req.body)"]
+    ZOD -->|"[Error] Falló validación"| ERR_ZOD["next(crearError(..., 400))"]
+    ERR_ZOD --> HANDLER
     
-    SERV -->|"¿Artesano existe?"| PRISMA["7. prisma.producto.create(...)"]
-    SERV -.->|"[Error] No existe artesano"| THROW["throw crearError('Artesano inexistente.', 400)"]
+    ZOD -->|req.bodyValidado| CTRL["7. producto.controllers.js<br>crearProductoDto = req.body"]
+    CTRL --> SERV["8. producto.services.js<br>crearProducto(crearProductoDto)"]
+    
+    SERV -->|"¿Artesano existe y es propio?"| PRISMA["9. prisma.producto.create(...)"]
+    SERV -.->|"[Error] No autorizado para ese artesano"| THROW["throw crearError(..., 403)"]
     THROW -.->|"catch en controller"| HANDLER
     
     PRISMA --> DB[("PostgreSQL")]
     DB --> PRISMA
     PRISMA --> SERV
     SERV --> CTRL
-    CTRL --> RES_OK["8. Cliente recibe 201 Created\n{ id, nombre, precio, artesano, ... }"]
+    CTRL --> RES_OK["10. Cliente recibe 201 Created<br>{ id, nombre, precio, artesano, ... }"]
 
     style CLI fill:#38bdf8,stroke:#0284c7,color:#000
     style LOG fill:#facc15,stroke:#ca8a04,color:#000
-    style ROUTE fill:#a78bfa,stroke:#7c3aed,color:#000
-    style MW fill:#34d399,stroke:#059669,color:#000
+    style AUTH fill:#818cf8,stroke:#4f46e5,color:#fff
+    style CTX fill:#c084fc,stroke:#9333ea,color:#fff
+    style RBAC fill:#ec4899,stroke:#db2777,color:#fff
+    style ZOD fill:#34d399,stroke:#059669,color:#000
     style CTRL fill:#fb923c,stroke:#ea580c,color:#000
     style SERV fill:#f472b6,stroke:#db2777,color:#000
     style PRISMA fill:#f87171,stroke:#dc2626,color:#fff
     style DB fill:#e2e8f0,stroke:#94a3b8,color:#000
-    style ERR fill:#ef4444,stroke:#dc2626,color:#fff
     style HANDLER fill:#ef4444,stroke:#dc2626,color:#fff
-    style RES_ERR fill:#fca5a5,stroke:#b91c1c,color:#000
     style RES_OK fill:#4ade80,stroke:#16a34a,color:#000
 ```
 

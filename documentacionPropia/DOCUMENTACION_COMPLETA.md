@@ -49,8 +49,9 @@ Este documento explica la organización modular en capas del proyecto, qué resp
 10. [Capa Transversal: Utilidades (`utils/`)](#capa-transversal-utilidades-utils)
 11. [Flujo Completo de una Petición](#flujo-completo-de-una-petición)
 12. [Reglas de Negocio por Entidad](#reglas-de-negocio-por-entidad)
-13. [Tabla Resumen: Quién Hace Qué](#tabla-resumen-quién-hace-qué)
-14. [Diagrama de Dependencias entre Capas](#diagrama-de-dependencias-entre-capas)
+13. [Mapeo y Correspondencia: Cátedra UNCa (Unidad 4) vs Poncho Digital](#mapeo-y-correspondencia-cátedra-unca-unidad-4-vs-poncho-digital)
+14. [Tabla Resumen: Quién Hace Qué](#tabla-resumen-quién-hace-qué)
+15. [Diagrama de Dependencias entre Capas](#diagrama-de-dependencias-entre-capas)
 
 ---
 
@@ -466,7 +467,7 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 | Stock no negativo | `validators/producto.schemas.js` | Mayor o igual a 0 |
 | Artesano existente | `services/producto.services.js` | El producto debe vincularse a un artesano registrado |
 | Eliminación en cascada | `prisma/schema.prisma` | `onDelete: Cascade` — si se elimina un artesano, sus productos se eliminan |
-| Soft delete | `services/producto.services.js` | `PATCH /productos/:id` → `eliminado: true` |
+| Soft delete | `services/producto.services.js` | `DELETE /productos/:id` → baja lógica (`activo = false`) |
 
 ### Localidad
 | Regla | Capa | Detalle |
@@ -513,7 +514,50 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 
 ---
 
-## Tabla Resumen: Quién Hace Qué
+## 13. Mapeo y Correspondencia: Cátedra UNCa (Unidad 4) vs Poncho Digital
+
+En las diapositivas de la cátedra (**Unidad 4: Autorización y Protección de Recursos**) se utiliza un proyecto didáctico genérico basado en *Usuarios, Participantes, Eventos e Inscripciones*. 
+
+En **Poncho Digital**, todas las directivas, patrones arquitectónicos y buenas prácticas de seguridad enseñadas por la cátedra fueron **estrictamente respetadas y aplicadas al dominio real de la Fiesta Nacional e Internacional del Poncho**:
+
+### Comparativa de Modelos y Dominio
+
+| Componente Teórico Cátedra (`1.md`) | Implementación en Poncho Digital | Justificación de Negocio Ferial |
+|---|---|---|
+| **Modelo `Usuario`** | **`Usuario`** | Idéntico: Credenciales, hash Bcrypt, `activo: Boolean @default(true)`, y relación M:N con `Rol`. |
+| **Modelo `Rol`** | **`Rol`** | Idéntico: Catálogo con nombres únicos. En Poncho Digital: `ARTESANO` y `ADMINISTRADOR`. |
+| **Modelo `UsuarioRol`** | **`UsuarioRol`** | Idéntico: Tabla intermedia con clave compuesta `@@id([usuarioId, rolId])` para RBAC múltiple. |
+| **Modelo `Participante`** | **`Artesano`** | El artesano es el expositor participante del evento ferial. Relación 1:1 estricta con `Usuario` (`usuarioId @unique @db.Uuid`, `onDelete: Restrict`). Nace con `activo = false`. |
+| **Modelo `Inscripcion`** | **`SolicitudPostulacion`** | Trámite formal del artesano para solicitar un espacio. Posee ciclo de vida (`PENDIENTE`, `EN_REVISION`, `APROBADA`, `RECHAZADA`, `CANCELADA`). |
+| **Modelo `Evento`** | **`Stand` (en `Pabellon` y `Sector`)** | El recurso físico administrado por la organización para albergar artesanos expositores. |
+
+---
+
+### Comparativa de Endpoints y Matriz de Acceso
+
+| Endpoint Didáctico Cátedra | Endpoint Real Poncho Digital | Quién tiene acceso | Acción que realiza |
+|---|---|---|---|
+| `POST /usuarios/registro-participante` | `POST /usuarios/registro` | 🟢 **Público** | Registro inicial. Crea `Usuario` y le asigna el rol `ARTESANO` por defecto en una sola transacción. |
+| `POST /usuarios/login` | `POST /usuarios/login` | 🟢 **Público** | Valida credenciales Bcrypt y emite JWT firmado (15 min) con identificador `jti`. |
+| `GET /participantes/me` | `GET /artesanos/me` | 🟡 **ARTESANO** | Filtro de propiedad: consulta únicamente los datos de perfil del artesano autenticado. |
+| `POST /participantes` | `POST /artesanos/me` | 🟡 **ARTESANO** | Completa los datos personales y de taller del expositor (nace con `activo: false`). |
+| `PUT /participantes/me` | `PUT /artesanos/me` | 🟡 **ARTESANO** | Modifica datos comerciales propios (teléfono, emprendimiento). |
+| `POST /inscripciones` | `POST /solicitudes` | 🟡 **ARTESANO** | Presenta postulación para participar en la feria (inicia en `PENDIENTE`). |
+| `GET /inscripciones/me` | `GET /solicitudes/me` | 🟡 **ARTESANO** | Lista únicamente el historial de postulaciones del usuario solicitante. |
+| — | `PATCH /solicitudes/:id/cancelar` | 🟡 **ARTESANO** | Permite al artesano cancelar su postulación antes de que sea evaluada. |
+| `POST /eventos` | `POST /stands` (y `/pabellones`) | 🔴 **ADMINISTRADOR** | Alta de stands y pabellones físicos en el predio ferial. |
+| `PUT/DELETE /eventos/:id` | `PUT/DELETE /stands/:id` | 🔴 **ADMINISTRADOR** | Modificación física y mantenimiento de stands. |
+| — | `GET /solicitudes` | 🔴 **ADMINISTRADOR** | Auditoría global de todas las postulaciones con filtros por estado. |
+| — | `PATCH /solicitudes/:id/evaluar` | 🔴 **ADMINISTRADOR** | Dictamina la solicitud. Al dictaminar `APROBADA`, activa automáticamente al artesano en BD (`activo = true`). |
+| — | `PATCH /solicitudes/:id/asignar-stand` | 🔴 **ADMINISTRADOR** | Asigna un stand libre (`DISPONIBLE` $\rightarrow$ `OCUPADO`) vinculándolo 1:1 al artesano. |
+| `POST /usuarios/registro-administrador` | `POST /usuarios/registro-administrador` | 🔴 **ADMINISTRADOR** | Alta de una nueva cuenta con rol `ADMINISTRADOR`. |
+| `POST /usuarios/:id/roles` | `POST /usuarios/:id/roles` | 🔴 **ADMINISTRADOR** | Asigna un nuevo rol a un usuario existente. |
+| `DELETE /usuarios/:id/roles/:rol` | `DELETE /usuarios/:id/roles/:rol` | 🔴 **ADMINISTRADOR** | Retira un rol aplicando reglas de seguridad (conservar al menos 1 rol y 1 admin activo). |
+| `PATCH /usuarios/:id/activo` | `PATCH /usuarios/:id/activo` | 🔴 **ADMINISTRADOR** | Habilita o inhabilita una cuenta en el sistema (no permite desactivar el último admin). |
+
+---
+
+## 14. Tabla Resumen: Quién Hace Qué
 
 | Capa | Carpeta | Responsabilidad | Importa | NO importa |
 |---|---|---|---|---|
@@ -797,8 +841,8 @@ Guía técnica, conceptual y paso a paso que recopila todos los comandos, archiv
    - [¿Qué es Prisma Schema Language (PSL)?](#qué-es-prisma-schema-language-psl)
    - [Bloques `generator` y `datasource`](#bloques-generator-y-datasource)
    - [Tipos de Datos y Atributos](#tipos-de-datos-y-atributos)
-   - [Modelo de Ejemplo de Cátedra (`Evento`)](#modelo-de-ejemplo-de-cátedra-evento)
-   - [Modelos del Proyecto Poncho Digital (`Artesano` y `Producto`)](#modelos-del-proyecto-poncho-digital-artesano-y-producto)
+   - [Mapeo Conceptual: Cátedra vs Poncho Digital](#mapeo-conceptual-cátedra-vs-poncho-digital)
+   - [Modelos del Proyecto Poncho Digital (`Usuario`, `Artesano`, `Producto`, etc.)](#modelos-del-proyecto-poncho-digital-usuario-artesano-producto-stand-etc)
 7. [Migraciones con Prisma Migrate (`migrate dev`)](#7-migraciones-con-prisma-migrate-migrate-dev)
 8. [Generación de Prisma Client (`generate`)](#8-generación-de-prisma-client-generate)
 9. [Centralización del Cliente (`src/config/prisma.js`)](#9-centralización-del-cliente-srcconfigprismajs)
@@ -818,7 +862,7 @@ flowchart TD
 
     subgraph BaseDeDatos ["2. Persistencia en PostgreSQL"]
         MIGRATE["npx prisma migrate dev --name init"]
-        MIGRATE -->|"1. Compara cambios\n2. Genera SQL versionado\n3. Crea tablas"| DB[("gestion_eventos_db (localhost:5432)")]
+        MIGRATE -->|"1. Compara cambios<br>2. Genera SQL versionado<br>3. Crea tablas"| DB[("PostgreSQL / Supabase (poncho_digital)")]
     end
 
     subgraph CodigoCliente ["3. Código y Aplicación"]
@@ -981,23 +1025,32 @@ Establecen restricciones, valores predeterminados o comportamientos especiales:
 
 ---
 
-### Modelo de Ejemplo de Cátedra (`Evento`)
+### Mapeo Conceptual: Cátedra vs Poncho Digital
+
+En las diapositivas de la cátedra se utiliza un modelo ilustrativo genérico (`Evento`, `Participante`, `Inscripcion`). En **Poncho Digital**, estos conceptos se traducen de forma 1 a 1 a las entidades reales del predio ferial:
+
+| Concepto Teórico Cátedra | Modelo en Poncho Digital | Rol en el Dominio Ferial |
+|---|---|---|
+| Sujeto que se registra | `Artesano` (1:1 con `Usuario`) | Expositor ferial que postula y gestiona productos |
+| Trámite de inscripción | `SolicitudPostulacion` | Petición formal de stand (`PENDIENTE` $\rightarrow$ `APROBADA`) |
+| Recurso asignado | `Stand` (en `Pabellon` / `Sector`) | Espacio físico asignado tras la aprobación del jurado |
+| Catálogo ofertado | `Producto` | Artículos artesanales vinculados al artesano |
+
+Ejemplo de modelo básico con clave primaria y atributos estándar:
 ```prisma
-model Evento {
-  id          Int      @id @default(autoincrement())
-  nombre      String
-  descripcion String?
-  lugar       String
-  fecha       DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Localidad {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  provincia String     @default("Catamarca")
+  artesanos Artesano[]
+  createdAt DateTime   @default(now())
 }
 ```
 
 **Convenciones utilizadas:**
-* El modelo se escribe en singular y con formato **PascalCase**: `Evento`.
-* Los campos se escriben con **camelCase**: `createdAt`.
-* Los campos sin `?` son obligatorios (`nombre`, `lugar`, `fecha`).
+* Los modelos se escriben en singular y con formato **PascalCase**: `Localidad`, `Artesano`.
+* Los campos se escriben con **camelCase**: `createdAt`, `usuarioId`.
+* Los campos sin `?` son obligatorios (`nombre`, `dni`).
 
 ---
 
@@ -1061,7 +1114,7 @@ model Artesano {
   nombreEmprendimiento   String
   rubro                  String
   descripcionTrayectoria String?                @db.Text
-  activo                 Boolean                @default(true)
+  activo                 Boolean                @default(false) // Se activa al aprobar su postulación
   productos              Producto[]
   stand                  Stand?
   solicitudes            SolicitudPostulacion[]
@@ -1745,26 +1798,36 @@ El atributo `@relation` se coloca en el lado que almacena físicamente la clave 
 
 Un registro del modelo **A** se asocia exactamente con un registro del modelo **B**. 
 
-* **Ejemplo académico (UNCa):** Un `Evento` posee exactamente una `ConfiguracionEvento` (y esa configuración pertenece exclusivamente a ese evento).
-* **Regla clave:** La clave foránea **debe tener la restricción `@unique`** para evitar que más de un registro apunte al mismo padre.
+* **Ejemplo central en Poncho Digital (Unidad 4 - UNCa):**  
+  Una cuenta de `Usuario` se vincula de forma 1 a 1 estricta con su perfil de `Artesano` expositor.
+* **Regla clave de Prisma:** La clave foránea **debe tener la restricción `@unique`** para que la base de datos PostgreSQL garantice que ningún artesano comparta usuario (o que ningún stand tenga más de un artesano titular).
 
 ```prisma
-model Evento {
-  id            Int                  @id @default(autoincrement())
-  nombre        String
-  configuracion ConfiguracionEvento? // Relación virtual inversa (opcional)
+model Usuario {
+  id           String    @id @default(uuid()) @db.Uuid
+  nombre       String
+  email        String    @unique
+  passwordHash String
+  activo       Boolean   @default(true)
+  artesano     Artesano? // Relación virtual inversa (opcional en el tipo)
 }
 
-model ConfiguracionEvento {
-  id                 Int     @id @default(autoincrement())
-  limiteInscripcion  Int
-  permiteCancelacion Boolean @default(true)
+model Artesano {
+  id          Int       @id @default(autoincrement())
+  nombre      String
+  apellido    String
+  dni         String    @unique
+  rubro       String
+  activo      Boolean   @default(false)
   
-  // Clave foránea real en BD con @unique:
-  eventoId           Int     @unique
-  evento             Evento  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  // Clave foránea real en BD con @unique (Garantiza 1 a 1 estricto):
+  usuarioId   String    @unique @db.Uuid
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
 }
 ```
+
+> [!NOTE]
+> En la relación 1 a 1 opcional de stands (`Stand` con `Artesano`), el campo `artesanoId Int? @unique` permite que el stand esté libre (`artesanoId = null`) o asignado a un único artesano a la vez (`onDelete: SetNull`).
 
 ---
 
@@ -1811,59 +1874,46 @@ Un registro de **A** puede relacionarse con muchos de **B**, y un registro de **
 #### 1. Relación N:M Implícita (Manejada automáticamente por Prisma)
 Se utiliza cuando **no necesitas guardar datos extra** en la tabla intermedia (como fecha de unión, rol o estado).
 
-* **Ejemplo conceptual de cátedra (UNCa):** Un `Evento` puede estar respaldado por varias `Institucion`es, y una `Institucion` respalda varios `Evento`s.
+* **Concepto de Prisma:** Si dos modelos tienen listas mutuas sin un `@relation(fields: ...)`, Prisma crea y gestiona automáticamente una tabla de unión oculta en PostgreSQL (por ejemplo, `_PabellonToSector` con columnas `A` y `B`).
+
+#### 2. Relación N:M Explícita con Modelo Intermedio (Nuestro caso en Unidad 4: RBAC)
+Se utiliza cuando la relación **debe registrar datos adicionales** o cuando se requiere una **clave primaria compuesta** y políticas de integridad referencial estrictas (`onDelete: Cascade` y `onDelete: Restrict`).
+
+* **Aplicación en Poncho Digital (Unidad 4 - UNCa):**  
+  Un `Usuario` puede tener múltiples roles (`ARTESANO`, `ADMINISTRADOR`), y un `Rol` agrupa a múltiples usuarios. Para normalizar esto en Tercera Forma Normal (3FN), se modela la entidad intermedia **`UsuarioRol`**:
 
 ```prisma
-model Evento {
-  id            Int           @id @default(autoincrement())
-  nombre        String
-  instituciones Institucion[] // Solo listas en ambos modelos
+model Usuario {
+  id           String       @id @default(uuid()) @db.Uuid
+  nombre       String
+  email        String       @unique
+  passwordHash String
+  activo       Boolean      @default(true)
+  roles        UsuarioRol[] // Lista de asignaciones
+  artesano     Artesano?    // Relación 1:1 con perfil
 }
 
-model Institucion {
-  id      Int      @id @default(autoincrement())
-  nombre  String
-  eventos Evento[]
+model Rol {
+  id       Int          @id @default(autoincrement())
+  nombre   String       @unique // "ADMINISTRADOR", "ARTESANO"
+  usuarios UsuarioRol[]
+}
+
+// Modelo intermedio explícito con clave primaria compuesta
+model UsuarioRol {
+  usuarioId String  @db.Uuid
+  rolId     Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, rolId]) // Evita duplicar un rol para el mismo usuario
 }
 ```
 
-> [!NOTE]
-> Prisma creará automáticamente en PostgreSQL una tabla de unión oculta llamada `_EventoToInstitucion` con dos columnas (`A` y `B`) como claves foráneas compuestas, gestionando las inserciones y borrados sin código SQL adicional.
-
-#### 2. Relación N:M Explícita (Con modelo intermedio)
-Se utiliza cuando la tabla intermedia **contiene atributos propios**.
-
-* **Ejemplo (UNCa):** Un `Participante` se inscribe en varios `Evento`s, pero la `Inscripcion` debe guardar `fechaInscripcion`, `asistio` o `estado`.
-
-```prisma
-model Evento {
-  id            Int           @id @default(autoincrement())
-  nombre        String
-  inscripciones Inscripcion[]
-}
-
-model Participante {
-  id            Int           @id @default(autoincrement())
-  nombre        String
-  email         String        @unique
-  inscripciones Inscripcion[]
-}
-
-// Modelo intermedio explícito
-model Inscripcion {
-  id               Int          @id @default(autoincrement())
-  fechaInscripcion DateTime     @default(now())
-  asistio          Boolean      @default(false)
-
-  eventoId         Int
-  evento           Evento       @relation(fields: [eventoId], references: [id])
-
-  participanteId   Int
-  participante     Participante @relation(fields: [participanteId], references: [id])
-
-  @@unique([eventoId, participanteId]) // Evita inscripciones duplicadas
-}
-```
+> [!IMPORTANT]
+> - `@@id([usuarioId, rolId])`: Clave compuesta que impide físicamente duplicar la asignación de un mismo rol a un usuario.
+> - `onDelete: Cascade` en `Usuario`: Si la cuenta se elimina, sus asignaciones de roles se purgan automáticamente.
+> - `onDelete: Restrict` en `Rol`: Impide borrar un rol del catálogo si hay usuarios asignados a él.
 
 ---
 
@@ -2003,35 +2053,32 @@ const nuevoArtesanoConProducto = await prisma.artesano.create({
 
 ## 8. Migración de Datos: B.D. con Registros Existentes (Estrategia `--create-only`)
 
-> **Contexto de Cátedra (UNCa - Desarrollo Backend):**
-> En entornos reales y proyectos en evolución, los modelos cambian constantemente. Un desafío habitual es **incorporar una relación obligatoria (`NOT NULL`) a una tabla que ya contiene datos almacenados**.
+> **Contexto de Cátedra (UNCa - Desarrollo Backend - Unidad 4):**
+> En entornos reales y proyectos en evolución, los modelos cambian constantemente. Un desafío habitual en la **Unidad 4 (Autorización y RBAC)** es **reemplazar un enum o estructura estática previa por nuevas tablas relacionales (`Rol` y `UsuarioRol`) asegurando la carga de datos semilla y preservando las cuentas ya existentes**.
 
-### El Problema: Restricción NOT NULL sobre Datos Existentes
+### El Problema: Cargar datos semilla en la misma migración sin romper integridad
 
 Imaginemos la situación inicial antes de migrar:
-* La base de datos PostgreSQL ya contiene la tabla `Evento` con registros existentes:
-  
-  | id | nombre |
-  | :--- | :--- |
-  | 1 | Congreso de Tecnología |
-  | 2 | Workshop de Node.js |
-
-* Modificamos `schema.prisma` incorporando el modelo `Categoria` y la relación obligatoria:
+* La base de datos PostgreSQL ya contiene cuentas de `Usuario` registradas.
+* Modificamos `schema.prisma` incorporando el modelo `Rol` y la tabla intermedia `UsuarioRol`:
   ```prisma
-  model Evento {
-    id          Int       @id @default(autoincrement())
-    nombre      String
-    categoriaId Int       // Obligatoria (NO es Int?)
-    categoria   Categoria @relation(fields: [categoriaId], references: [id])
+  model Rol {
+    id       Int          @id @default(autoincrement())
+    nombre   String       @unique // "ADMINISTRADOR", "ARTESANO"
+    usuarios UsuarioRol[]
+  }
+
+  model UsuarioRol {
+    usuarioId String  @db.Uuid
+    rolId     Int
+    usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+    rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+    @@id([usuarioId, rolId])
   }
   ```
 
-* Al ejecutar la migración directa:
-  ```bash
-  npx prisma migrate dev --name incorporar-relaciones
-  ```
-  **Prisma bloquea la migración con un error crítico:**
-  Intenta agregar la columna `categoriaId` con la restricción `NOT NULL` a una tabla que ya posee filas. Al no tener un valor por defecto (`@default`), PostgreSQL no sabe qué valor asignar a los registros 1 y 2, violando la integridad de datos.
+* Si aplicamos una migración directa, las nuevas tablas se crearán vacías. Si intentamos asociar usuarios o iniciar el servidor, el sistema fallará porque los roles requeridos por las reglas de negocio (`ARTESANO` y `ADMINISTRADOR`) aún no existen en la base de datos.
 
 ---
 
@@ -2040,55 +2087,52 @@ Imaginemos la situación inicial antes de migrar:
 Usamos la bandera `--create-only`:
 
 ```bash
-npx prisma migrate dev --name incorporar-relaciones --create-only
+npx prisma migrate dev --name roles_y_artesano --create-only
 ```
 
-* **¿Qué hace `--create-only`?** Crea la carpeta y el archivo SQL en `prisma/migrations/<timestamp>_incorporar_relaciones/migration.sql`, pero **no ejecuta las instrucciones en la base de datos**.
-* Esto nos da control total para editar manualmente el script SQL antes de que toque PostgreSQL.
+* **¿Qué hace `--create-only`?** Crea la carpeta y el archivo SQL en `prisma/migrations/<timestamp>_roles_y_artesano/migration.sql`, pero **no ejecuta las instrucciones en PostgreSQL**.
+* Esto nos da control total para editar manualmente el script SQL antes de que toque la base de datos.
 
 ---
 
-### Paso 2: Adaptar el bloque SQL en `migration.sql` (6 Pasos Críticos)
+### Paso 2: Adaptar el bloque SQL en `migration.sql` (Carga Semilla)
 
-Abrimos el archivo `migration.sql` generado y reemplazamos el bloque de creación de `Categoria` y alteración de `Evento` por la siguiente secuencia lógica de 6 pasos:
+Abrimos el archivo `migration.sql` generado por Prisma y, al final del script, agregamos la instrucción `INSERT` de los roles del dominio ferial:
 
 ```sql
--- 1. Crear la tabla Categoria
-CREATE TABLE "Categoria" (
+-- Prisma genera automáticamente la tabla Rol y su índice único:
+CREATE TABLE "Rol" (
     "id" SERIAL NOT NULL,
     "nombre" TEXT NOT NULL,
-    CONSTRAINT "Categoria_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Rol_pkey" PRIMARY KEY ("id")
 );
 
--- 2. Agregar temporalmente la columna en Evento PERMITIENDO valores NULL
-ALTER TABLE "Evento" ADD COLUMN "categoriaId" INTEGER;
+CREATE UNIQUE INDEX "Rol_nombre_key" ON "Rol"("nombre");
 
--- 3. Crear una categoría inicial para los registros existentes (semilla / valor base)
-INSERT INTO "Categoria" ("nombre") VALUES ('Jornada');
+-- Creación de la tabla intermedia UsuarioRol
+CREATE TABLE "UsuarioRol" (
+    "usuarioId" UUID NOT NULL,
+    "rolId" INTEGER NOT NULL,
+    CONSTRAINT "UsuarioRol_pkey" PRIMARY KEY ("usuarioId", "rolId")
+);
 
--- 4. Asignar el ID de esa categoría a todos los eventos huérfanos existentes
-UPDATE "Evento" 
-SET "categoriaId" = (
-    SELECT "id" 
-    FROM "Categoria" 
-    WHERE "nombre" = 'Jornada'
-) 
-WHERE "categoriaId" IS NULL;
+-- Claves foráneas con integridad referencial:
+ALTER TABLE "UsuarioRol" ADD CONSTRAINT "UsuarioRol_usuarioId_fkey" 
+    FOREIGN KEY ("usuarioId") REFERENCES "Usuario"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- 5. Ahora que ninguna fila tiene NULL, convertir la columna en obligatoria (NOT NULL)
-ALTER TABLE "Evento" ALTER COLUMN "categoriaId" SET NOT NULL;
+ALTER TABLE "UsuarioRol" ADD CONSTRAINT "UsuarioRol_rolId_fkey" 
+    FOREIGN KEY ("rolId") REFERENCES "Rol"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- 6. Crear la clave foránea con integridad referencial
-ALTER TABLE "Evento" 
-ADD CONSTRAINT "Evento_categoriaId_fkey" 
-FOREIGN KEY ("categoriaId") 
-REFERENCES "Categoria"("id") 
-ON DELETE RESTRICT 
-ON UPDATE CASCADE;
+-- INSTRUCCIÓN AGREGADA MANUALMENTE: Sembrar roles requeridos por la Unidad 4
+INSERT INTO "Rol" ("nombre") 
+VALUES 
+    ('ARTESANO'), 
+    ('ADMINISTRADOR');
 ```
 
 > [!IMPORTANT]
-> El orden de estas 6 instrucciones es inalterable: primero se crea la tabla destino, luego se agrega la columna permisiva, se inserta la categoría semilla, se pueblan los eventos huérfanos, se vuelve obligatoria la columna y finalmente se enlaza la clave foránea.
+> - La instrucción `INSERT INTO "Rol"` se ejecuta dentro de la misma transacción atómica de la migración.
+> - Al terminar de ejecutarse, la tabla `Rol` ya cuenta con los dos roles operativos del sistema (`ARTESANO` y `ADMINISTRADOR`) listos para ser asignados en los registros públicos y de administración.
 
 ---
 
@@ -2115,11 +2159,12 @@ npx prisma generate
    Compara los archivos de migración locales con el registro histórico de la tabla interna `_prisma_migrations` de PostgreSQL. Debe indicar que todas las migraciones están aplicadas y sincronizadas.
 
 2. **Checklist de verificación de datos resultantes:**
-   * Existe la tabla `Categoria` en PostgreSQL.
-   * Se creó el registro semilla `"Jornada"`.
-   * Todos los eventos previos (`Congreso de Tecnología`, `Workshop de Node.js`) ahora poseen `categoriaId = 1`.
-   * Las nuevas tablas secundarias (`ConfiguracionEvento`, `Institucion`, `Participante`, `Inscripcion`, `_EventoToInstitucion`) se crearon satisfactoriamente.
-   * No se perdió ningún dato histórico de la tabla `Evento`.
+   * Existe la tabla `Rol` en PostgreSQL con los registros semilla `'ARTESANO'` y `'ADMINISTRADOR'`.
+   * Existe la tabla intermedia `UsuarioRol` con clave primaria compuesta `(usuarioId, rolId)`.
+   * La columna `Usuario.activo` (`default(true)`) está presente.
+   * La entidad `Artesano` posee relación 1:1 estricta con `Usuario` (`usuarioId @unique @db.Uuid`, `onDelete: Restrict`) y `activo = false` por defecto.
+   * Las entidades del predio ferial (`Stand`, `Pabellon`, `Sector`, `Localidad`, `SolicitudPostulacion`, `Producto`) mantienen su integridad referencial.
+   * No se perdió ningún dato histórico de usuarios o productos.
 
 ---
 
@@ -2370,7 +2415,7 @@ Este documento explica qué es Zod, cómo funciona internamente, y cómo lo util
 8. [Esquemas de Objetos (`z.object`)](#esquemas-de-objetos-zobject)
 9. [Validación: `.parse()` vs `.safeParse()`](#validación-parse-vs-safeparse)
 10. [Estructura de Errores de Zod](#estructura-de-errores-de-zod)
-11. [Cómo lo usamos en la API de Poncho Digital](#cómo-lo-usamos-en-la-api-de-biblioteca)
+11. [Cómo lo usamos en la API de Poncho Digital](#cómo-lo-usamos-en-la-api-de-poncho-digital)
 12. [Referencia Rápida de Métodos](#referencia-rápida-de-métodos)
 13. [Errores Comunes y Soluciones](#errores-comunes-y-soluciones)
 
@@ -2820,13 +2865,14 @@ export const obtenerProductosSchema = z.object({
 
 ### Paso 2: Crear el middleware genérico de validación (`src/middlewares/validarSchema.js`)
 
-En lugar de crear middlewares duplicados para cada tabla o cada propiedad (`body`, `params`, `query`), implementamos una **función fábrica** de middleware que evalúa cualquier esquema de Zod contra la fuente de datos elegida:
+En lugar de crear middlewares duplicados para cada tabla o cada propiedad (`body`, `params`, `query`), implementamos una **función fábrica** de middleware que evalúa cualquier esquema de Zod contra la fuente de datos elegida, asegurando además **100% de compatibilidad con las nomenclaturas de la cátedra UNCa**:
 
 ```javascript
 import { crearError } from '../utils/crearError.js';
 import { detallarErroresZod } from '../utils/ErroresZod.js';
 
-export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
+// Middleware universal para validar datos (body, params o query) con Zod
+export const validarSchema = (schema, origen) => (req, res, next) => {
     const datos = req[origen] ?? {};
     const resultado = schema.safeParse(datos);
 
@@ -2841,8 +2887,20 @@ export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
         req[origen] = resultado.data; // Almacena el body o params limpio y tipado
     }
 
+    // Compatibilidad total con la nomenclatura de la cátedra UNCa
+    if (origen === 'body') {
+        req.bodyValidado = resultado.data;
+    }
+    if (origen === 'params') {
+        req.parametrosValidados = resultado.data;
+    }
+
     next();
 };
+
+// Atajos que usa la cátedra en sus diapositivas
+export const validarBody = (schema) => validarSchema(schema, 'body');
+export const validarParametros = (schema) => validarSchema(schema, 'params');
 ```
 
 ### Paso 3: Conectar en las rutas (`producto.routes.js`)
@@ -3058,11 +3116,12 @@ Este documento explica en profundidad el funcionamiento, la lógica interna y la
 2. [1. Logger de Peticiones (`logger.js`)](#1-logger-de-peticiones-loggerjs)
 3. [2. Validador Universal con Zod (`validarSchema.js`)](#2-validador-universal-con-zod-validarschemajs)
 4. [3. Autenticación JWT y Revocaciones (`autenticarUsuario.js`)](#3-autenticación-jwt-y-revocaciones-autenticarusuariojs)
-5. [4. Creador de Errores HTTP (`crearError.js`)](#4-creador-de-errores-http-crearerrorjs)
-6. [5. Formateador de Errores Zod (`ErroresZod.js`)](#5-formateador-de-errores-zod-erroreszodjs)
-7. [6. Capturador 404 (`rutaNoEncontrada.js`)](#6-capturador-404-rutanoencontradajs)
-8. [7. Manejador Global Centralizado (`manejoErrores.js`)](#7-manejador-global-centralizado-manejoerroresjs)
-9. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
+5. [4. Autorización y Contexto de Usuario (`autorizacion.js`)](#4-autorización-y-contexto-de-usuario-autorizacionjs)
+6. [5. Creador de Errores HTTP (`crearError.js`)](#5-creador-de-errores-http-crearerrorjs)
+7. [6. Formateador de Errores Zod (`ErroresZod.js`)](#6-formateador-de-errores-zod-erroreszodjs)
+8. [7. Capturador 404 (`rutaNoEncontrada.js`)](#7-capturador-404-rutanoencontradajs)
+9. [8. Manejador Global Centralizado de Errores (`manejoErrores.js`)](#8-manejador-global-centralizado-de-errores-manejoerroresjs)
+10. [Mapa de Relación entre Componentes y Pipeline](#mapa-de-relación-entre-componentes)
 
 ---
 
@@ -3130,7 +3189,8 @@ GET /ruta-falsa - 404 (1ms)
 import { crearError } from '../utils/crearError.js';
 import { detallarErroresZod } from '../utils/ErroresZod.js';
 
-export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
+// Middleware para validar datos (body, params o query) con Zod
+export const validarSchema = (schema, origen) => (req, res, next) => {
     const datos = req[origen] ?? {};
     const resultado = schema.safeParse(datos);
 
@@ -3145,21 +3205,34 @@ export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
         req[origen] = resultado.data;
     }
 
+    // Compatibilidad total con la nomenclatura de la cátedra UNCa
+    if (origen === 'body') {
+        req.bodyValidado = resultado.data;
+    }
+    if (origen === 'params') {
+        req.parametrosValidados = resultado.data;
+    }
+
     next();
 };
+
+// Atajos que usa la cátedra
+export const validarBody = (schema) => validarSchema(schema, 'body');
+export const validarParametros = (schema) => validarSchema(schema, 'params');
 ```
 
 ### ¿Cómo funciona?
 1. **Patrón Fábrica (Factory Function):** Recibe el esquema declarativo de Zod (`schema`) y el segmento de la petición a evaluar (`origen`: `'body'`, `'params'` o `'query'`). Retorna la función middleware estándar `(req, res, next)` que Express puede ejecutar.
-2. **Acceso dinámico mediante corchetes (`req[origen]`):**
+2. **Atajos de la cátedra (`validarBody` y `validarParametros`):** Permite escribir rutas exactamente como se enseñan en las clases (`validarBody(crearArtesanoSchema)` o `validarParametros(idParamSchema)`).
+3. **Acceso dinámico mediante corchetes (`req[origen]`):**
    - Si `origen = 'query'`, evalúa `req.query`.
    - Si `origen = 'params'`, evalúa `req.params`.
    - Si `origen = 'body'`, evalúa `req.body`.
-3. **Blindaje ante `undefined` (`req[origen] ?? {}`):** Evita fallos de ejecución si el cliente omite el body o no envía cabeceras `Content-Type`.
-4. **Validación y sanitización (`schema.safeParse`):** Zod comprueba tipos, coerciones automáticas (`z.coerce.number()`) y valores por defecto (`.default()`).
-5. **Formateo y delegación de errores:** Si la validación falla, transforma los errores con `detallarErroresZod(resultado.error)` y pasa un error HTTP 400 a `next(...)`.
-6. **Inyección de datos limpios (DTO):**
-   - Para el cuerpo (`body`) o parámetros de ruta (`params`), actualiza `req[origen] = resultado.data`.
+4. **Blindaje ante `undefined` (`req[origen] ?? {}`):** Evita fallos de ejecución si el cliente omite el body o no envía cabeceras `Content-Type`.
+5. **Validación y sanitización (`schema.safeParse`):** Zod comprueba tipos, coerciones automáticas (`z.coerce.number()`), límites (`min`, `max`) y valores por defecto (`.default()`).
+6. **Formateo y delegación de errores:** Si la validación falla, transforma los errores con `detallarErroresZod(resultado.error)` y pasa un error HTTP 400 a `next(...)`.
+7. **Inyección de datos limpios (DTO y compatibilidad):**
+   - Inyecta tanto en `req[origen]` como en las propiedades estándar de la cátedra: **`req.bodyValidado`** y **`req.parametrosValidados`**.
    - Para consultas URL (`query`), inyecta los filtros y paginación sanitizados en **`req.consulta`**. Esto previene conflictos con el *getter* nativo de sólo lectura de Express 5 sobre `req.query` y brinda a los controladores un acceso unificado y seguro.
 
 ---
@@ -3498,11 +3571,12 @@ flowchart TD
   * `/info` (No coincide)
   * `/artesanos` (No coincide)
   * `/productos` (No coincide)
-  * `/localidades` (No coincide)
   * `/stands` (No coincide)
+  * `/pabellones` (No coincide)
+  * `/sectores` (No coincide)
+  * `/localidades` (No coincide)
   * `/solicitudes` (No coincide)
   * `/usuarios` (No coincide)
-  * `/consultas` (No coincide)
 * Al no coincidir con ninguna, la petición continúa descendiendo por la cadena de middlewares.
 
 ### 3. Captura de Ruta Inexistente: `app.use(rutaNoEncontrada)`
@@ -3541,8 +3615,10 @@ flowchart TD
 | Middleware / Utilidad | Tipo | Responsabilidad Principal |
 |---|---|---|
 | **`logger`** | Informativo | Cronometra y registra en consola el resultado final de cada petición. |
-| **`validarSchema`** | Middleware Fábrica Zod | Valida y sanitiza entradas (`body`, `params`, `query`) según esquemas declarativos. |
-| **`autenticarUsuario`** | Seguridad / Auth JWT | Valida cabeceras Bearer (RFC 6750), verifica firma y consulta lista negra de revocaciones. |
+| **`autenticarUsuario`** | Seguridad / Auth JWT | Valida cabeceras Bearer (RFC 6750), verifica firma y consulta lista negra de revocaciones. Inyecta `req.usuario = { id }`. |
+| **`cargarContextoUsuario`** | Autorización / Contexto | Consulta la BD, verifica cuenta activa (`activo === true`) e inyecta `req.contextoUsuario` con sus roles. |
+| **`autorizarRoles`** | Autorización / RBAC | Fábrica de middleware que verifica si el usuario autenticado posee al menos uno de los roles autorizados. |
+| **`validarSchema`** | Middleware Fábrica Zod | Valida y sanitiza entradas (`body`, `params`, `query`) según esquemas declarativos. Expone `req.bodyValidado` y `req.parametrosValidados`. |
 | **`ErroresZod`** | Utilidad (`utils`) | Transforma `issues` de Zod 4 en un array estructurado `[{ path, message }]`. |
 | **`crearError`** | Utilidad (`utils`) | Estandariza objetos `Error` adjuntando `status` HTTP y `details` opcionales. |
 | **`rutaNoEncontrada`** | Middleware 404 | Intercepta peticiones huérfanas y delega un error 404 mediante `next(...)`. |
@@ -3550,46 +3626,54 @@ flowchart TD
 
 ---
 
-## Flujo Completo de un Endpoint CRUD: `POST /productos`
+## Flujo Completo de un Endpoint Protegido: `POST /productos` (Unidad 4)
 
-Este flujo muestra la separación de responsabilidades de la **Unidad 3**: el validador (Zod) detiene entradas inválidas en el middleware, el controlador transfiere los datos limpios como **DTO** y el servicio ejecuta la lógica y persistencia con Prisma.
+Este flujo muestra la cadena completa de seguridad desacoplada de la **Unidad 4**: autenticación Bearer JWT, carga de contexto con verificación de cuenta activa, autorización por roles (RBAC), validación de datos con Zod, control de propiedad en el servicio y persistencia atómica en PostgreSQL.
 
 ```mermaid
 flowchart TD
-    CLI["1. Cliente envía POST /productos\n{ nombre, precio, stock, artesanoId }"] --> LOG["2. logger"]
-    LOG --> ROUTE["3. producto.routes.js\nrouter.post('/', validarSchema(crearProductoSchema), createProducto)"]
+    CLI["1. Cliente envía POST /productos<br>Headers: Authorization: Bearer token<br>Body: { nombre, precio, stock, artesanoId }"] --> LOG["2. logger"]
+    LOG --> AUTH["3. autenticarUsuario<br>(Valida firma JWT, vigencia y consulta TokenRevocado)"]
     
-    ROUTE --> MW["4. validarSchema.js (Middleware Zod)\ncrearProductoSchema.safeParse(req.body)"]
+    AUTH -->|"[Error] Token inválido o revocado"| ERR_AUTH["next(crearError(..., 401))"]
+    ERR_AUTH --> HANDLER["manejoErrores.js<br>res.status(401).json(...)"]
     
-    MW -->|"[Error] Falló validación"| ERR["next(crearError(..., 400))"]
-    ERR --> HANDLER["manejoErrores.js\nres.status(400).json(...)"]
-    HANDLER --> RES_ERR["Cliente recibe 400 Bad Request"]
+    AUTH -->|req.usuario con id| CTX["4. cargarContextoUsuario<br>(Consulta BD, verifica activo = true e inyecta roles)"]
+    CTX -->|"[Error] Cuenta inactiva o inexistente"| ERR_CTX["next(crearError(..., 403))"]
+    ERR_CTX --> HANDLER
     
-    MW -->|"[OK] Éxito: req.body = resultado.data"| CTRL["5. producto.controllers.js\nconst crearProductoDto = req.body"]
+    CTX -->|req.contextoUsuario| RBAC["5. autorizarRoles('ARTESANO', 'ADMINISTRADOR')<br>(Verifica si posee el rol requerido)"]
+    RBAC -->|"[Error] Rol no autorizado"| ERR_RBAC["next(crearError(..., 403))"]
+    ERR_RBAC --> HANDLER
     
-    CTRL --> SERV["6. producto.services.js\ncrearProducto(crearProductoDto)"]
+    RBAC --> ZOD["6. validarSchema (Zod)<br>crearProductoSchema.safeParse(req.body)"]
+    ZOD -->|"[Error] Falló validación"| ERR_ZOD["next(crearError(..., 400))"]
+    ERR_ZOD --> HANDLER
     
-    SERV -->|"¿Artesano existe?"| PRISMA["7. prisma.producto.create(...)"]
-    SERV -.->|"[Error] No existe artesano"| THROW["throw crearError('Artesano inexistente.', 400)"]
+    ZOD -->|req.bodyValidado| CTRL["7. producto.controllers.js<br>crearProductoDto = req.body"]
+    CTRL --> SERV["8. producto.services.js<br>crearProducto(crearProductoDto)"]
+    
+    SERV -->|"¿Artesano existe y es propio?"| PRISMA["9. prisma.producto.create(...)"]
+    SERV -.->|"[Error] No autorizado para ese artesano"| THROW["throw crearError(..., 403)"]
     THROW -.->|"catch en controller"| HANDLER
     
     PRISMA --> DB[("PostgreSQL")]
     DB --> PRISMA
     PRISMA --> SERV
     SERV --> CTRL
-    CTRL --> RES_OK["8. Cliente recibe 201 Created\n{ id, nombre, precio, artesano, ... }"]
+    CTRL --> RES_OK["10. Cliente recibe 201 Created<br>{ id, nombre, precio, artesano, ... }"]
 
     style CLI fill:#38bdf8,stroke:#0284c7,color:#000
     style LOG fill:#facc15,stroke:#ca8a04,color:#000
-    style ROUTE fill:#a78bfa,stroke:#7c3aed,color:#000
-    style MW fill:#34d399,stroke:#059669,color:#000
+    style AUTH fill:#818cf8,stroke:#4f46e5,color:#fff
+    style CTX fill:#c084fc,stroke:#9333ea,color:#fff
+    style RBAC fill:#ec4899,stroke:#db2777,color:#fff
+    style ZOD fill:#34d399,stroke:#059669,color:#000
     style CTRL fill:#fb923c,stroke:#ea580c,color:#000
     style SERV fill:#f472b6,stroke:#db2777,color:#000
     style PRISMA fill:#f87171,stroke:#dc2626,color:#fff
     style DB fill:#e2e8f0,stroke:#94a3b8,color:#000
-    style ERR fill:#ef4444,stroke:#dc2626,color:#fff
     style HANDLER fill:#ef4444,stroke:#dc2626,color:#fff
-    style RES_ERR fill:#fca5a5,stroke:#b91c1c,color:#000
     style RES_OK fill:#4ade80,stroke:#16a34a,color:#000
 ```
 

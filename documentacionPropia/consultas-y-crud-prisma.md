@@ -515,26 +515,36 @@ El atributo `@relation` se coloca en el lado que almacena físicamente la clave 
 
 Un registro del modelo **A** se asocia exactamente con un registro del modelo **B**. 
 
-* **Ejemplo académico (UNCa):** Un `Evento` posee exactamente una `ConfiguracionEvento` (y esa configuración pertenece exclusivamente a ese evento).
-* **Regla clave:** La clave foránea **debe tener la restricción `@unique`** para evitar que más de un registro apunte al mismo padre.
+* **Ejemplo central en Poncho Digital (Unidad 4 - UNCa):**  
+  Una cuenta de `Usuario` se vincula de forma 1 a 1 estricta con su perfil de `Artesano` expositor.
+* **Regla clave de Prisma:** La clave foránea **debe tener la restricción `@unique`** para que la base de datos PostgreSQL garantice que ningún artesano comparta usuario (o que ningún stand tenga más de un artesano titular).
 
 ```prisma
-model Evento {
-  id            Int                  @id @default(autoincrement())
-  nombre        String
-  configuracion ConfiguracionEvento? // Relación virtual inversa (opcional)
+model Usuario {
+  id           String    @id @default(uuid()) @db.Uuid
+  nombre       String
+  email        String    @unique
+  passwordHash String
+  activo       Boolean   @default(true)
+  artesano     Artesano? // Relación virtual inversa (opcional en el tipo)
 }
 
-model ConfiguracionEvento {
-  id                 Int     @id @default(autoincrement())
-  limiteInscripcion  Int
-  permiteCancelacion Boolean @default(true)
+model Artesano {
+  id          Int       @id @default(autoincrement())
+  nombre      String
+  apellido    String
+  dni         String    @unique
+  rubro       String
+  activo      Boolean   @default(false)
   
-  // Clave foránea real en BD con @unique:
-  eventoId           Int     @unique
-  evento             Evento  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  // Clave foránea real en BD con @unique (Garantiza 1 a 1 estricto):
+  usuarioId   String    @unique @db.Uuid
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
 }
 ```
+
+> [!NOTE]
+> En la relación 1 a 1 opcional de stands (`Stand` con `Artesano`), el campo `artesanoId Int? @unique` permite que el stand esté libre (`artesanoId = null`) o asignado a un único artesano a la vez (`onDelete: SetNull`).
 
 ---
 
@@ -581,59 +591,46 @@ Un registro de **A** puede relacionarse con muchos de **B**, y un registro de **
 #### 1. Relación N:M Implícita (Manejada automáticamente por Prisma)
 Se utiliza cuando **no necesitas guardar datos extra** en la tabla intermedia (como fecha de unión, rol o estado).
 
-* **Ejemplo conceptual de cátedra (UNCa):** Un `Evento` puede estar respaldado por varias `Institucion`es, y una `Institucion` respalda varios `Evento`s.
+* **Concepto de Prisma:** Si dos modelos tienen listas mutuas sin un `@relation(fields: ...)`, Prisma crea y gestiona automáticamente una tabla de unión oculta en PostgreSQL (por ejemplo, `_PabellonToSector` con columnas `A` y `B`).
+
+#### 2. Relación N:M Explícita con Modelo Intermedio (Nuestro caso en Unidad 4: RBAC)
+Se utiliza cuando la relación **debe registrar datos adicionales** o cuando se requiere una **clave primaria compuesta** y políticas de integridad referencial estrictas (`onDelete: Cascade` y `onDelete: Restrict`).
+
+* **Aplicación en Poncho Digital (Unidad 4 - UNCa):**  
+  Un `Usuario` puede tener múltiples roles (`ARTESANO`, `ADMINISTRADOR`), y un `Rol` agrupa a múltiples usuarios. Para normalizar esto en Tercera Forma Normal (3FN), se modela la entidad intermedia **`UsuarioRol`**:
 
 ```prisma
-model Evento {
-  id            Int           @id @default(autoincrement())
-  nombre        String
-  instituciones Institucion[] // Solo listas en ambos modelos
+model Usuario {
+  id           String       @id @default(uuid()) @db.Uuid
+  nombre       String
+  email        String       @unique
+  passwordHash String
+  activo       Boolean      @default(true)
+  roles        UsuarioRol[] // Lista de asignaciones
+  artesano     Artesano?    // Relación 1:1 con perfil
 }
 
-model Institucion {
-  id      Int      @id @default(autoincrement())
-  nombre  String
-  eventos Evento[]
+model Rol {
+  id       Int          @id @default(autoincrement())
+  nombre   String       @unique // "ADMINISTRADOR", "ARTESANO"
+  usuarios UsuarioRol[]
+}
+
+// Modelo intermedio explícito con clave primaria compuesta
+model UsuarioRol {
+  usuarioId String  @db.Uuid
+  rolId     Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, rolId]) // Evita duplicar un rol para el mismo usuario
 }
 ```
 
-> [!NOTE]
-> Prisma creará automáticamente en PostgreSQL una tabla de unión oculta llamada `_EventoToInstitucion` con dos columnas (`A` y `B`) como claves foráneas compuestas, gestionando las inserciones y borrados sin código SQL adicional.
-
-#### 2. Relación N:M Explícita (Con modelo intermedio)
-Se utiliza cuando la tabla intermedia **contiene atributos propios**.
-
-* **Ejemplo (UNCa):** Un `Participante` se inscribe en varios `Evento`s, pero la `Inscripcion` debe guardar `fechaInscripcion`, `asistio` o `estado`.
-
-```prisma
-model Evento {
-  id            Int           @id @default(autoincrement())
-  nombre        String
-  inscripciones Inscripcion[]
-}
-
-model Participante {
-  id            Int           @id @default(autoincrement())
-  nombre        String
-  email         String        @unique
-  inscripciones Inscripcion[]
-}
-
-// Modelo intermedio explícito
-model Inscripcion {
-  id               Int          @id @default(autoincrement())
-  fechaInscripcion DateTime     @default(now())
-  asistio          Boolean      @default(false)
-
-  eventoId         Int
-  evento           Evento       @relation(fields: [eventoId], references: [id])
-
-  participanteId   Int
-  participante     Participante @relation(fields: [participanteId], references: [id])
-
-  @@unique([eventoId, participanteId]) // Evita inscripciones duplicadas
-}
-```
+> [!IMPORTANT]
+> - `@@id([usuarioId, rolId])`: Clave compuesta que impide físicamente duplicar la asignación de un mismo rol a un usuario.
+> - `onDelete: Cascade` en `Usuario`: Si la cuenta se elimina, sus asignaciones de roles se purgan automáticamente.
+> - `onDelete: Restrict` en `Rol`: Impide borrar un rol del catálogo si hay usuarios asignados a él.
 
 ---
 
@@ -773,35 +770,32 @@ const nuevoArtesanoConProducto = await prisma.artesano.create({
 
 ## 8. Migración de Datos: B.D. con Registros Existentes (Estrategia `--create-only`)
 
-> **Contexto de Cátedra (UNCa - Desarrollo Backend):**
-> En entornos reales y proyectos en evolución, los modelos cambian constantemente. Un desafío habitual es **incorporar una relación obligatoria (`NOT NULL`) a una tabla que ya contiene datos almacenados**.
+> **Contexto de Cátedra (UNCa - Desarrollo Backend - Unidad 4):**
+> En entornos reales y proyectos en evolución, los modelos cambian constantemente. Un desafío habitual en la **Unidad 4 (Autorización y RBAC)** es **reemplazar un enum o estructura estática previa por nuevas tablas relacionales (`Rol` y `UsuarioRol`) asegurando la carga de datos semilla y preservando las cuentas ya existentes**.
 
-### El Problema: Restricción NOT NULL sobre Datos Existentes
+### El Problema: Cargar datos semilla en la misma migración sin romper integridad
 
 Imaginemos la situación inicial antes de migrar:
-* La base de datos PostgreSQL ya contiene la tabla `Evento` con registros existentes:
-  
-  | id | nombre |
-  | :--- | :--- |
-  | 1 | Congreso de Tecnología |
-  | 2 | Workshop de Node.js |
-
-* Modificamos `schema.prisma` incorporando el modelo `Categoria` y la relación obligatoria:
+* La base de datos PostgreSQL ya contiene cuentas de `Usuario` registradas.
+* Modificamos `schema.prisma` incorporando el modelo `Rol` y la tabla intermedia `UsuarioRol`:
   ```prisma
-  model Evento {
-    id          Int       @id @default(autoincrement())
-    nombre      String
-    categoriaId Int       // Obligatoria (NO es Int?)
-    categoria   Categoria @relation(fields: [categoriaId], references: [id])
+  model Rol {
+    id       Int          @id @default(autoincrement())
+    nombre   String       @unique // "ADMINISTRADOR", "ARTESANO"
+    usuarios UsuarioRol[]
+  }
+
+  model UsuarioRol {
+    usuarioId String  @db.Uuid
+    rolId     Int
+    usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+    rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+    @@id([usuarioId, rolId])
   }
   ```
 
-* Al ejecutar la migración directa:
-  ```bash
-  npx prisma migrate dev --name incorporar-relaciones
-  ```
-  **Prisma bloquea la migración con un error crítico:**
-  Intenta agregar la columna `categoriaId` con la restricción `NOT NULL` a una tabla que ya posee filas. Al no tener un valor por defecto (`@default`), PostgreSQL no sabe qué valor asignar a los registros 1 y 2, violando la integridad de datos.
+* Si aplicamos una migración directa, las nuevas tablas se crearán vacías. Si intentamos asociar usuarios o iniciar el servidor, el sistema fallará porque los roles requeridos por las reglas de negocio (`ARTESANO` y `ADMINISTRADOR`) aún no existen en la base de datos.
 
 ---
 
@@ -810,55 +804,52 @@ Imaginemos la situación inicial antes de migrar:
 Usamos la bandera `--create-only`:
 
 ```bash
-npx prisma migrate dev --name incorporar-relaciones --create-only
+npx prisma migrate dev --name roles_y_artesano --create-only
 ```
 
-* **¿Qué hace `--create-only`?** Crea la carpeta y el archivo SQL en `prisma/migrations/<timestamp>_incorporar_relaciones/migration.sql`, pero **no ejecuta las instrucciones en la base de datos**.
-* Esto nos da control total para editar manualmente el script SQL antes de que toque PostgreSQL.
+* **¿Qué hace `--create-only`?** Crea la carpeta y el archivo SQL en `prisma/migrations/<timestamp>_roles_y_artesano/migration.sql`, pero **no ejecuta las instrucciones en PostgreSQL**.
+* Esto nos da control total para editar manualmente el script SQL antes de que toque la base de datos.
 
 ---
 
-### Paso 2: Adaptar el bloque SQL en `migration.sql` (6 Pasos Críticos)
+### Paso 2: Adaptar el bloque SQL en `migration.sql` (Carga Semilla)
 
-Abrimos el archivo `migration.sql` generado y reemplazamos el bloque de creación de `Categoria` y alteración de `Evento` por la siguiente secuencia lógica de 6 pasos:
+Abrimos el archivo `migration.sql` generado por Prisma y, al final del script, agregamos la instrucción `INSERT` de los roles del dominio ferial:
 
 ```sql
--- 1. Crear la tabla Categoria
-CREATE TABLE "Categoria" (
+-- Prisma genera automáticamente la tabla Rol y su índice único:
+CREATE TABLE "Rol" (
     "id" SERIAL NOT NULL,
     "nombre" TEXT NOT NULL,
-    CONSTRAINT "Categoria_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Rol_pkey" PRIMARY KEY ("id")
 );
 
--- 2. Agregar temporalmente la columna en Evento PERMITIENDO valores NULL
-ALTER TABLE "Evento" ADD COLUMN "categoriaId" INTEGER;
+CREATE UNIQUE INDEX "Rol_nombre_key" ON "Rol"("nombre");
 
--- 3. Crear una categoría inicial para los registros existentes (semilla / valor base)
-INSERT INTO "Categoria" ("nombre") VALUES ('Jornada');
+-- Creación de la tabla intermedia UsuarioRol
+CREATE TABLE "UsuarioRol" (
+    "usuarioId" UUID NOT NULL,
+    "rolId" INTEGER NOT NULL,
+    CONSTRAINT "UsuarioRol_pkey" PRIMARY KEY ("usuarioId", "rolId")
+);
 
--- 4. Asignar el ID de esa categoría a todos los eventos huérfanos existentes
-UPDATE "Evento" 
-SET "categoriaId" = (
-    SELECT "id" 
-    FROM "Categoria" 
-    WHERE "nombre" = 'Jornada'
-) 
-WHERE "categoriaId" IS NULL;
+-- Claves foráneas con integridad referencial:
+ALTER TABLE "UsuarioRol" ADD CONSTRAINT "UsuarioRol_usuarioId_fkey" 
+    FOREIGN KEY ("usuarioId") REFERENCES "Usuario"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- 5. Ahora que ninguna fila tiene NULL, convertir la columna en obligatoria (NOT NULL)
-ALTER TABLE "Evento" ALTER COLUMN "categoriaId" SET NOT NULL;
+ALTER TABLE "UsuarioRol" ADD CONSTRAINT "UsuarioRol_rolId_fkey" 
+    FOREIGN KEY ("rolId") REFERENCES "Rol"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- 6. Crear la clave foránea con integridad referencial
-ALTER TABLE "Evento" 
-ADD CONSTRAINT "Evento_categoriaId_fkey" 
-FOREIGN KEY ("categoriaId") 
-REFERENCES "Categoria"("id") 
-ON DELETE RESTRICT 
-ON UPDATE CASCADE;
+-- INSTRUCCIÓN AGREGADA MANUALMENTE: Sembrar roles requeridos por la Unidad 4
+INSERT INTO "Rol" ("nombre") 
+VALUES 
+    ('ARTESANO'), 
+    ('ADMINISTRADOR');
 ```
 
 > [!IMPORTANT]
-> El orden de estas 6 instrucciones es inalterable: primero se crea la tabla destino, luego se agrega la columna permisiva, se inserta la categoría semilla, se pueblan los eventos huérfanos, se vuelve obligatoria la columna y finalmente se enlaza la clave foránea.
+> - La instrucción `INSERT INTO "Rol"` se ejecuta dentro de la misma transacción atómica de la migración.
+> - Al terminar de ejecutarse, la tabla `Rol` ya cuenta con los dos roles operativos del sistema (`ARTESANO` y `ADMINISTRADOR`) listos para ser asignados en los registros públicos y de administración.
 
 ---
 
@@ -885,11 +876,12 @@ npx prisma generate
    Compara los archivos de migración locales con el registro histórico de la tabla interna `_prisma_migrations` de PostgreSQL. Debe indicar que todas las migraciones están aplicadas y sincronizadas.
 
 2. **Checklist de verificación de datos resultantes:**
-   * Existe la tabla `Categoria` en PostgreSQL.
-   * Se creó el registro semilla `"Jornada"`.
-   * Todos los eventos previos (`Congreso de Tecnología`, `Workshop de Node.js`) ahora poseen `categoriaId = 1`.
-   * Las nuevas tablas secundarias (`ConfiguracionEvento`, `Institucion`, `Participante`, `Inscripcion`, `_EventoToInstitucion`) se crearon satisfactoriamente.
-   * No se perdió ningún dato histórico de la tabla `Evento`.
+   * Existe la tabla `Rol` en PostgreSQL con los registros semilla `'ARTESANO'` y `'ADMINISTRADOR'`.
+   * Existe la tabla intermedia `UsuarioRol` con clave primaria compuesta `(usuarioId, rolId)`.
+   * La columna `Usuario.activo` (`default(true)`) está presente.
+   * La entidad `Artesano` posee relación 1:1 estricta con `Usuario` (`usuarioId @unique @db.Uuid`, `onDelete: Restrict`) y `activo = false` por defecto.
+   * Las entidades del predio ferial (`Stand`, `Pabellon`, `Sector`, `Localidad`, `SolicitudPostulacion`, `Producto`) mantienen su integridad referencial.
+   * No se perdió ningún dato histórico de usuarios o productos.
 
 ---
 
