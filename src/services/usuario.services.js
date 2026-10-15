@@ -61,15 +61,22 @@ export const iniciarSesion = async (iniciarSesionDto) => {
     };
 };
 
-export const obtenerUsuarioPorId = async (id) => { /*🟨 */
-return prisma.usuario.findUnique({
-where: { id: id },
-select: {
-            id: true,
-            nombre: true,
-            email: true
-        }
-    });
+export const obtenerUsuarioPorId = async (id) => {
+    const usuario = await prisma.usuario.findUnique({
+    where: { id },
+    select: {
+id: true, nombre: true, email: true, activo: true,
+roles: {
+select: { rol: { select: { nombre: true } } }
+}, participante: { select: { id: true } }
+}
+});
+if (!usuario) return null;
+return {
+...usuario,
+roles: usuario.roles.map(asignacion =>
+asignacion.rol.nombre)
+};
 };
 
 export const registrarUsuarioParticipante = async (dto) => {
