@@ -68,3 +68,14 @@ autorizarRoles("ADMINISTRADOR"),
 validarParametros(retirarRolParametrosSchema),
 eliminarRol
 )
+
+router.patch("/:id/activo",
+autenticarUsuario,
+cargarContextoUsuario,
+autorizarRoles("ADMINISTRADOR"),
+validarParametros(
+usuarioIdParametrosSchema, "ID inválido."),
+validarBody(actualizarActivoSchema,
+"Campo activo inválido."),
+actualizarActivo
+)
