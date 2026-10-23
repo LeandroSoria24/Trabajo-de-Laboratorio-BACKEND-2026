@@ -7,7 +7,7 @@ import {
     deleteProductoLogico
 } from '../controllers/producto.controllers.js';
 import { validarSchema } from '../middlewares/validarSchema.js';
-import { autenticarUsuario } from '../middlewares/autenticarUsuario.js';
+import { autenticarUsuario, autenticarUsuarioOpcional } from '../middlewares/autenticarUsuario.js';
 import { cargarContextoUsuario, autorizarRoles } from '../middlewares/autorizacion.js';
 import { idParamSchema } from '../validators/comun.schemas.js';
 import {
@@ -20,11 +20,13 @@ const router = Router();
 
 // ──────────────────────────────────────────────────────
 // CONSULTA PÚBLICA (Visitantes y catálogo)
+// Dinámica: Un visitante sin registrar solo ve lo básico ({ id, nombre, precio, descripcion, stock }).
+// Si se envía token de ARTESANO o ADMINISTRADOR, se muestra toda la información.
 // ──────────────────────────────────────────────────────
 
-router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);
-router.get('/all', validarSchema(obtenerProductosSchema, 'query'), getProductos);
-router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);
+router.get('/', autenticarUsuarioOpcional, validarSchema(obtenerProductosSchema, 'query'), getProductos);
+router.get('/all', autenticarUsuarioOpcional, validarSchema(obtenerProductosSchema, 'query'), getProductos);
+router.get('/:id', autenticarUsuarioOpcional, validarSchema(idParamSchema, 'params'), getProductoPorId);
 
 // ──────────────────────────────────────────────────────
 // GESTIÓN DE PRODUCTOS (Artesano autenticado o Administrador)

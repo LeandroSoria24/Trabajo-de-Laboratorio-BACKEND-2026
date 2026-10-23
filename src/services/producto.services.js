@@ -82,9 +82,11 @@ export const actualizarProducto = async (id, actualizarProductoDto) => {
 
 /*
   Servicio para obtener la lista de productos.
-  Recibe el DTO con los parámetros de consulta (paginación y filtros). 🟩
+  Recibe el DTO con los parámetros de consulta (paginación y filtros) y opciones de autorización.
+  Si el solicitante es artesano o administrador, devuelve toda la información (incluyendo el artesano y estados).
+  Si es visitante no registrado, devuelve únicamente la información básica: id, nombre, precio, descripción y stock. 🟩
  */
-export const obtenerProductos = async (criterios = {}) => {
+export const obtenerProductos = async (criterios = {}, { esArtesano = false } = {}) => {
     const {
         id,
         nombre,
@@ -93,14 +95,10 @@ export const obtenerProductos = async (criterios = {}) => {
         stock,
         artesanoId,
         eliminado,
-
-
         ordenarPor = 'nombre',
         direccion = 'asc',
         pagina = 1,
         limite = 10
-
-
     } = criterios;
 
     const where = {};
@@ -131,19 +129,35 @@ export const obtenerProductos = async (criterios = {}) => {
 
     if (eliminado !== undefined) {
         where.activo = !eliminado;
+    } else if (!esArtesano) {
+        // Los visitantes sin registrarse solo ven productos activos
+        where.activo = true;
     }
 
     // Cálculo para la paginación de Prisma
     const desplazamiento = (pagina - 1) * limite;
 
+    const queryOptions = {
+        where,
+        orderBy: [{ [ordenarPor]: direccion }, { id: 'asc' }],
+        skip: desplazamiento,
+        take: limite
+    };
+
+    if (esArtesano) {
+        queryOptions.include = { artesano: true };
+    } else {
+        queryOptions.select = {
+            id: true,
+            nombre: true,
+            precio: true,
+            descripcion: true,
+            stock: true
+        };
+    }
+
     const [productos, total] = await prisma.$transaction([
-        prisma.producto.findMany({
-            where,
-            orderBy: [{ [ordenarPor]: direccion }, { id: 'asc' }],
-            skip: desplazamiento,
-            take: limite,
-            include: { artesano: true }
-        }),
+        prisma.producto.findMany(queryOptions),
         prisma.producto.count({
             where
         })
@@ -162,13 +176,27 @@ export const obtenerProductos = async (criterios = {}) => {
 
 /*
   Servicio para obtener un producto específico por su ID.
-  Recibe el ID validado y lanza un error si no existe. 🟩
+  Recibe el ID validado y si es artesano/admin devuelve toda la información.
+  Si es un usuario no registrado, solo devuelve los datos básicos (id, nombre, precio, descripcion, stock). 🟩
  */
-export const obtenerProductoPorId = async (id) => {
-    const producto = await prisma.producto.findUnique({
-        where: { id },
-        include: { artesano: true }
-    });
+export const obtenerProductoPorId = async (id, { esArtesano = false } = {}) => {
+    const queryOptions = {
+        where: { id }
+    };
+
+    if (esArtesano) {
+        queryOptions.include = { artesano: true };
+    } else {
+        queryOptions.select = {
+            id: true,
+            nombre: true,
+            precio: true,
+            descripcion: true,
+            stock: true
+        };
+    }
+
+    const producto = await prisma.producto.findUnique(queryOptions);
 
     if (!producto) {
         throw crearError(`No existe un producto con id ${id}`, 404);
@@ -216,5 +244,4 @@ export const deleteLogico = async (id) => {
         }
     });
 
-}
-
+};

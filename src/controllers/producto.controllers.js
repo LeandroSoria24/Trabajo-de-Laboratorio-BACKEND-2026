@@ -10,7 +10,8 @@ import {
 // GETTERS 🟩
 export const getProductos = async (req, res, next) => {  
     try {
-        const resultado = await obtenerProductos(req.consulta);
+        const esArtesano = Boolean(req.contextoUsuario?.roles?.some(r => r === "ARTESANO" || r === "ADMINISTRADOR"));
+        const resultado = await obtenerProductos(req.consulta || req.query, { esArtesano });
         res.json(resultado);
     }
     catch (error) {
@@ -23,7 +24,8 @@ export const getProductos = async (req, res, next) => {
 export const getProductoPorId = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
-        const producto = await obtenerProductoPorId(id)
+        const esArtesano = Boolean(req.contextoUsuario?.roles?.some(r => r === "ARTESANO" || r === "ADMINISTRADOR"));
+        const producto = await obtenerProductoPorId(id, { esArtesano });
         res.json(producto);
     }
     catch (error) {
