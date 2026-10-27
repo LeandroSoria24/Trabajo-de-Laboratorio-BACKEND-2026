@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { cacheMiddleware } from '../middlewares/cache.js';
 import {
     getProductos,
     getProductoPorId,
@@ -24,9 +25,9 @@ const router = Router();
 // Si se envía token de ARTESANO o ADMINISTRADOR, se muestra toda la información.
 // ──────────────────────────────────────────────────────
 
-router.get('/', autenticarUsuarioOpcional, validarSchema(obtenerProductosSchema, 'query'), getProductos);
-router.get('/all', autenticarUsuarioOpcional, validarSchema(obtenerProductosSchema, 'query'), getProductos);
-router.get('/:id', autenticarUsuarioOpcional, validarSchema(idParamSchema, 'params'), getProductoPorId);
+router.get('/', autenticarUsuarioOpcional, validarSchema(obtenerProductosSchema, 'query'), cacheMiddleware(30), getProductos);
+router.get('/all', autenticarUsuarioOpcional, validarSchema(obtenerProductosSchema, 'query'), cacheMiddleware(30), getProductos);
+router.get('/:id', autenticarUsuarioOpcional, validarSchema(idParamSchema, 'params'), cacheMiddleware(30), getProductoPorId);
 
 // ──────────────────────────────────────────────────────
 // GESTIÓN DE PRODUCTOS (Artesano autenticado o Administrador)
