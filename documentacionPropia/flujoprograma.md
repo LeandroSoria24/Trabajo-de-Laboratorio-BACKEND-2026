@@ -38,7 +38,12 @@ flowchart TD
   * `/info` (No coincide)
   * `/artesanos` (No coincide)
   * `/productos` (No coincide)
-  * `/docs` (No coincide)
+  * `/stands` (No coincide)
+  * `/pabellones` (No coincide)
+  * `/sectores` (No coincide)
+  * `/localidades` (No coincide)
+  * `/solicitudes` (No coincide)
+  * `/usuarios` (No coincide)
 * Al no coincidir con ninguna, la petición continúa descendiendo por la cadena de middlewares.
 
 ### 3. Captura de Ruta Inexistente: `app.use(rutaNoEncontrada)`
@@ -77,7 +82,10 @@ flowchart TD
 | Middleware / Utilidad | Tipo | Responsabilidad Principal |
 |---|---|---|
 | **`logger`** | Informativo | Cronometra y registra en consola el resultado final de cada petición. |
-| **`validarSchema`** | Middleware Fábrica Zod | Valida y sanitiza entradas (`body`, `params`, `query`) según esquemas declarativos. |
+| **`autenticarUsuario`** | Seguridad / Auth JWT | Valida cabeceras Bearer (RFC 6750), verifica firma y consulta lista negra de revocaciones. Inyecta `req.usuario = { id }`. |
+| **`cargarContextoUsuario`** | Autorización / Contexto | Consulta la BD, verifica cuenta activa (`activo === true`) e inyecta `req.contextoUsuario` con sus roles. |
+| **`autorizarRoles`** | Autorización / RBAC | Fábrica de middleware que verifica si el usuario autenticado posee al menos uno de los roles autorizados. |
+| **`validarSchema`** | Middleware Fábrica Zod | Valida y sanitiza entradas (`body`, `params`, `query`) según esquemas declarativos. Expone `req.bodyValidado` y `req.parametrosValidados`. |
 | **`ErroresZod`** | Utilidad (`utils`) | Transforma `issues` de Zod 4 en un array estructurado `[{ path, message }]`. |
 | **`crearError`** | Utilidad (`utils`) | Estandariza objetos `Error` adjuntando `status` HTTP y `details` opcionales. |
 | **`rutaNoEncontrada`** | Middleware 404 | Intercepta peticiones huérfanas y delega un error 404 mediante `next(...)`. |
@@ -85,46 +93,54 @@ flowchart TD
 
 ---
 
-## Flujo Completo de un Endpoint CRUD: `POST /productos`
+## Flujo Completo de un Endpoint Protegido: `POST /productos` (Unidad 4)
 
-Este flujo muestra la separación de responsabilidades de la **Unidad 3**: el validador (Zod) detiene entradas inválidas en el middleware, el controlador transfiere los datos limpios como **DTO** y el servicio ejecuta la lógica y persistencia con Prisma.
+Este flujo muestra la cadena completa de seguridad desacoplada de la **Unidad 4**: autenticación Bearer JWT, carga de contexto con verificación de cuenta activa, autorización por roles (RBAC), validación de datos con Zod, control de propiedad en el servicio y persistencia atómica en PostgreSQL.
 
 ```mermaid
 flowchart TD
-    CLI["1. Cliente envía POST /productos\n{ nombre, precio, stock, artesanoId }"] --> LOG["2. logger"]
-    LOG --> ROUTE["3. producto.routes.js\nrouter.post('/', validarSchema(crearProductoSchema), createProducto)"]
+    CLI["1. Cliente envía POST /productos<br>Headers: Authorization: Bearer token<br>Body: { nombre, precio, stock, artesanoId }"] --> LOG["2. logger"]
+    LOG --> AUTH["3. autenticarUsuario<br>(Valida firma JWT, vigencia y consulta TokenRevocado)"]
     
-    ROUTE --> MW["4. validarSchema.js (Middleware Zod)\ncrearProductoSchema.safeParse(req.body)"]
+    AUTH -->|"[Error] Token inválido o revocado"| ERR_AUTH["next(crearError(..., 401))"]
+    ERR_AUTH --> HANDLER["manejoErrores.js<br>res.status(401).json(...)"]
     
-    MW -->|"[Error] Falló validación"| ERR["next(crearError(..., 400))"]
-    ERR --> HANDLER["manejoErrores.js\nres.status(400).json(...)"]
-    HANDLER --> RES_ERR["Cliente recibe 400 Bad Request"]
+    AUTH -->|req.usuario con id| CTX["4. cargarContextoUsuario<br>(Consulta BD, verifica activo = true e inyecta roles)"]
+    CTX -->|"[Error] Cuenta inactiva o inexistente"| ERR_CTX["next(crearError(..., 403))"]
+    ERR_CTX --> HANDLER
     
-    MW -->|"[OK] Éxito: req.body = resultado.data"| CTRL["5. producto.controllers.js\nconst crearProductoDto = req.body"]
+    CTX -->|req.contextoUsuario| RBAC["5. autorizarRoles('ARTESANO', 'ADMINISTRADOR')<br>(Verifica si posee el rol requerido)"]
+    RBAC -->|"[Error] Rol no autorizado"| ERR_RBAC["next(crearError(..., 403))"]
+    ERR_RBAC --> HANDLER
     
-    CTRL --> SERV["6. producto.services.js\ncrearProducto(crearProductoDto)"]
+    RBAC --> ZOD["6. validarSchema (Zod)<br>crearProductoSchema.safeParse(req.body)"]
+    ZOD -->|"[Error] Falló validación"| ERR_ZOD["next(crearError(..., 400))"]
+    ERR_ZOD --> HANDLER
     
-    SERV -->|"¿Artesano existe?"| PRISMA["7. prisma.producto.create(...)"]
-    SERV -.->|"[Error] No existe artesano"| THROW["throw crearError('Artesano inexistente.', 400)"]
+    ZOD -->|req.bodyValidado| CTRL["7. producto.controllers.js<br>crearProductoDto = req.body"]
+    CTRL --> SERV["8. producto.services.js<br>crearProducto(crearProductoDto)"]
+    
+    SERV -->|"¿Artesano existe y es propio?"| PRISMA["9. prisma.producto.create(...)"]
+    SERV -.->|"[Error] No autorizado para ese artesano"| THROW["throw crearError(..., 403)"]
     THROW -.->|"catch en controller"| HANDLER
     
     PRISMA --> DB[("PostgreSQL")]
     DB --> PRISMA
     PRISMA --> SERV
     SERV --> CTRL
-    CTRL --> RES_OK["8. Cliente recibe 201 Created\n{ id, nombre, precio, artesano, ... }"]
+    CTRL --> RES_OK["10. Cliente recibe 201 Created<br>{ id, nombre, precio, artesano, ... }"]
 
     style CLI fill:#38bdf8,stroke:#0284c7,color:#000
     style LOG fill:#facc15,stroke:#ca8a04,color:#000
-    style ROUTE fill:#a78bfa,stroke:#7c3aed,color:#000
-    style MW fill:#34d399,stroke:#059669,color:#000
+    style AUTH fill:#818cf8,stroke:#4f46e5,color:#fff
+    style CTX fill:#c084fc,stroke:#9333ea,color:#fff
+    style RBAC fill:#ec4899,stroke:#db2777,color:#fff
+    style ZOD fill:#34d399,stroke:#059669,color:#000
     style CTRL fill:#fb923c,stroke:#ea580c,color:#000
     style SERV fill:#f472b6,stroke:#db2777,color:#000
     style PRISMA fill:#f87171,stroke:#dc2626,color:#fff
     style DB fill:#e2e8f0,stroke:#94a3b8,color:#000
-    style ERR fill:#ef4444,stroke:#dc2626,color:#fff
     style HANDLER fill:#ef4444,stroke:#dc2626,color:#fff
-    style RES_ERR fill:#fca5a5,stroke:#b91c1c,color:#000
     style RES_OK fill:#4ade80,stroke:#16a34a,color:#000
 ```
 
@@ -228,11 +244,11 @@ flowchart TD
     C --> D["4. producto.controllers.js (deleteProductoLogico)\nawait deleteLogico(id)"]
     D --> E["5. producto.services.js (deleteLogico)\nfindUnique(id)"]
     E -->|"[Error] No existe"| F["throw crearError(..., 404) -> manejoErrores.js"]
-    E -->|"[OK] Existe"| G["prisma.producto.update({\n  where: { id },\n  data: { eliminado: true }\n})"]
+    E -->|"[OK] Existe"| G["prisma.producto.update({\n  where: { id },\n  data: { activo: false }\n})"]
     G --> H[("PostgreSQL")]
     H --> G
     G --> D
-    D --> I["6. res.status(200).json({ message: 'Producto eliminado logicamente' })"]
+    D --> I["6. res.status(200).json({ message: 'Producto dado de baja (activo: false)' })"]
 
     style A fill:#38bdf8,stroke:#0284c7,color:#000
     style B fill:#a78bfa,stroke:#7c3aed,color:#000
@@ -243,6 +259,100 @@ flowchart TD
     style H fill:#e2e8f0,stroke:#94a3b8,color:#000
     style I fill:#4ade80,stroke:#16a34a,color:#000
     style F fill:#ef4444,stroke:#dc2626,color:#fff
+```
+
+---
+
+## Flujo Completo de Autenticación con Token: `GET /usuarios/me`
+
+Este flujo ilustra el control de acceso implementado con **JWT**, validación de esquemas de token mediante **Zod**, consulta de revocaciones en **PostgreSQL** y entrega segura del perfil de usuario:
+
+```mermaid
+flowchart TD
+    CLI["1. Cliente envía GET /usuarios/me\nHeaders: Authorization: Bearer <token>"] --> LOG["2. logger"]
+    LOG --> ROUTE["3. usuario.routes.js\nrouter.get('/me', autenticarUsuario, obtenerMiPerfil)"]
+    
+    ROUTE --> AUTH["4. autenticarUsuario.js"]
+    AUTH -->|"¿Falta header?"| ERR_NO_HEADER["res.status(401)\nWWW-Authenticate: Bearer\n'Se requiere un token de acceso.'"]
+    AUTH -->|"¿Formato no es Bearer?"| ERR_BAD_FMT["res.status(400)\nWWW-Authenticate: Bearer error='invalid_request'\n'Usar Authorization: Bearer <token>.'"]
+    
+    AUTH -->|"Formato OK"| VERIF["5. verificarToken(token)\nValida firma HS256 y claims con Zod"]
+    VERIF -->|"[Error] Firma/exp inválida"| ERR_JWT["res.status(401)\nWWW-Authenticate: Bearer error='invalid_token'\n'Token inválido, vencido o revocado.'"]
+    
+    VERIF -->|"[OK] Token estructuralmente válido"| REVOC["6. tokenEstaRevocado(jti)\nprisma.tokenRevocado.findUnique({ where: { jti } })"]
+    REVOC -->|"[Revocado] jti en BD"| ERR_JWT
+    
+    REVOC -->|"[Activo] jti no revocado"| INJECT["7. req.usuario = { id, jti, exp }\nnext()"]
+    
+    INJECT --> CTRL["8. usuario.controllers.js (obtenerMiPerfil)\nobtenerUsuarioPorId(req.usuario.id)"]
+    CTRL --> SERV["9. usuario.services.js\nprisma.usuario.findUnique({ where: { id }, select: { id, nombre, email } })"]
+    
+    SERV -->|"Usuario no existe"| ERR_NOT_FOUND["res.status(401)\n'La cuenta asociada al token no existe.'"]
+    SERV -->|"Usuario existe"| RES_OK["10. res.status(200).json({ usuario })"]
+
+    style CLI fill:#38bdf8,stroke:#0284c7,color:#000
+    style LOG fill:#facc15,stroke:#ca8a04,color:#000
+    style ROUTE fill:#a78bfa,stroke:#7c3aed,color:#000
+    style AUTH fill:#fb923c,stroke:#ea580c,color:#000
+    style VERIF fill:#34d399,stroke:#059669,color:#000
+    style REVOC fill:#f87171,stroke:#dc2626,color:#fff
+    style INJECT fill:#38bdf8,stroke:#0284c7,color:#000
+    style CTRL fill:#fb923c,stroke:#ea580c,color:#000
+    style SERV fill:#f472b6,stroke:#db2777,color:#000
+    style RES_OK fill:#4ade80,stroke:#16a34a,color:#000
+    style ERR_NO_HEADER fill:#ef4444,stroke:#dc2626,color:#fff
+    style ERR_BAD_FMT fill:#ef4444,stroke:#dc2626,color:#fff
+    style ERR_JWT fill:#ef4444,stroke:#dc2626,color:#fff
+    style ERR_NOT_FOUND fill:#ef4444,stroke:#dc2626,color:#fff
+```
+
+---
+
+## Flujo Completo de Cierre de Sesión (Logout) y Revocación: `POST /usuarios/logout`
+
+Este flujo describe cómo la arquitectura stateless invalida de forma inmediata un token JWT persistiendo su identificador en la lista negra:
+
+```mermaid
+flowchart TD
+    CLI["1. Cliente envía POST /usuarios/logout\nHeaders: Authorization: Bearer <token>"] --> AUTH["2. autenticarUsuario.js\nValida token activo, inyecta req.usuario"]
+    AUTH --> CTRL["3. sesiones.controllers.js (cerrarSesion)"]
+    CTRL --> SERV["4. revocaciones.services.js (revocarToken)\nconst venceEn = new Date(exp * 1000)"]
+    SERV --> PRISMA["5. prisma.tokenRevocado.upsert({\n  where: { jti },\n  create: { jti, venceEn },\n  update: { venceEn }\n})"]
+    PRISMA --> BD[("PostgreSQL (Tabla TokenRevocado)")]
+    BD --> PRISMA
+    PRISMA --> SERV
+    SERV --> CTRL
+    CTRL --> RES["6. res.status(204).end()\n(Sesión cerrada, token invalidado)"]
+
+    style CLI fill:#38bdf8,stroke:#0284c7,color:#000
+    style AUTH fill:#fb923c,stroke:#ea580c,color:#000
+    style CTRL fill:#a78bfa,stroke:#7c3aed,color:#000
+    style SERV fill:#f472b6,stroke:#db2777,color:#000
+    style PRISMA fill:#f87171,stroke:#dc2626,color:#fff
+    style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style RES fill:#4ade80,stroke:#16a34a,color:#000
+```
+
+---
+
+## Flujo de la Tarea en Segundo Plano: Limpieza Automática de Tokens (`limpiezaRevocaciones.js`)
+
+Ciclo de vida de la tarea recurrente no bloqueante que purga periódicamente los tokens revocados cuya expiración natural ya ha transcurrido:
+
+```mermaid
+flowchart TD
+    INIT["1. app.listen() al arrancar el servidor\niniciarLimpiezaRevocaciones()"] --> LOOP["2. Bucle Asíncrono Desacoplado\nsetTimeout(ejecutar, INTERVALO_MS).unref()\nIntervalo = 1 hora (3.600.000 ms)"]
+    LOOP --> PURGE["3. eliminarRevocacionesVencidas()\nprisma.tokenRevocado.deleteMany({\n  where: { venceEn: { lte: new Date() } }\n})"]
+    PURGE --> BD[("PostgreSQL (TokenRevocado)")]
+    BD -->|"Elimina registros con venceEn <= NOW()"| PURGE
+    PURGE --> LOG_OUT["4. Consola: 'Revocaciones vencidas eliminadas: N'"]
+    LOG_OUT --> LOOP
+
+    style INIT fill:#38bdf8,stroke:#0284c7,color:#000
+    style LOOP fill:#facc15,stroke:#ca8a04,color:#000
+    style PURGE fill:#f87171,stroke:#dc2626,color:#fff
+    style BD fill:#e2e8f0,stroke:#94a3b8,color:#000
+    style LOG_OUT fill:#4ade80,stroke:#16a34a,color:#000
 ```
 
 

@@ -15,7 +15,7 @@ Este documento explica qué es Zod, cómo funciona internamente, y cómo lo util
 8. [Esquemas de Objetos (`z.object`)](#esquemas-de-objetos-zobject)
 9. [Validación: `.parse()` vs `.safeParse()`](#validación-parse-vs-safeparse)
 10. [Estructura de Errores de Zod](#estructura-de-errores-de-zod)
-11. [Cómo lo usamos en la API de Poncho Digital](#cómo-lo-usamos-en-la-api-de-biblioteca)
+11. [Cómo lo usamos en la API de Poncho Digital](#cómo-lo-usamos-en-la-api-de-poncho-digital)
 12. [Referencia Rápida de Métodos](#referencia-rápida-de-métodos)
 13. [Errores Comunes y Soluciones](#errores-comunes-y-soluciones)
 
@@ -456,11 +456,6 @@ export const obtenerProductosSchema = z.object({
   precio: z.coerce.number().positive().optional(),
   stock: z.coerce.number().int().nonnegative().optional(),
   artesanoId: z.coerce.number().int().positive().optional(),
-  eliminado: z.preprocess(val => {
-    if (val === 'true') return true;
-    if (val === 'false') return false;
-    return val;
-  }, z.boolean().optional()),
   ordenarPor: z.enum(["id", "nombre", "precio", "stock", "artesanoId"]).default("nombre"),
   direccion: z.enum(["asc", "desc"]).default("asc"),
   pagina: z.coerce.number().int().positive().default(1),
@@ -470,13 +465,14 @@ export const obtenerProductosSchema = z.object({
 
 ### Paso 2: Crear el middleware genérico de validación (`src/middlewares/validarSchema.js`)
 
-En lugar de crear middlewares duplicados para cada tabla o cada propiedad (`body`, `params`, `query`), implementamos una **función fábrica** de middleware que evalúa cualquier esquema de Zod contra la fuente de datos elegida:
+En lugar de crear middlewares duplicados para cada tabla o cada propiedad (`body`, `params`, `query`), implementamos una **función fábrica** de middleware que evalúa cualquier esquema de Zod contra la fuente de datos elegida, asegurando además **100% de compatibilidad con las nomenclaturas de la cátedra UNCa**:
 
 ```javascript
 import { crearError } from '../utils/crearError.js';
 import { detallarErroresZod } from '../utils/ErroresZod.js';
 
-export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
+// Middleware universal para validar datos (body, params o query) con Zod
+export const validarSchema = (schema, origen) => (req, res, next) => {
     const datos = req[origen] ?? {};
     const resultado = schema.safeParse(datos);
 
@@ -491,8 +487,20 @@ export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
         req[origen] = resultado.data; // Almacena el body o params limpio y tipado
     }
 
+    // Compatibilidad total con la nomenclatura de la cátedra UNCa
+    if (origen === 'body') {
+        req.bodyValidado = resultado.data;
+    }
+    if (origen === 'params') {
+        req.parametrosValidados = resultado.data;
+    }
+
     next();
 };
+
+// Atajos que usa la cátedra en sus diapositivas
+export const validarBody = (schema) => validarSchema(schema, 'body');
+export const validarParametros = (schema) => validarSchema(schema, 'params');
 ```
 
 ### Paso 3: Conectar en las rutas (`producto.routes.js`)
@@ -579,6 +587,35 @@ Cliente envía POST /productos con body: { nombre: "  Poncho  ", precio: 150000,
 │  prisma.producto.create() │  ← único componente que habla con Prisma
 └───────────────────────────┘
 ```
+
+### Caso Especial: Validación de Claims JWT en Capa de Servicios (`token.services.js`)
+
+Zod no solo se utiliza como middleware en los endpoints HTTP, sino también como mecanismo de **defensa en profundidad** dentro de la capa de servicios para verificar la integridad de las cargas útiles (*claims*) de tokens criptográficos:
+
+```javascript
+// src/services/token.services.js
+import { z } from "zod";
+import jwt from "jsonwebtoken";
+
+export const verificarToken = (token) => {
+    const payload = jwt.verify(token, secretoJWT, { algorithms: ["HS256"] });
+
+    // Zod valida en tiempo de ejecución que el subject sea estrictamente un UUID v4
+    if (typeof payload !== "object" || payload === null ||
+        !z.uuid().safeParse(payload.sub).success ||
+        !Number.isFinite(payload.exp)) {
+        throw new jwt.JsonWebTokenError("Contenido del token inválido.");
+    }
+
+    if (typeof payload.jti !== "string" || !payload.jti.trim()) {
+        throw new jwt.JsonWebTokenError("Falta el identificador del token.");
+    }
+
+    return { id: payload.sub, jti: payload.jti, exp: payload.exp };
+};
+```
+
+Esto garantiza que ningún token alterado o malformado pueda inyectar identificadores incompatibles en las consultas de Prisma o en `req.usuario`.
 
 ---
 

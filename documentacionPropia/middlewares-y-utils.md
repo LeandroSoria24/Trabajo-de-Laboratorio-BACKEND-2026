@@ -9,11 +9,13 @@ Este documento explica en profundidad el funcionamiento, la lógica interna y la
 1. [¿Qué es un Middleware en Express?](#qué-es-un-middleware-en-express)
 2. [1. Logger de Peticiones (`logger.js`)](#1-logger-de-peticiones-loggerjs)
 3. [2. Validador Universal con Zod (`validarSchema.js`)](#2-validador-universal-con-zod-validarschemajs)
-4. [3. Creador de Errores HTTP (`crearError.js`)](#3-creador-de-errores-http-crearerrorjs)
-5. [4. Formateador de Errores Zod (`ErroresZod.js`)](#4-formateador-de-errores-zod-erroreszodjs)
-6. [5. Capturador 404 (`rutaNoEncontrada.js`)](#5-capturador-404-rutanoencontradajs)
-7. [6. Manejador Global Centralizado (`manejoErrores.js`)](#6-manejador-global-centralizado-manejoerroresjs)
-8. [Mapa de Relación entre Componentes](#mapa-de-relación-entre-componentes)
+4. [3. Autenticación JWT y Revocaciones (`autenticarUsuario.js`)](#3-autenticación-jwt-y-revocaciones-autenticarusuariojs)
+5. [4. Autorización y Contexto de Usuario (`autorizacion.js`)](#4-autorización-y-contexto-de-usuario-autorizacionjs)
+6. [5. Creador de Errores HTTP (`crearError.js`)](#5-creador-de-errores-http-crearerrorjs)
+7. [6. Formateador de Errores Zod (`ErroresZod.js`)](#6-formateador-de-errores-zod-erroreszodjs)
+8. [7. Capturador 404 (`rutaNoEncontrada.js`)](#7-capturador-404-rutanoencontradajs)
+9. [8. Manejador Global Centralizado de Errores (`manejoErrores.js`)](#8-manejador-global-centralizado-de-errores-manejoerroresjs)
+10. [Mapa de Relación entre Componentes y Pipeline](#mapa-de-relación-entre-componentes)
 
 ---
 
@@ -81,7 +83,8 @@ GET /ruta-falsa - 404 (1ms)
 import { crearError } from '../utils/crearError.js';
 import { detallarErroresZod } from '../utils/ErroresZod.js';
 
-export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
+// Middleware para validar datos (body, params o query) con Zod
+export const validarSchema = (schema, origen) => (req, res, next) => {
     const datos = req[origen] ?? {};
     const resultado = schema.safeParse(datos);
 
@@ -96,26 +99,105 @@ export const validarSchema = (schema, origen = 'body') => (req, res, next) => {
         req[origen] = resultado.data;
     }
 
+    // Compatibilidad total con la nomenclatura de la cátedra UNCa
+    if (origen === 'body') {
+        req.bodyValidado = resultado.data;
+    }
+    if (origen === 'params') {
+        req.parametrosValidados = resultado.data;
+    }
+
     next();
 };
+
+// Atajos que usa la cátedra
+export const validarBody = (schema) => validarSchema(schema, 'body');
+export const validarParametros = (schema) => validarSchema(schema, 'params');
 ```
 
 ### ¿Cómo funciona?
 1. **Patrón Fábrica (Factory Function):** Recibe el esquema declarativo de Zod (`schema`) y el segmento de la petición a evaluar (`origen`: `'body'`, `'params'` o `'query'`). Retorna la función middleware estándar `(req, res, next)` que Express puede ejecutar.
-2. **Acceso dinámico mediante corchetes (`req[origen]`):**
+2. **Atajos de la cátedra (`validarBody` y `validarParametros`):** Permite escribir rutas exactamente como se enseñan en las clases (`validarBody(crearArtesanoSchema)` o `validarParametros(idParamSchema)`).
+3. **Acceso dinámico mediante corchetes (`req[origen]`):**
    - Si `origen = 'query'`, evalúa `req.query`.
    - Si `origen = 'params'`, evalúa `req.params`.
    - Si `origen = 'body'`, evalúa `req.body`.
-3. **Blindaje ante `undefined` (`req[origen] ?? {}`):** Evita fallos de ejecución si el cliente omite el body o no envía cabeceras `Content-Type`.
-4. **Validación y sanitización (`schema.safeParse`):** Zod comprueba tipos, coerciones automáticas (`z.coerce.number()`) y valores por defecto (`.default()`).
-5. **Formateo y delegación de errores:** Si la validación falla, transforma los errores con `detallarErroresZod(resultado.error)` y pasa un error HTTP 400 a `next(...)`.
-6. **Inyección de datos limpios (DTO):**
-   - Para el cuerpo (`body`) o parámetros de ruta (`params`), actualiza `req[origen] = resultado.data`.
+4. **Blindaje ante `undefined` (`req[origen] ?? {}`):** Evita fallos de ejecución si el cliente omite el body o no envía cabeceras `Content-Type`.
+5. **Validación y sanitización (`schema.safeParse`):** Zod comprueba tipos, coerciones automáticas (`z.coerce.number()`), límites (`min`, `max`) y valores por defecto (`.default()`).
+6. **Formateo y delegación de errores:** Si la validación falla, transforma los errores con `detallarErroresZod(resultado.error)` y pasa un error HTTP 400 a `next(...)`.
+7. **Inyección de datos limpios (DTO y compatibilidad):**
+   - Inyecta tanto en `req[origen]` como en las propiedades estándar de la cátedra: **`req.bodyValidado`** y **`req.parametrosValidados`**.
    - Para consultas URL (`query`), inyecta los filtros y paginación sanitizados en **`req.consulta`**. Esto previene conflictos con el *getter* nativo de sólo lectura de Express 5 sobre `req.query` y brinda a los controladores un acceso unificado y seguro.
 
 ---
 
-## 3. Creador de Errores HTTP (`crearError.js`)
+## 3. Autenticación JWT y Revocaciones (`autenticarUsuario.js`)
+
+**Ubicación:** `src/middlewares/autenticarUsuario.js`  
+**Tipo:** Middleware de Seguridad, Autenticación y Autorización (Bearer JWT con RFC 6750)  
+**Posición en rutas:** En rutas privadas (`src/routes/usuario.routes.js`, ej. `/me`, `/logout`) antes de los controladores que requieren identidad verificada.
+
+### Código:
+```javascript
+import jwt from "jsonwebtoken";
+import { verificarToken } from "../services/token.services.js";
+import { tokenEstaRevocado } from "../services/revocaciones.services.js";
+
+export const autenticarUsuario = async (req, res, next) => {
+    const encabezado = req.get("Authorization")?.trim();
+    if (!encabezado) {
+        res.set("WWW-Authenticate", "Bearer");
+        return res.status(401).json({
+            mensaje: "Se requiere un token de acceso."
+        });
+    }
+
+    const coincidencia = /^Bearer\s+(\S+)$/i.exec(encabezado);
+    if (!coincidencia) {
+        res.set("WWW-Authenticate", 'Bearer error="invalid_request"');
+        return res.status(400).json({
+            mensaje: "Usar Authorization: Bearer <token>."
+        });
+    }
+
+    try {
+        req.usuario = verificarToken(coincidencia[1]);
+        if (await tokenEstaRevocado(req.usuario.jti)) {
+            throw new jwt.JsonWebTokenError("Token revocado.");
+        }
+    } catch (error) {
+        if (!(error instanceof jwt.JsonWebTokenError)) {
+            return next(error);
+        }
+        res.set("WWW-Authenticate", 'Bearer error="invalid_token"');
+        return res.status(401).json({
+            mensaje: "Token inválido, vencido o revocado."
+        });
+    }
+
+    return next();
+};
+```
+
+### ¿Cómo funciona paso a paso?
+1. **Extracción del encabezado (`req.get("Authorization")`):**
+   Obtiene el valor de la cabecera HTTP de forma insensible a mayúsculas/minúsculas y remueve espacios en los bordes.
+2. **Validación de presencia (RFC 6750):**
+   Si la petición carece de cabecera `Authorization`, responde HTTP `401 Unauthorized` e incluye la cabecera estándar `WWW-Authenticate: Bearer` exigida por la especificación OAuth 2.0 / Bearer Token.
+3. **Validación de formato sintáctico (`/^Bearer\s+(\S+)$/i`):**
+   Aplica una expresión regular insensible a mayúsculas para comprobar que el esquema sea `Bearer` seguido de una cadena no vacía (`<token>`). Si el cliente envía un formato incorrecto (ej: `Basic ...` o solo el token sin la palabra `Bearer`), responde HTTP `400 Bad Request` con cabecera `WWW-Authenticate: Bearer error="invalid_request"`.
+4. **Verificación criptográfica y estructural (`verificarToken`):**
+   Extrae el token del grupo de captura (`coincidencia[1]`) y lo delega al servicio `src/services/token.services.js`. Allí se valida la firma con `JWT_SECRET`, algoritmo `HS256`, y se comprueban con **Zod** los claims requeridos (`sub` tipo UUID, `exp` número y `jti` cadena válida).
+5. **Comprobación de Lista Negra en Base de Datos (`tokenEstaRevocado`):**
+   Consulta de forma asíncrona en PostgreSQL si el identificador único del token (`req.usuario.jti`) figura en la tabla `TokenRevocado`. Si fue revocado (por ejemplo, porque el usuario cerró sesión con `/logout`), fuerza el lanzamiento de una excepción `jwt.JsonWebTokenError("Token revocado.")`.
+6. **Captura y diagnóstico de errores:**
+   Si la excepción capturada es una instancia de `jwt.JsonWebTokenError` (token alterado, firma inválida, expirado por tiempo o revocado), emite `401 Unauthorized` con cabecera `WWW-Authenticate: Bearer error="invalid_token"` y mensaje unificado `"Token inválido, vencido o revocado."`. Si se produce cualquier otro fallo imprevisto (ej. caída de conexión con la base de datos), lo remite a `next(error)` para su gestión en el middleware global de 500.
+7. **Inyección de identidad (`req.usuario`) y prosecución (`next()`):**
+   Al superar exitosamente todas las etapas, asocia el objeto `{ id: payload.sub, jti, exp }` a `req.usuario` y llama a `next()`, permitiendo que los controladores dependientes consuman la identidad del usuario autenticado sin volver a consultar o decodificar el token.
+
+---
+
+## 4. Creador de Errores HTTP (`crearError.js`)
 
 **Ubicación:** `src/utils/crearError.js`  
 **Tipo:** Función Utilitaria (Factory Pattern)  
@@ -152,7 +234,7 @@ export const crearError = (mensaje, status = 500, details = null) => {
 
 ---
 
-## 4. Formateador de Errores Zod (`ErroresZod.js`)
+## 5. Formateador de Errores Zod (`ErroresZod.js`)
 
 **Ubicación:** `src/utils/ErroresZod.js`  
 **Tipo:** Utilidad especializada de formateo para Zod  
@@ -175,7 +257,7 @@ export const detallarErroresZod = (ZodError) =>
 
 ---
 
-## 5. Capturador 404 (`rutaNoEncontrada.js`)
+## 6. Capturador 404 (`rutaNoEncontrada.js`)
 
 **Ubicación:** `src/middlewares/rutaNoEncontrada.js`  
 **Tipo:** Middleware de Enrutamiento / Ruta Comodín  
@@ -197,38 +279,129 @@ export const rutaNoEncontrada = (req, res, next) => {
 
 ---
 
-## 6. Manejador Global Centralizado (`manejoErrores.js`)
+## 4. Control de Autorización y Contexto (`autorizacion.js`)
+
+**Ubicación:** `src/middlewares/autorizacion.js`  
+**Tipo:** Middlewares de Autorización y RBAC (Unidad 4)  
+**Posición:** Entre `autenticarUsuario` y los controladores en rutas privadas.
+
+### Código:
+```javascript
+import { obtenerUsuarioPorId } from "../services/usuario.services.js";
+
+export const cargarContextoUsuario = async (req, res, next) => {
+    try {
+        const usuario = await obtenerUsuarioPorId(req.usuario.id);
+        if (!usuario) {
+            res.set("WWW-Authenticate", "Bearer");
+            return res.status(401).json({ mensaje: "Cuenta inexistente." });
+        }
+        if (!usuario.activo) {
+            return res.status(403).json({ mensaje: "Cuenta inactiva." });
+        }
+        req.contextoUsuario = usuario;
+        return next();
+    } catch (error) {
+        return next(error);
+    }
+};
+
+export const autorizarRoles = (...rolesPermitidos) => {
+    return (req, res, next) => {
+        const usuario = req.contextoUsuario;
+        const permitido = (usuario?.roles ?? []).some(rol => rolesPermitidos.includes(rol));
+        if (!permitido) {
+            return res.status(403).json({
+                mensaje: "No tiene permiso para esta operación."
+            });
+        }
+        return next();
+    };
+};
+```
+
+### ¿Cómo funciona?
+1. **`cargarContextoUsuario`**:
+   - Toma el `req.usuario.id` que dejó verificado `autenticarUsuario`.
+   - Consulta a la base de datos para obtener el estado actual de la cuenta, sus roles relacionales (`['ARTESANO']`, `['ADMINISTRADOR']`) y si posee perfil de artesano vinculado.
+   - Comprueba `usuario.activo === true`. Si la cuenta fue desactivada por un administrador, rechaza inmediatamente con `403 Cuenta inactiva`.
+   - Inyecta `req.contextoUsuario` con los datos listos para el resto del pipeline.
+2. **`autorizarRoles(...rolesPermitidos)`**:
+   - Función de orden superior (retorna un middleware) que verifica si al menos uno de los roles del usuario coincide con los autorizados (ej: `autorizarRoles("ADMINISTRADOR")` o `autorizarRoles("ARTESANO", "ADMINISTRADOR")`).
+   - Si no cumple, rechaza de forma homogénea con `403 No tiene permiso para esta operación`.
+
+---
+
+## 5. Creador de Errores HTTP (`crearError.js`)
+*(Permite instanciar errores con código HTTP y detalles).*
+
+---
+
+## 6. Formateador de Errores Zod (`ErroresZod.js`)
+*(Transforma las violaciones de esquema de Zod en arreglos legibles `{ path, message }`).*
+
+---
+
+## 7. Capturador 404 (`rutaNoEncontrada.js`)
+
+**Ubicación:** `src/middlewares/rutaNoEncontrada.js`  
+**Tipo:** Middleware 404  
+
+```javascript
+import { crearError } from "../utils/crearError.js";
+
+export const rutaNoEncontrada = (req, res, next) => {
+    next(crearError(`Ruta no encontrada: ${req.method} ${req.originalUrl}`, 404));
+};
+```
+
+---
+
+## 8. Manejador Global Centralizado de Errores (`manejoErrores.js`)
 
 **Ubicación:** `src/middlewares/manejoErrores.js`  
-**Tipo:** Middleware de Errores (Error Handling Middleware)  
-**Posición en `app.js`:** En la última posición absoluta de la aplicación.
+**Tipo:** Error Handling Middleware (última posición en `app.js`)
 
 ### Código:
 ```javascript
 export const manejoErrores = (err, req, res, next) => {
-    const estado = err.status || 500;
+    if (res.headersSent) return next(err);
+
+    // Mapeo canónico de errores de Prisma según la cátedra
+    const mensajes = {
+        P2002: "Ya existe un registro con esos datos únicos.",
+        P2003: "La operación afecta registros relacionados.",
+        P2025: "Registro no encontrado.",
+        P2034: "Hubo otro cambio simultáneo. Reintentar."
+    };
+
+    const mensajeErrorPrisma = mensajes[err.code];
+    const estado = mensajeErrorPrisma
+        ? (err.code === "P2025" ? 404 : 409)
+        : (err.status || 500);
+
+    const mensaje = estado >= 500
+        ? "Error interno del servidor."
+        : (mensajeErrorPrisma || err.message);
 
     if (estado >= 500) {
         console.error(err);
-        return res.status(500).json({
-            error: 'Error interno del servidor'
-        });
     }
 
-    const cuerpo = { error: err.message };
-
+    const respuesta = { mensaje, error: mensaje };
     if (err.details) {
-        cuerpo.details = err.details;
+        respuesta.details = err.details;
     }
 
-    res.status(estado).json(cuerpo);
+    return res.status(estado).json(respuesta);
 };
 ```
 
-### Aspectos Clave:
-* **Firma de 4 Parámetros `(err, req, res, next)`:** Obligatoria en Express para que la función sea reconocida como capturadora de errores.
-* **Seguridad en errores 500:** Registra `err` en consola para los desarrolladores, pero responde un mensaje genérico `{ "error": "Error interno del servidor" }` para no filtrar datos sensibles al cliente.
-* **Respuesta unificada en errores 4xx:** Devuelve `{ error: err.message }` y, si contiene `err.details`, incluye el desglose de validaciones en la propiedad `details`.
+### Reglas aplicadas:
+* **`P2002` (Unicidad violada):** Responde `409 Conflict`.
+* **`P2003` (Clave foránea / Restricción):** Responde `409 Conflict`.
+* **`P2025` (Registro no encontrado en `findUniqueOrThrow` / `update`):** Responde `404 Not Found`.
+* **Protección contra fugas en errores 500:** Solo emite log en consola interna sin exponer detalles sensibles al cliente.
 
 ---
 
@@ -237,10 +410,11 @@ export const manejoErrores = (err, req, res, next) => {
 | Archivo | Rol | ¿Quién lo invoca o llama? | ¿Qué entrega al siguiente eslabón? |
 |---|---|---|---|
 | **`logger.js`** | Monitoreo HTTP | Express al recibir cualquier petición | Deja pasar la petición limpia con `next()` |
-| **`validarSchema.js`** | Validación universal (body, params, query) | Rutas HTTP antes de los controladores | `req[origen]` como DTO limpio y tipado o error 400 |
-| **`comun.schemas.js`** | Esquemas Zod compartidos | Rutas con parámetros comunes (`:id`) | Regla para validar identificadores numéricos |
-| **`producto.schemas.js`** | Esquemas Zod de Producto | Rutas de `/productos` | Reglas de validación Zod con `.safeParse()` |
+| **`validarSchema.js`** | Validación universal (body, params, query) | Rutas HTTP antes de los controladores | `req.bodyValidado` / `req.parametrosValidados` |
+| **`autenticarUsuario.js`** | Autenticación Bearer JWT y Lista Negra | Rutas privadas | Inyecta `req.usuario = { id, jti, exp }` o rechaza 401 |
+| **`autorizacion.js`** | Contexto y RBAC de roles | Rutas privadas protegidas | Inyecta `req.contextoUsuario` y valida permisos (403 si falla) |
+| **`comun.schemas.js`** | Esquemas Zod compartidos | Rutas con parámetros comunes (`:id` int o uuid) | Validación de IDs enteros o UUIDs |
 | **`ErroresZod.js`** | Formateador de fallos Zod | `validarSchema` | Array estructurado `[{ path, message }]` |
 | **`crearError.js`** | Fabricador de Errores | Controladores, servicios y validadores | Objeto `Error` con `.status`, `.message` y `.details` |
 | **`rutaNoEncontrada.js`** | Detección de rutas 404 | Express cuando no hay coincidencias | Error 404 transferido a `next(error)` |
-| **`manejoErrores.js`** | Respuesta final de fallos | Express cuando se invoca `next(error)` | Respuesta JSON homogénea `{ error, details? }` |
+| **`manejoErrores.js`** | Respuesta final de fallos | Express cuando se invoca `next(error)` | Mapeo Prisma (404/409) y respuesta JSON homogénea |

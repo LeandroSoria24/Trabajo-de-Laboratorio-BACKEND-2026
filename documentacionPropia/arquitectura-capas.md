@@ -19,8 +19,9 @@ Este documento explica la organización modular en capas del proyecto, qué resp
 10. [Capa Transversal: Utilidades (`utils/`)](#capa-transversal-utilidades-utils)
 11. [Flujo Completo de una Petición](#flujo-completo-de-una-petición)
 12. [Reglas de Negocio por Entidad](#reglas-de-negocio-por-entidad)
-13. [Tabla Resumen: Quién Hace Qué](#tabla-resumen-quién-hace-qué)
-14. [Diagrama de Dependencias entre Capas](#diagrama-de-dependencias-entre-capas)
+13. [Mapeo y Correspondencia: Cátedra UNCa (Unidad 4) vs Poncho Digital](#mapeo-y-correspondencia-cátedra-unca-unidad-4-vs-poncho-digital)
+14. [Tabla Resumen: Quién Hace Qué](#tabla-resumen-quién-hace-qué)
+15. [Diagrama de Dependencias entre Capas](#diagrama-de-dependencias-entre-capas)
 
 ---
 
@@ -38,37 +39,78 @@ Es un patrón de diseño que divide el software en niveles jerárquicos donde **
 
 ```text
 src/
-├── app.js                          ← Punto de entrada (configura Express, middlewares y rutas)
+├── app.js                              ← Punto de entrada (Express, middlewares globales, rutas e inicio de daemons)
 │
-├── routes/                         ← Capa de Enrutamiento (define endpoints y handlers)
-│   ├── artesano.routes.js
-│   └── producto.routes.js
+├── routes/                             ← Capa de Enrutamiento (define endpoints, autorizaciones y validaciones)
+│   ├── artesano.routes.js              ← Perfil /me (artesano), catálogo público y administración
+│   ├── producto.routes.js              ← Catálogo público y gestión con filtro de propiedad
+│   ├── stand.routes.js                 ← Catálogo ferial público y administración de stands 1:1
+│   ├── pabellon.routes.js              ← Consulta pública y gestión de pabellones feriales
+│   ├── sector.routes.js                ← Consulta pública y gestión de sectores feriales
+│   ├── localidad.routes.js             ← Consulta de localidades de Catamarca
+│   ├── solicitud.routes.js             ← Postulaciones de artesanos, dictamen y asignación de stands
+│   └── usuario.routes.js               ← Registro (rol ARTESANO), login, /me, roles y control de cuentas activas
 │
-├── middlewares/                     ← Capa de Middlewares (filtros intermedios)
-│   ├── logger.js                   ← Monitoreo de tiempos y estado HTTP
-│   ├── manejoErrores.js            ← Red de seguridad global para respuestas JSON
-│   ├── rutaNoEncontrada.js         ← Captura de 404
-│   └── validarSchema.js            ← Fábrica universal de validación Zod (body, params, query)
+├── middlewares/                         ← Capa de Middlewares (filtros de seguridad y ciclo de vida)
+│   ├── logger.js                       ← Monitoreo de tiempos de respuesta y estado HTTP
+│   ├── autenticarUsuario.js            ← Verificación de Bearer JWT y consulta de lista negra (revocaciones)
+│   ├── autorizacion.js                 ← Contexto de usuario (`cargarContextoUsuario`) y RBAC (`autorizarRoles`)
+│   ├── manejoErrores.js                ← Mapeo canónico de errores de Prisma (404/409) y respuesta JSON homogénea
+│   ├── rutaNoEncontrada.js             ← Captura de 404
+│   └── validarSchema.js                ← Fábrica universal de validación Zod (body, params, query)
 │
-├── validators/                     ← Capa de Esquemas de Validación (Zod)
-│   ├── comun.schemas.js            ← Esquemas compartidos (p. ej. validación de :id)
-│   └── producto.schemas.js         ← Contratos de entrada (body, params y querys)
+├── validators/                         ← Capa de Esquemas de Validación (Zod 4)
+│   ├── comun.schemas.js                ← Esquemas compartidos (validación de :id numérico y :id UUID)
+│   ├── artesano.schemas.js             ← Validación de alta, edición y filtros de artesanos
+│   ├── producto.schemas.js             ← Validación de productos y catálogo
+│   ├── stand.schemas.js                ← Validación de stands y asignación ferial
+│   ├── pabellon.schemas.js             ← Validación de pabellones
+│   ├── sector.schemas.js               ← Validación de sectores
+│   ├── localidad.schemas.js            ← Validación de localidades
+│   ├── solicitud.schemas.js            ← Validación de postulación ferial, evaluación y stands
+│   ├── roles.schemas.js                ← Validación de asignación y retiro de roles
+│   ├── estado.schemas.js               ← Validación de cambio de estado activo
+│   └── usuario.schemas.js              ← Validación de registro y login
 │
-├── controllers/                    ← Capa de Controladores (gestión HTTP y delegación DTO)
+├── controllers/                        ← Capa de Controladores (gestión HTTP y delegación DTO)
 │   ├── artesano.controllers.js
-│   └── producto.controllers.js
+│   ├── producto.controllers.js
+│   ├── stand.controllers.js
+│   ├── pabellon.controllers.js
+│   ├── sector.controllers.js
+│   ├── localidad.controllers.js
+│   ├── solicitud.controllers.js
+│   ├── roles.controllers.js
+│   ├── estado.controllers.js
+│   ├── sesiones.controllers.js         ← Cierre de sesión y revocación de JWT
+│   └── usuario.controllers.js          ← Registro, login con emisión de JWT y perfil (/me)
 │
-├── services/                       ← Capa de Servicios (lógica de negocio y persistencia con Prisma)
-│   └── producto.services.js
+├── services/                           ← Capa de Servicios (lógica de negocio y persistencia con Prisma)
+│   ├── artesano.services.js            ← Gestión de perfil, moderación y soft delete
+│   ├── producto.services.js            ← CRUD de productos con control de stock y propiedad
+│   ├── stand.services.js               ← Asignación atómica 1:1 y liberación de stands
+│   ├── pabellon.services.js            ← Mantenimiento de pabellones
+│   ├── sector.services.js              ← Mantenimiento de sectores
+│   ├── localidad.services.js           ← Catálogo de localidades
+│   ├── solicitud.services.js           ← Circuito de postulación, evaluación y asignación
+│   ├── roles.services.js               ← Asignación y retiro seguro de roles (RBAC)
+│   ├── estado.services.js              ← Activación/desactivación de cuentas (regla de admin activo)
+│   ├── usuario.services.js             ← Registro, verificación bcrypt y contexto de cuenta
+│   ├── token.services.js               ← Emisión HS256 (15m, JTI) y validación de claims con Zod
+│   └── revocaciones.services.js        ← Comprobación, inserción y purga de tokens revocados
 │
-├── config/                         ← Capa de Configuración
-│   └── prisma.js                  ← Instancia compartida de Prisma Client con adapter-pg
+├── tareas/                             ← Tareas Programadas y Asíncronas en Segundo Plano
+│   └── limpiezaRevocaciones.js         ← Purga periódica por hora de tokens expirados en la BD
 │
-├── utils/                          ← Utilidades transversales
-│   ├── crearError.js              ← Fábrica de errores HTTP con status y details
-│   └── ErroresZod.js              ← Formateador estructurado de errores Zod { path, message }
+├── config/                             ← Capa de Configuración
+│   ├── prisma.js                       ← Instancia singleton de Prisma Client con adapter-pg
+│   └── jwt.js                          ← Carga y validación estricta de variable JWT_SECRET
 │
-└── generated/prisma/               ← Cliente generado por Prisma ORM
+├── utils/                              ← Utilidades transversales
+│   ├── crearError.js                   ← Fábrica de errores HTTP con status y details
+│   └── ErroresZod.js                   ← Formateador estructurado de errores Zod { path, message }
+│
+└── generated/prisma/                   ← Cliente generado por Prisma ORM
 ```
 
 ---
@@ -76,31 +118,55 @@ src/
 ## Capa 1: Punto de Entrada (`app.js`)
 
 **Archivo:** `src/app.js`  
-**Responsabilidad:** Configurar Express, registrar middlewares globales y montar los enrutadores principales.
+**Responsabilidad:** Configurar Express, registrar middlewares globales, montar los enrutadores principales e inicializar servicios en segundo plano y configuraciones críticas:
 
 ```javascript
-app.use('/artesanos', artesanosRoutes);
-app.use('/productos', productosRoutes);
+import "./config/jwt.js"; // Valida presencia de JWT_SECRET en el entorno
+import { iniciarLimpiezaRevocaciones } from "./tareas/limpiezaRevocaciones.js";
+
+// Montaje de rutas
+app.use('/artesanos',   artesanosRoutes);
+app.use('/productos',   productosRoutes);
+app.use('/usuarios',    usuariosRoutes);
+app.use('/stands',      standsRoutes);
+app.use('/pabellones',  pabellonesRoutes);
+app.use('/sectores',    sectoresRoutes);
+app.use('/localidades', localidadesRoutes);
+app.use('/solicitudes', solicitudesRoutes);
+
 app.use(rutaNoEncontrada);
 app.use(manejoErrores);
+
+app.listen(PORT, () => {
+    console.log(`Servidor iniciado en puerto ${PORT}`);
+    iniciarLimpiezaRevocaciones(); // Inicia daemon de purga periódica de tokens
+});
 ```
 
 ---
 
 ## Capa 2: Rutas (`routes/`)
 
-**Archivos:** `src/routes/artesano.routes.js`, `src/routes/producto.routes.js`  
+**Archivos:** `src/routes/artesano.routes.js`, `src/routes/producto.routes.js`, `src/routes/usuario.routes.js`  
 **Responsabilidad:** Declarar los endpoints y establecer el orden de ejecución:
 1. Validaciones previas con `validarSchema` (`query`, `params`, `body`).
-2. Controlador final.
+2. Middlewares de seguridad y sesión (`autenticarUsuario`).
+3. Controlador final.
 
 ```javascript
+// Rutas de productos:
 router.get('/', validarSchema(obtenerProductosSchema, 'query'), getProductos);
 router.get('/:id', validarSchema(idParamSchema, 'params'), getProductoPorId);
 router.post('/', validarSchema(crearProductoSchema, 'body'), createProducto);
 router.put('/:id', validarSchema(idParamSchema, 'params'), validarSchema(actualizarProductoSchema, 'body'), updateProducto);
 router.delete('/:id', validarSchema(idParamSchema, 'params'), deleteProducto);
 router.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogico);
+
+// Rutas de autenticación y usuarios:
+router.post("/registro", validarSchema(registrarUsuarioSchema, 'body'), postUsuario);
+router.post("/login", validarSchema(iniciarSesionSchema, 'body'), iniciarSesion);
+router.get("/me", autenticarUsuario, obtenerMiPerfil);
+router.post("/logout", autenticarUsuario, cerrarSesion);
 ```
 
 ---
@@ -111,6 +177,12 @@ router.patch('/:id', validarSchema(idParamSchema, 'params'), deleteProductoLogic
 
 * **`logger.js`**: Mide con precisión milisegundos y status HTTP al completarse la respuesta (`res.on('finish')`).
 * **`validarSchema.js`**: Middleware fábrica universal de validación. Recibe el esquema Zod y el origen (`body`, `params`, `query`), aplica `safeParse()`, sanitiza y limpia los datos en `req[origen]`. Si hay fallos, delega a `detallarErroresZod` y `crearError(400)`.
+* **`autenticarUsuario.js`**: Middleware de autenticación y seguridad mediante tokens JWT según estándar **RFC 6750**:
+  - Extrae y valida el encabezado `Authorization: Bearer <token>`.
+  - Verifica la firma criptográfica y expiración usando `verificarToken()`.
+  - Consulta en base de datos si el identificador único `jti` está en la lista negra (`tokenEstaRevocado()`).
+  - Emite cabeceras de respuesta `WWW-Authenticate` con diagnósticos ante fallos (`Bearer`, `error="invalid_request"`, `error="invalid_token"`).
+  - Inyecta la identidad decodificada en `req.usuario = { id, jti, exp }` para los siguientes controladores.
 * **`rutaNoEncontrada.js`**: Captura URLs que no coincidan con ninguna ruta registrada y arroja 404.
 * **`manejoErrores.js`**: Middleware final de 4 parámetros `(err, req, res, next)` que estandariza las respuestas de error en formato JSON homogéneo `{ error, details? }`.
 
@@ -135,24 +207,28 @@ export const obtenerProductosSchema = z.object({ ... });
 
 ## Capa 5: Controladores (`controllers/`)
 
-**Archivos:** `src/controllers/artesano.controllers.js`, `src/controllers/producto.controllers.js`  
+**Archivos:** `src/controllers/artesano.controllers.js`, `src/controllers/producto.controllers.js`, `src/controllers/usuario.controllers.js`, `src/controllers/sesiones.controllers.js`  
 **Responsabilidad:** Coordinar el flujo HTTP.
 * Recibe los datos validados desde `req.body` como un **DTO** o el `id` desde `req.params`.
 * Invoca a la capa de servicios:
   ```javascript
+  // Creación de producto
   const crearProductoDto = req.body;
   const nuevoProducto = await crearProducto(crearProductoDto);
   return res.status(201).json(nuevoProducto);
-  ```
-* Para borrado físico y lógico:
-  ```javascript
-  // Borrado físico:
-  await eliminarProducto(id);
-  res.status(200).send("Producto eliminado exitosamente");
 
-  // Borrado lógico:
-  await deleteLogico(id);
-  res.status(200).json({ message: "Producto eliminado logicamente" });
+  // Inicio de sesión y emisión de JWT:
+  const usuario = await loginService(req.body);
+  const token = generarToken(usuario);
+  return res.status(200).json({ mensaje: "Inicio de sesión exitoso.", token, usuario });
+
+  // Perfil autenticado (/me):
+  const usuario = await obtenerUsuarioPorId(req.usuario.id);
+  return res.status(200).json({ usuario });
+
+  // Cierre de sesión (/logout):
+  await revocarToken(req.usuario);
+  return res.status(204).end();
   ```
 * En caso de error, el bloque `try/catch` lo remite a `next(error)`.
 
@@ -160,53 +236,110 @@ export const obtenerProductosSchema = z.object({ ... });
 
 ## Capa 6: Servicios (`services/`)
 
-**Archivo:** `src/services/producto.services.js`  
-**Responsabilidad:** Contener la lógica de negocio y comunicarse directamente con Prisma Client.
+**Archivos:** `src/services/producto.services.js`, `src/services/usuario.services.js`, `src/services/token.services.js`, `src/services/revocaciones.services.js`  
+**Responsabilidad:** Contener la lógica de negocio, seguridad criptográfica y comunicarse directamente con Prisma Client.
 
 * **Desacoplado de Express:** No recibe `req`, `res` ni `next`. Trabaja únicamente con tipos primitivos y DTOs planos. Si ocurre un fallo de negocio, lanza excepciones mediante `throw crearError(...)` que el controlador captura en su bloque `catch`.
 * **Reglas de negocio y persistencia limpia:**
-  - `crearProducto`: comprueba la existencia previa del artesano.
-  - `actualizarProducto`: valida existencia del producto y del artesano si se envía.
-  - `obtenerProductoPorId`: busca el producto y lanza 404 si no existe.
-  - `eliminarProducto`: verifica existencia previa y elimina definitivamente el registro con `prisma.producto.delete`.
-  - `deleteLogico`: verifica existencia y actualiza el flag `eliminado: true` con `prisma.producto.update`.
+  - `producto.services.js`: comprueba existencia de artesanos, alta, modificación, bajas físicas (`delete`) y lógicas (`update activo: false`).
+  - `usuario.services.js`: registra cuentas con hash Bcrypt (cost 10), valida login y provee `obtenerUsuarioPorId` con proyección segura (`select: { id, nombre, email }`).
+  - `token.services.js`:
+    - `generarToken`: emite un JWT firmado con HS256, expiración a 15 minutos (`expiresIn: "15m"`), subject `sub: usuario.id` y `jti: randomUUID()`.
+    - `verificarToken`: verifica firma contra `secretoJWT`, algoritmos permitidos, y valida defensivamente los claims con **Zod** (`z.uuid().safeParse(payload.sub)` y `payload.jti`).
+  - `revocaciones.services.js`:
+    - `tokenEstaRevocado(jti)`: comprueba existencia del token en la tabla `TokenRevocado`.
+    - `revocarToken({ jti, exp })`: almacena el `jti` y su fecha de expiración usando `prisma.tokenRevocado.upsert`.
+    - `eliminarRevocacionesVencidas()`: elimina masivamente registros cuyo `venceEn` sea menor o igual a la fecha actual (`deleteMany`).
 
 ---
 
-## Capa 7: Acceso a Datos — Prisma ORM (`config/`, `prisma/`)
+## Capa 7: Acceso a Datos y Configuración (`config/`, `prisma/`)
 
-**Archivos:** `src/config/prisma.js`, `prisma/schema.prisma`  
-**Responsabilidad:** Definir las tablas relacionales en PostgreSQL y proveer el cliente de consultas.
+**Archivos:** `src/config/prisma.js`, `src/config/jwt.js`, `prisma/schema.prisma`  
+**Responsabilidad:** Definir las tablas relacionales en PostgreSQL, validar secretos del entorno y proveer el cliente singleton de consultas.
 
 ```prisma
+model Usuario {
+  id           String       @id @default(uuid()) @db.Uuid
+  nombre       String
+  email        String       @unique
+  passwordHash String
+  activo       Boolean      @default(true)
+  artesano     Artesano?
+  roles        UsuarioRol[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Rol {
+  id       Int          @id @default(autoincrement())
+  nombre   String       @unique // "ADMINISTRADOR", "ARTESANO"
+  usuarios UsuarioRol[]
+}
+
+model UsuarioRol {
+  usuarioId String  @db.Uuid
+  rolId     Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, rolId])
+}
+
 model Artesano {
   id                     Int        @id @default(autoincrement())
+  usuarioId              String     @unique @db.Uuid
+  usuario                Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  localidadId            Int
+  localidad              Localidad  @relation(fields: [localidadId], references: [id])
   nombre                 String
   apellido               String
   dni                    String     @unique
   email                  String     @unique
+  activo                 Boolean    @default(false)
+  email                  String     @unique
   telefono               String?
-  localidad              String
-  rubro                  String
   nombreEmprendimiento   String
-  descripcionTrayectoria String?
+  rubro                  String
+  descripcionTrayectoria String?    @db.Text
+  activo                 Boolean    @default(true)
   productos              Producto[]
+  stand                  Stand?
   createdAt              DateTime   @default(now())
-  updatedAt              DateTime   @default(now()) @updatedAt
+  updatedAt              DateTime   @updatedAt
 }
 
 model Producto {
   id          Int      @id @default(autoincrement())
-  nombre      String
-  descripcion String?
-  precio      Float
-  stock       Int      @default(0)
   artesanoId  Int
   artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+  nombre      String
+  descripcion String?  @db.Text
+  precio      Decimal  @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  activo      Boolean  @default(true)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  updatedAt   DateTime @updatedAt
+
+  @@index([artesanoId])
+}
+
+model TokenRevocado {
+  jti     String   @id
+  venceEn DateTime
+
+  @@index([venceEn])
 }
 ```
+
+---
+
+## Capa 8: Tareas Programadas en Segundo Plano (`tareas/`)
+
+**Archivo:** `src/tareas/limpiezaRevocaciones.js`  
+**Responsabilidad:** Ejecutar procesos de mantenimiento en segundo plano sin bloquear el bucle de eventos de Node.js.
+* **`iniciarLimpiezaRevocaciones()`**: Configura un bucle recurrente cada 1 hora (`60 * 60 * 1000` ms) utilizando `setTimeout(ejecutar, INTERVALO_MS).unref()`.
+* Invoca `eliminarRevocacionesVencidas()` para purgar registros de la lista negra cuyos tokens ya hayan expirado naturalmente, evitando el crecimiento desmedido de la tabla `TokenRevocado`.
 
 ---
 
@@ -289,9 +422,12 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 ### Artesano
 | Regla | Capa | Detalle |
 |---|---|---|
-| DNI único | Prisma / Controller | No puede haber dos artesanos con el mismo documento |
-| Email único | Prisma / Controller | No puede haber dos artesanos con el mismo correo |
-| Datos obligatorios | Controller | Nombre, apellido, dni, email, localidad, rubro y emprendimiento |
+| DNI único | `@unique` en Prisma | No puede haber dos artesanos con el mismo documento |
+| Email único | `@unique` en Prisma | No puede haber dos artesanos con el mismo correo |
+| Localidad existente | `services/artesano.services.js` | `localidadId` debe referenciar una `Localidad` registrada |
+| Datos obligatorios | `validators/artesano.schemas.js` | nombre, apellido, dni, email, localidadId, rubro, nombreEmprendimiento |
+| Soft delete | `services/artesano.services.js` | `DELETE /artesanos/:id` → `activo: false` (no se borra físicamente) |
+| Filtro por activo | `services/artesano.services.js` | `GET /artesanos` filtra `activo: true` por defecto |
 
 ### Producto
 | Regla | Capa | Detalle |
@@ -299,23 +435,111 @@ manejoErrores.js responde: 400 Bad Request ("Artesano inexistente.")
 | Nombre obligatorio | `validators/producto.schemas.js` | Mínimo 1 carácter sin espacios en blanco |
 | Precio positivo | `validators/producto.schemas.js` | Mayor a 0 |
 | Stock no negativo | `validators/producto.schemas.js` | Mayor o igual a 0 |
-| Artesano existente | `services/producto.services.js` | El producto debe vincularse a un artesano registrado en la BD |
-| Eliminación en cascada | `prisma/schema.prisma` | Si se elimina un artesano, se eliminan sus productos |
+| Artesano existente | `services/producto.services.js` | El producto debe vincularse a un artesano registrado |
+| Eliminación en cascada | `prisma/schema.prisma` | `onDelete: Cascade` — si se elimina un artesano, sus productos se eliminan |
+| Soft delete | `services/producto.services.js` | `DELETE /productos/:id` → baja lógica (`activo = false`) |
+
+### Localidad
+| Regla | Capa | Detalle |
+|---|---|---|
+| Nombre único | `@unique` en Prisma | No puede haber dos localidades con el mismo nombre |
+| Provincia con default | `prisma/schema.prisma` | Por defecto `"Catamarca"` |
+
+### Stand
+| Regla | Capa | Detalle |
+|---|---|---|
+| Código único | `@unique` en Prisma | Identificador único del stand (ej. `STD-101`) |
+| Asignación 1:1 | `artesanoId @unique` | Un artesano tiene como máximo un stand |
+| Asignación atómica | `services/stand.services.js` | Usa `prisma.$transaction` para evitar race conditions |
+| Stand disponible | `services/stand.services.js` | Solo se puede asignar un stand con `estado: DISPONIBLE` |
+| Artesano sin stand | `services/stand.services.js` | El artesano no puede tener otro stand ya asignado |
+
+### SolicitudPostulacion
+| Regla | Capa | Detalle |
+|---|---|---|
+| Estado controlado | `EstadoSolicitud` enum | `PENDIENTE`, `EN_REVISION`, `APROBADA`, `RECHAZADA`, `CANCELADA` |
+| Evaluación por administración | `evaluadorId UUID?` | Asignado al administrador dictaminador |
+| Postulante obligatorio | `artesanoId Int` | Vínculo requerido con el artesano solicitante |
+
+### Usuario
+| Regla | Capa | Detalle |
+|---|---|---|
+| ID seguro | `id UUID` | Generado con `default(uuid())` a nivel base de datos |
+| Email único | `@unique` en Prisma | Un solo usuario por dirección de email |
+| Password hasheada | `services/usuario.services.js` | Encriptada de forma unidireccional con Bcrypt (cost 10) |
+| Roles relacionales (RBAC) | `Rol` y `UsuarioRol` | Roles M:N (`ADMINISTRADOR`, `ARTESANO`). Un usuario puede tener múltiples roles |
+| Rol por defecto | `services/usuario.services.js` | Todo nuevo registro público adquiere rol `ARTESANO` automáticamente |
+| Cuenta activa | `Usuario.activo` | Control de habilitación/desactivación por administración |
+
+### Sesiones y Autenticación JWT (`TokenRevocado`)
+| Regla | Capa | Detalle |
+|---|---|---|
+| Firma y expiración | `services/token.services.js` | Algoritmo HS256, vigencia de 15 minutos (`expiresIn: "15m"`) y secreto en `JWT_SECRET` |
+| Identificador de token (JTI) | `services/token.services.js` | Cada token emitido genera un `jti` criptográfico con `crypto.randomUUID()` |
+| Verificación defensiva Zod | `services/token.services.js` | Valida que `sub` sea UUID válido (`z.uuid()`), `exp` sea número y `jti` no esté vacío |
+| Autenticación Bearer | `middlewares/autenticarUsuario.js` | Extrae encabezado `Authorization: Bearer <token>`, valida formato y firma, e inyecta `req.usuario` |
+| Cierre de sesión (Revocación) | `services/revocaciones.services.js` | Invalida el token guardando `{ jti, venceEn }` en la tabla `TokenRevocado` con `upsert` |
+| Verificación de lista negra | `middlewares/autenticarUsuario.js` | Rechaza peticiones si el token se encuentra registrado como revocado en la BD |
+| Purga periódica en segundo plano | `tareas/limpiezaRevocaciones.js` | Tarea recurrente cada 1 hora que elimina tokens vencidos de `TokenRevocado` con `deleteMany` |
 
 ---
 
-## Tabla Resumen: Quién Hace Qué
+## 13. Mapeo y Correspondencia: Cátedra UNCa (Unidad 4) vs Poncho Digital
+
+En las diapositivas de la cátedra (**Unidad 4: Autorización y Protección de Recursos**) se utiliza un proyecto didáctico genérico basado en *Usuarios, Participantes, Eventos e Inscripciones*. 
+
+En **Poncho Digital**, todas las directivas, patrones arquitectónicos y buenas prácticas de seguridad enseñadas por la cátedra fueron **estrictamente respetadas y aplicadas al dominio real de la Fiesta Nacional e Internacional del Poncho**:
+
+### Comparativa de Modelos y Dominio
+
+| Componente Teórico Cátedra (`1.md`) | Implementación en Poncho Digital | Justificación de Negocio Ferial |
+|---|---|---|
+| **Modelo `Usuario`** | **`Usuario`** | Idéntico: Credenciales, hash Bcrypt, `activo: Boolean @default(true)`, y relación M:N con `Rol`. |
+| **Modelo `Rol`** | **`Rol`** | Idéntico: Catálogo con nombres únicos. En Poncho Digital: `ARTESANO` y `ADMINISTRADOR`. |
+| **Modelo `UsuarioRol`** | **`UsuarioRol`** | Idéntico: Tabla intermedia con clave compuesta `@@id([usuarioId, rolId])` para RBAC múltiple. |
+| **Modelo `Participante`** | **`Artesano`** | El artesano es el expositor participante del evento ferial. Relación 1:1 estricta con `Usuario` (`usuarioId @unique @db.Uuid`, `onDelete: Restrict`). Nace con `activo = false`. |
+| **Modelo `Inscripcion`** | **`SolicitudPostulacion`** | Trámite formal del artesano para solicitar un espacio. Posee ciclo de vida (`PENDIENTE`, `EN_REVISION`, `APROBADA`, `RECHAZADA`, `CANCELADA`). |
+| **Modelo `Evento`** | **`Stand` (en `Pabellon` y `Sector`)** | El recurso físico administrado por la organización para albergar artesanos expositores. |
+
+---
+
+### Comparativa de Endpoints y Matriz de Acceso
+
+| Endpoint Didáctico Cátedra | Endpoint Real Poncho Digital | Quién tiene acceso | Acción que realiza |
+|---|---|---|---|
+| `POST /usuarios/registro-participante` | `POST /usuarios/registro` | 🟢 **Público** | Registro inicial. Crea `Usuario` y le asigna el rol `ARTESANO` por defecto en una sola transacción. |
+| `POST /usuarios/login` | `POST /usuarios/login` | 🟢 **Público** | Valida credenciales Bcrypt y emite JWT firmado (15 min) con identificador `jti`. |
+| `GET /participantes/me` | `GET /artesanos/me` | 🟡 **ARTESANO** | Filtro de propiedad: consulta únicamente los datos de perfil del artesano autenticado. |
+| `POST /participantes` | `POST /artesanos/me` | 🟡 **ARTESANO** | Completa los datos personales y de taller del expositor (nace con `activo: false`). |
+| `PUT /participantes/me` | `PUT /artesanos/me` | 🟡 **ARTESANO** | Modifica datos comerciales propios (teléfono, emprendimiento). |
+| `POST /inscripciones` | `POST /solicitudes` | 🟡 **ARTESANO** | Presenta postulación para participar en la feria (inicia en `PENDIENTE`). |
+| `GET /inscripciones/me` | `GET /solicitudes/me` | 🟡 **ARTESANO** | Lista únicamente el historial de postulaciones del usuario solicitante. |
+| — | `PATCH /solicitudes/:id/cancelar` | 🟡 **ARTESANO** | Permite al artesano cancelar su postulación antes de que sea evaluada. |
+| `POST /eventos` | `POST /stands` (y `/pabellones`) | 🔴 **ADMINISTRADOR** | Alta de stands y pabellones físicos en el predio ferial. |
+| `PUT/DELETE /eventos/:id` | `PUT/DELETE /stands/:id` | 🔴 **ADMINISTRADOR** | Modificación física y mantenimiento de stands. |
+| — | `GET /solicitudes` | 🔴 **ADMINISTRADOR** | Auditoría global de todas las postulaciones con filtros por estado. |
+| — | `PATCH /solicitudes/:id/evaluar` | 🔴 **ADMINISTRADOR** | Dictamina la solicitud. Al dictaminar `APROBADA`, activa automáticamente al artesano en BD (`activo = true`). |
+| — | `PATCH /solicitudes/:id/asignar-stand` | 🔴 **ADMINISTRADOR** | Asigna un stand libre (`DISPONIBLE` $\rightarrow$ `OCUPADO`) vinculándolo 1:1 al artesano. |
+| `POST /usuarios/registro-administrador` | `POST /usuarios/registro-administrador` | 🔴 **ADMINISTRADOR** | Alta de una nueva cuenta con rol `ADMINISTRADOR`. |
+| `POST /usuarios/:id/roles` | `POST /usuarios/:id/roles` | 🔴 **ADMINISTRADOR** | Asigna un nuevo rol a un usuario existente. |
+| `DELETE /usuarios/:id/roles/:rol` | `DELETE /usuarios/:id/roles/:rol` | 🔴 **ADMINISTRADOR** | Retira un rol aplicando reglas de seguridad (conservar al menos 1 rol y 1 admin activo). |
+| `PATCH /usuarios/:id/activo` | `PATCH /usuarios/:id/activo` | 🔴 **ADMINISTRADOR** | Habilita o inhabilita una cuenta en el sistema (no permite desactivar el último admin). |
+
+---
+
+## 14. Tabla Resumen: Quién Hace Qué
 
 | Capa | Carpeta | Responsabilidad | Importa | NO importa |
 |---|---|---|---|---|
-| **Punto de Entrada** | `app.js` | Configura Express y monta rutas | `express`, `routes`, `middlewares` | `prisma`, `validators` |
+| **Punto de Entrada** | `app.js` | Configura Express, monta rutas e inicia tareas | `express`, `routes`, `middlewares`, `tareas` | `prisma`, `validators` |
 | **Rutas** | `routes/` | Declara endpoints y orden de handlers | `controllers`, `middlewares` | `prisma`, `validators` |
-| **Middlewares** | `middlewares/` | Valida con Zod, monitorea y captura errores | `utils`, `validators` | `prisma`, `controllers` |
+| **Middlewares** | `middlewares/` | Valida con Zod, autentica JWT (`autenticarUsuario`), captura errores | `utils`, `validators`, `services/token`, `services/revocaciones` | `controllers` |
 | **Validadores** | `validators/` | Define contratos Zod | `zod` | Todo lo demás |
-| **Controladores** | `controllers/` | Recibe HTTP, transfiere DTO, responde | `services`, `utils`, `prisma` (GETs) | `express.Router`, `validators` |
-| **Servicios** | `services/` | Lógica de negocio y persistencia | `prisma`, `utils` | `express` (`req`/`res`), `validators` |
-| **Acceso a Datos** | `config/`, `prisma/` | Conexión y modelos de base de datos | `@prisma`, `dotenv` | Todo lo demás |
-| **Utilidades** | `utils/` | Estandarización de errores | Independiente | Todo lo demás |
+| **Controladores** | `controllers/` | Recibe HTTP, transfiere DTO, responde | `services`, `utils` | `express.Router`, `validators` |
+| **Servicios** | `services/` | Lógica de negocio, persistencia, emisión/verificación JWT | `prisma`, `utils`, `jsonwebtoken`, `zod`, `crypto` | `express` (`req`/`res`) |
+| **Tareas en 2do Plano** | `tareas/` | Daemons recurrentes de mantenimiento y purga | `services/revocaciones` | `express`, `routes` |
+| **Acceso a Datos** | `config/`, `prisma/` | Conexión, secretos de entorno y modelos BD | `@prisma`, `dotenv` | Todo lo demás |
+| **Utilidades** | `utils/` | Estandarización de errores y formateo Zod | Independiente | Todo lo demás |
 
 ---
 

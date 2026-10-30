@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poncho Digital — Consola Interactiva de Pruebas API</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0d14;
+      --bg-secondary: #101522;
+      --bg-card: rgba(19, 26, 42, 0.7);
+      --bg-card-hover: rgba(26, 36, 58, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 102, 241, 0.5);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-primary: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --method-get: #10b981;
+      --method-post: #6366f1;
+      --method-put: #f59e0b;
+      --method-patch: #ec4899;
+      --method-delete: #ef4444;
+      --status-2xx: #10b981;
+      --status-4xx: #f59e0b;
+      --status-5xx: #ef4444;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.06) 0%, transparent 40%);
+    }
+
+    /* HEADER */
+    header {
+      background: rgba(16, 21, 34, 0.8);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 1rem 2rem;
+    }
+
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      font-size: 1.3rem;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+    }
+
+    .logo-text h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #fff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .top-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .input-group {
+      display: flex;
+      align-items: center;
+      background: rgba(10, 13, 20, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.4rem 0.75rem;
+      gap: 0.5rem;
+    }
+
+    .input-group label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .input-group input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+    }
+
+    .btn {
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      border-color: transparent;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #4f46e5, #4338ca);
+      box-shadow: 0 6px 18px rgba(99, 102, 241, 0.45);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .btn-sm {
+      padding: 0.3rem 0.6rem;
+      font-size: 0.75rem;
+    }
+
+    .token-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 8px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: #34d399;
+    }
+    .token-badge.empty {
+      background: rgba(148, 163, 184, 0.1);
+      border-color: rgba(148, 163, 184, 0.2);
+      color: #94a3b8;
+    }
+
+    /* MAIN LAYOUT */
+    .app-container {
+      max-width: 1400px;
+      margin: 1.5rem auto;
+      padding: 0 1.5rem;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 1.5rem;
+      flex: 1;
+      width: 100%;
+    }
+
+    /* SIDEBAR NAVIGATION */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .nav-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .nav-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+      padding-left: 0.5rem;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 0.8rem;
+      border-radius: 8px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: transparent;
+      border: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .nav-item.active {
+      color: #fff;
+      background: rgba(99, 102, 241, 0.15);
+      border-left: 3px solid var(--accent-primary);
+    }
+
+    .nav-item span.icon {
+      font-size: 1.1rem;
+    }
+
+    /* WORKSPACE CONTENT */
+    .workspace {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* QUICK RUNNER BANNER */
+    .runner-card {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.1));
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .runner-info h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.25rem;
+    }
+
+    .runner-info p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* ENDPOINT CARDS */
+    .endpoint-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .endpoint-card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .endpoint-header {
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      cursor: pointer;
+      user-select: none;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid transparent;
+    }
+
+    .endpoint-header.expanded {
+      border-bottom-color: var(--border-color);
+    }
+
+    .endpoint-left {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .badge-method {
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      min-width: 65px;
+      text-align: center;
+    }
+
+    .badge-GET { background: rgba(16, 185, 129, 0.15); color: var(--method-get); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-POST { background: rgba(99, 102, 241, 0.15); color: var(--method-post); border: 1px solid rgba(99, 102, 241, 0.3); }
+    .badge-PUT { background: rgba(245, 158, 11, 0.15); color: var(--method-put); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-PATCH { background: rgba(236, 72, 153, 0.15); color: var(--method-patch); border: 1px solid rgba(236, 72, 153, 0.3); }
+    .badge-DELETE { background: rgba(239, 68, 68, 0.15); color: var(--method-delete); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    .endpoint-path {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .endpoint-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-left: 0.5rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .endpoint-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .badge-role {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .role-publico { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+    .role-artesano { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .role-admin { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .role-auth { background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); }
+
+    /* ENDPOINT BODY */
+    .endpoint-body {
+      padding: 1.25rem;
+      display: none;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .endpoint-body.active {
+      display: flex;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .field-group label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .field-input, .field-textarea {
+      background: rgba(10, 13, 20, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .field-input:focus, .field-textarea:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+
+    .field-textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .action-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.75rem;
+    }
+
+    /* RESPONSE VIEWER */
+    .response-box {
+      background: rgba(10, 13, 20, 0.95);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+      display: none;
+    }
+
+    .response-header {
+      padding: 0.5rem 0.85rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+    }
+
+    .response-status {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .response-content {
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      max-height: 350px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #e2e8f0;
+    }
+
+    /* LOGS DRAWER / MODAL */
+    .flow-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .flow-modal.active {
+      display: flex;
+    }
+
+    .flow-content {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 750px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+      overflow: hidden;
+    }
+
+    .flow-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .flow-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 0.85rem 1rem;
+      background: rgba(10, 13, 20, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    .step-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: rgba(99, 102, 241, 0.2);
+      color: #818cf8;
+      flex-shrink: 0;
+    }
+
+    .step-info {
+      flex: 1;
+    }
+
+    .step-info h4 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .step-info p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    .step-status {
+      font-size: 0.8rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    @media (max-width: 900px) {
+      .app-container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-content">
+      <div class="logo-area">
+        <div class="logo-badge">🏺</div>
+        <div class="logo-text">
+          <h1>Poncho Digital — Tester Suite</h1>
+          <p>Consola Interactiva de Endpoints y Autorizaciones (UNCa)</p>
+        </div>
+      </div>
+
+      <div class="top-controls">
+        <div class="input-group">
+          <label for="serverUrl">Servidor:</label>
+          <input type="text" id="serverUrl" value="http://localhost:3000" style="width: 170px;">
+        </div>
+
+        <div id="tokenBadge" class="token-badge empty">
+          <span>🔒 Sin Token</span>
+        </div>
+
+        <button class="btn btn-sm btn-primary" onclick="loginRapidoAdmin()">
+          ⚡ Login Admin
+        </button>
+
+        <button class="btn btn-sm btn-danger" onclick="limpiarToken()">
+          ✕ Borrar Token
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- APP CONTENT -->
+  <main class="app-container">
+    
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="nav-card">
+        <div class="nav-title">Módulos del Sistema</div>
+        <button class="nav-item active" onclick="filtrarModulo('todos', this)">
+          <span class="icon">🌐</span> Todos los Endpoints
+        </button>
+        <button class="nav-item" onclick="filtrarModulo('usuarios', this)">
+          <span class="icon">👤</span> Usuarios & Auth
+        </button>
+        <button class="nav-item" onclick="filtrarModulo('artesanos', this)">
+          <span class="icon">🎨</span> Artesanos & Perfil
+        </button>
+        <button class="nav-item" onclick="filtrarModulo('solicitudes', this)">
+          <span class="icon">📋</span> Solicitudes Feriales
+        </button>
+        <button class="nav-item" onclick="filtrarModulo('stands', this)">
+          <span class="icon">🎪</span> Stands & Asignación
+        </button>
+        <button class="nav-item" onclick="filtrarModulo('productos', this)">
+          <span class="icon">📦</span> Catálogo Productos
+        </button>
+        <button class="nav-item" onclick="filtrarModulo('predio', this)">
+          <span class="icon">🏛️</span> Pabellones & Sectores
+        </button>
+      </div>
+
+      <div class="nav-card">
+        <div class="nav-title">Sesión Rápida</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
+          Usa los botones para cargar credenciales de prueba o ejecutar el circuito guiado de 1 clic.
+        </div>
+        <button class="btn btn-sm" style="margin-top: 0.5rem;" onclick="abrirModalRunner()">
+          🚀 Circuito Ferial Completo
+        </button>
+      </div>
+    </aside>
+
+    <!-- WORKSPACE -->
+    <section class="workspace">
+      
+      <!-- BANNER ACCIÓN RÁPIDA -->
+      <div class="runner-card">
+        <div class="runner-info">
+          <h2>🚀 Validador del Ciclo de Vida del Artesano</h2>
+          <p>Ejecuta en secuencia: Registro $\rightarrow$ Login $\rightarrow$ Perfil $\rightarrow$ Postulación $\rightarrow$ Aprobación Admin $\rightarrow$ Asignación Stand.</p>
+        </div>
+        <button class="btn btn-primary" onclick="abrirModalRunner()">
+          Iniciar Prueba Completa
+        </button>
+      </div>
+
+      <!-- LISTADO DE ENDPOINTS -->
+      <div id="endpointsContainer">
+        <!-- Generado dinámicamente con JavaScript -->
+      </div>
+
+    </section>
+  </main>
+
+  <!-- MODAL TEST RUNNER INTEGRAL -->
+  <div class="flow-modal" id="flowModal">
+    <div class="flow-content">
+      <div class="flow-header">
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff;">Circuito de Vida Ferial Automatizado</h3>
+        <button class="btn btn-sm btn-danger" onclick="cerrarModalRunner()">Cerrar</button>
+      </div>
+      <div class="flow-body" id="flowStepsBody">
+        <!-- Pasos interactivos generados en ejecución -->
+      </div>
+      <div style="padding: 1rem 1.5rem; background: rgba(0,0,0,0.2); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
+        <button class="btn btn-primary" id="btnEjecutarFlujo" onclick="ejecutarCircuitoCompleto()">
+          ▶ Ejecutar Pasos
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ESTADO GLOBAL
+    let tokenActual = localStorage.getItem('poncho_token') || '';
+    let usuarioActual = JSON.parse(localStorage.getItem('poncho_usuario') || 'null');
+
+    // CATÁLOGO DE ENDPOINTS DE LA API
+    const ENDPOINTS = [
+      // ─── USUARIOS Y AUTENTICACIÓN ───
+      {
+        modulo: 'usuarios',
+        metodo: 'POST',
+        ruta: '/usuarios/registro',
+        descripcion: 'Registro público de usuario (adquiere rol ARTESANO por defecto)',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [],
+        query: [],
+        body: {
+          nombre: "Artesano Ejemplo",
+          email: "artesano_demo@ponchodigital.gob.ar",
+          password: "Password123#"
+        }
+      },
+      {
+        modulo: 'usuarios',
+        metodo: 'POST',
+        ruta: '/usuarios/login',
+        descripcion: 'Inicio de sesión (obtiene token JWT de 15 min)',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [],
+        query: [],
+        body: {
+          email: "admin@ponchodigital.gob.ar",
+          password: "Admin1234#"
+        }
+      },
+      {
+        modulo: 'usuarios',
+        metodo: 'GET',
+        ruta: '/usuarios/me',
+        descripcion: 'Consulta perfil de la cuenta, activo, roles y artesano vinculado',
+        rol: 'Autenticado',
+        requiereAuth: true,
+        params: [],
+        query: []
+      },
+      {
+        modulo: 'usuarios',
+        metodo: 'POST',
+        ruta: '/usuarios/logout',
+        descripcion: 'Cierre de sesión e invalidación de token en lista negra persistente',
+        rol: 'Autenticado',
+        requiereAuth: true,
+        params: [],
+        query: []
+      },
+      {
+        modulo: 'usuarios',
+        metodo: 'POST',
+        ruta: '/usuarios/registro-administrador',
+        descripcion: 'Alta de un nuevo usuario administrador',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [],
+        query: [],
+        body: {
+          nombre: "Nuevo Administrador",
+          email: "nuevo_admin@ponchodigital.gob.ar",
+          password: "PasswordAdmin123#"
+        }
+      },
+      {
+        modulo: 'usuarios',
+        metodo: 'POST',
+        ruta: '/usuarios/:id/roles',
+        descripcion: 'Asignar rol ADMINISTRADOR a un usuario existente',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'UUID del usuario' }],
+        query: [],
+        body: { rol: "ADMINISTRADOR" }
+      },
+      {
+        modulo: 'usuarios',
+        metodo: 'DELETE',
+        ruta: '/usuarios/:id/roles/:rol',
+        descripcion: 'Retirar rol aplicando reglas de seguridad (conservar 1, al menos 1 admin activo)',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [
+          { key: 'id', desc: 'UUID del usuario' },
+          { key: 'rol', desc: 'Nombre del rol (ARTESANO | ADMINISTRADOR)' }
+        ],
+        query: []
+      },
+      {
+        modulo: 'usuarios',
+        metodo: 'PATCH',
+        ruta: '/usuarios/:id/activo',
+        descripcion: 'Habilitar o inhabilitar una cuenta de usuario en el sistema',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'UUID del usuario' }],
+        query: [],
+        body: { activo: false }
+      },
+
+      // ─── ARTESANOS ───
+      {
+        modulo: 'artesanos',
+        metodo: 'GET',
+        ruta: '/artesanos',
+        descripcion: 'Catálogo público ferial de artesanos activos con filtros y paginación',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [],
+        query: [
+          { key: 'nombre', default: '' },
+          { key: 'rubro', default: '' },
+          { key: 'pagina', default: '1' },
+          { key: 'limite', default: '10' }
+        ]
+      },
+      {
+        modulo: 'artesanos',
+        metodo: 'GET',
+        ruta: '/artesanos/:id',
+        descripcion: 'Ficha ferial de un artesano específico con sus productos y stand',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [{ key: 'id', desc: 'ID del artesano (entero)' }],
+        query: []
+      },
+      {
+        modulo: 'artesanos',
+        metodo: 'GET',
+        ruta: '/artesanos/me',
+        descripcion: 'Consulta los propios datos de artesano del usuario autenticado',
+        rol: 'Artesano',
+        requiereAuth: true,
+        params: [],
+        query: []
+      },
+      {
+        modulo: 'artesanos',
+        metodo: 'POST',
+        ruta: '/artesanos/me',
+        descripcion: 'Completa el perfil de artesano propio (arranca en activo: false)',
+        rol: 'Artesano',
+        requiereAuth: true,
+        params: [],
+        query: [],
+        body: {
+          nombre: "Juan Carlos",
+          apellido: "Páez",
+          dni: "28999123",
+          telefono: "+54 383 456789",
+          localidadId: 1,
+          rubro: "Textil y Ponchos",
+          nombreEmprendimiento: "Tejidos Belichos",
+          descripcionTrayectoria: "Maestro tejedor con más de 20 años de trayectoria en telar criollo."
+        }
+      },
+      {
+        modulo: 'artesanos',
+        metodo: 'PUT',
+        ruta: '/artesanos/me',
+        descripcion: 'Modifica datos propios de artesano',
+        rol: 'Artesano',
+        requiereAuth: true,
+        params: [],
+        query: [],
+        body: {
+          nombreEmprendimiento: "Tejidos y Ponchos Belichos",
+          telefono: "+54 383 499999"
+        }
+      },
+      {
+        modulo: 'artesanos',
+        metodo: 'PATCH',
+        ruta: '/artesanos/:id/activo',
+        descripcion: 'Habilitar o inhabilitar un artesano expositor directamente',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del artesano' }],
+        query: [],
+        body: { activo: true }
+      },
+      {
+        modulo: 'artesanos',
+        metodo: 'POST',
+        ruta: '/artesanos',
+        descripcion: 'Creación directa de artesano por administración (requiere usuarioId)',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [],
+        query: [],
+        body: {
+          nombre: "Pedro",
+          apellido: "Gómez",
+          dni: "31234567",
+          email: "pedro.gomez@ejemplo.com",
+          telefono: "+54 383 4112233",
+          localidadId: 1,
+          rubro: "Cerámica y Alfarería",
+          nombreEmprendimiento: "Barro y Fuego",
+          descripcionTrayectoria: "Alfarero tradicional de Santa María.",
+          usuarioId: "00000000-0000-0000-0000-000000000000",
+          activo: true
+        }
+      },
+      {
+        modulo: 'artesanos',
+        metodo: 'PUT',
+        ruta: '/artesanos/:id',
+        descripcion: 'Actualización integral de datos de un artesano por ID',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del artesano' }],
+        query: [],
+        body: {
+          rubro: "Orfebrería y Platería",
+          nombreEmprendimiento: "Platería Calchaquí",
+          telefono: "+54 383 4556677"
+        }
+      },
+      {
+        modulo: 'artesanos',
+        metodo: 'DELETE',
+        ruta: '/artesanos/:id',
+        descripcion: 'Baja lógica (soft delete) del artesano (activo = false)',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del artesano' }],
+        query: []
+      },
+
+      // ─── SOLICITUDES DE POSTULACIÓN ───
+      {
+        modulo: 'solicitudes',
+        metodo: 'POST',
+        ruta: '/solicitudes',
+        descripcion: 'Presentar solicitud para participar en la feria ferial (PENDIENTE)',
+        rol: 'Artesano',
+        requiereAuth: true,
+        params: [],
+        query: [],
+        body: {
+          observaciones: "Postulación para stand en el pabellón central de artesanías."
+        }
+      },
+      {
+        modulo: 'solicitudes',
+        metodo: 'GET',
+        ruta: '/solicitudes/me',
+        descripcion: 'Listar postulaciones propias del artesano autenticado',
+        rol: 'Artesano',
+        requiereAuth: true,
+        params: [],
+        query: []
+      },
+      {
+        modulo: 'solicitudes',
+        metodo: 'PATCH',
+        ruta: '/solicitudes/:id/cancelar',
+        descripcion: 'Cancelar postulación propia si aún se encuentra en estado PENDIENTE',
+        rol: 'Artesano',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID de la solicitud' }],
+        query: []
+      },
+      {
+        modulo: 'solicitudes',
+        metodo: 'GET',
+        ruta: '/solicitudes',
+        descripcion: 'Auditoría global: lista todas las solicitudes de todos los artesanos',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [],
+        query: [
+          { key: 'estado', default: 'PENDIENTE' },
+          { key: 'pagina', default: '1' },
+          { key: 'limite', default: '10' }
+        ]
+      },
+      {
+        modulo: 'solicitudes',
+        metodo: 'PATCH',
+        ruta: '/solicitudes/:id/evaluar',
+        descripcion: 'Dictamen de solicitud (APROBADA | RECHAZADA). Al aprobar activa al artesano.',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID de la solicitud' }],
+        query: [],
+        body: {
+          estado: "APROBADA",
+          observaciones: "Calidad y antecedentes certificados por el jurado de admisión."
+        }
+      },
+      {
+        modulo: 'solicitudes',
+        metodo: 'PATCH',
+        ruta: '/solicitudes/:id/asignar-stand',
+        descripcion: 'Asignar un stand disponible a una postulación aprobada (pasa a OCUPADO)',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID de la solicitud' }],
+        query: [],
+        body: {}
+      },
+
+      // ─── STANDS ───
+      {
+        modulo: 'stands',
+        metodo: 'GET',
+        ruta: '/stands',
+        descripcion: 'Directorio público de stands con filtros por pabellón, sector y estado',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [],
+        query: [
+          { key: 'pabellonId', default: '' },
+          { key: 'sectorId', default: '' },
+          { key: 'estado', default: 'DISPONIBLE' },
+          { key: 'pagina', default: '1' },
+          { key: 'limite', default: '10' }
+        ]
+      },
+      {
+        modulo: 'stands',
+        metodo: 'GET',
+        ruta: '/stands/:id',
+        descripcion: 'Detalle de un stand ferial',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [{ key: 'id', desc: 'ID del stand' }],
+        query: []
+      },
+      {
+        modulo: 'stands',
+        metodo: 'POST',
+        ruta: '/stands',
+        descripcion: 'Crear un nuevo stand físico ferial',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [],
+        query: [],
+        body: {
+          codigo: "STD-NUEVO-101",
+          numero: 101,
+          pabellonId: 1,
+          sectorId: 1
+        }
+      },
+      {
+        modulo: 'stands',
+        metodo: 'PATCH',
+        ruta: '/stands/:id/asignar-artesano',
+        descripcion: 'Asignar directamente un artesano titular al stand',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del stand' }],
+        query: [],
+        body: { artesanoId: 1 }
+      },
+      {
+        modulo: 'stands',
+        metodo: 'PATCH',
+        ruta: '/stands/:id/liberar',
+        descripcion: 'Desvincular artesano y volver el stand a DISPONIBLE',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del stand' }],
+        query: []
+      },
+      {
+        modulo: 'stands',
+        metodo: 'PUT',
+        ruta: '/stands/:id',
+        descripcion: 'Actualización de datos y reubicación de stand',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del stand' }],
+        query: [],
+        body: {
+          codigo: "STD-MODIFICADO-101",
+          numero: 101,
+          pabellonId: 1,
+          sectorId: 1,
+          estado: "DISPONIBLE"
+        }
+      },
+      {
+        modulo: 'stands',
+        metodo: 'DELETE',
+        ruta: '/stands/:id',
+        descripcion: 'Eliminación física de un stand',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del stand' }],
+        query: []
+      },
+
+      // ─── PRODUCTOS ───
+      {
+        modulo: 'productos',
+        metodo: 'GET',
+        ruta: '/productos',
+        descripcion: 'Catálogo público de productos artesanales con búsqueda y filtros',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [],
+        query: [
+          { key: 'nombre', default: '' },
+          { key: 'pagina', default: '1' },
+          { key: 'limite', default: '10' }
+        ]
+      },
+      {
+        modulo: 'productos',
+        metodo: 'GET',
+        ruta: '/productos/:id',
+        descripcion: 'Ficha de producto con artesano vinculado',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [{ key: 'id', desc: 'ID del producto' }],
+        query: []
+      },
+      {
+        modulo: 'productos',
+        metodo: 'POST',
+        ruta: '/productos',
+        descripcion: 'Crear un producto (artesanoId debe ser el del perfil del usuario)',
+        rol: 'Artesano / Admin',
+        requiereAuth: true,
+        params: [],
+        query: [],
+        body: {
+          nombre: "Poncho de Vicuña Fino",
+          descripcion: "Tejido en telar rústico con hilado a mano de vicuña catamarqueña.",
+          precio: 250000.00,
+          stock: 3,
+          artesanoId: 1
+        }
+      },
+      {
+        modulo: 'productos',
+        metodo: 'PUT',
+        ruta: '/productos/:id',
+        descripcion: 'Actualizar datos de un producto propio',
+        rol: 'Artesano / Admin',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del producto' }],
+        query: [],
+        body: {
+          precio: 275000.00,
+          stock: 2
+        }
+      },
+      {
+        modulo: 'productos',
+        metodo: 'DELETE',
+        ruta: '/productos/:id',
+        descripcion: 'Baja lógica del producto (activo = false)',
+        rol: 'Artesano / Admin',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del producto' }],
+        query: []
+      },
+
+      // ─── PREDIO FERIAL (PABELLONES, SECTORES, LOCALIDADES) ───
+      {
+        modulo: 'predio',
+        metodo: 'GET',
+        ruta: '/pabellones',
+        descripcion: 'Listado público de pabellones feriales',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [],
+        query: []
+      },
+      {
+        modulo: 'predio',
+        metodo: 'GET',
+        ruta: '/pabellones/:id',
+        descripcion: 'Detalle de un pabellón con sus stands asociados',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [{ key: 'id', desc: 'ID del pabellón' }],
+        query: []
+      },
+      {
+        modulo: 'predio',
+        metodo: 'POST',
+        ruta: '/pabellones',
+        descripcion: 'Crear pabellón físico',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [],
+        query: [],
+        body: { nombre: "Pabellón Poncho de Oro" }
+      },
+      {
+        modulo: 'predio',
+        metodo: 'PUT',
+        ruta: '/pabellones/:id',
+        descripcion: 'Modificar nombre de un pabellón',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del pabellón' }],
+        query: [],
+        body: { nombre: "Pabellón Poncho de Oro Renombrado" }
+      },
+      {
+        modulo: 'predio',
+        metodo: 'DELETE',
+        ruta: '/pabellones/:id',
+        descripcion: 'Eliminar un pabellón (falla si tiene stands asociados)',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del pabellón' }],
+        query: []
+      },
+      {
+        modulo: 'predio',
+        metodo: 'GET',
+        ruta: '/sectores',
+        descripcion: 'Listado público de sectores del predio',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [],
+        query: []
+      },
+      {
+        modulo: 'predio',
+        metodo: 'GET',
+        ruta: '/sectores/:id',
+        descripcion: 'Detalle de un sector con sus stands asociados',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [{ key: 'id', desc: 'ID del sector' }],
+        query: []
+      },
+      {
+        modulo: 'predio',
+        metodo: 'POST',
+        ruta: '/sectores',
+        descripcion: 'Crear un nuevo sector en el predio',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [],
+        query: [],
+        body: { nombre: "Sector Tradicional Calchaquí" }
+      },
+      {
+        modulo: 'predio',
+        metodo: 'PUT',
+        ruta: '/sectores/:id',
+        descripcion: 'Modificar nombre de un sector',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del sector' }],
+        query: [],
+        body: { nombre: "Sector Tradicional Modificado" }
+      },
+      {
+        modulo: 'predio',
+        metodo: 'DELETE',
+        ruta: '/sectores/:id',
+        descripcion: 'Eliminar un sector (falla si tiene stands asociados)',
+        rol: 'Administrador',
+        requiereAuth: true,
+        params: [{ key: 'id', desc: 'ID del sector' }],
+        query: []
+      },
+      {
+        modulo: 'predio',
+        metodo: 'GET',
+        ruta: '/localidades',
+        descripcion: 'Listado de localidades catamarqueñas para selección',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [],
+        query: []
+      },
+      {
+        modulo: 'predio',
+        metodo: 'GET',
+        ruta: '/localidades/:id',
+        descripcion: 'Detalle de localidad por ID',
+        rol: 'Público',
+        requiereAuth: false,
+        params: [{ key: 'id', desc: 'ID de la localidad' }],
+        query: []
+      }
+    ];
+
+    // INICIALIZACIÓN
+    document.addEventListener('DOMContentLoaded', () => {
+      actualizarBadgeToken();
+      renderizarEndpoints('todos');
+    });
+
+    // ACTUALIZAR BADGE DE TOKEN EN HEADER
+    function actualizarBadgeToken() {
+      const badge = document.getElementById('tokenBadge');
+      if (tokenActual) {
+        let roleName = 'AUTENTICADO';
+        if (usuarioActual && usuarioActual.roles) {
+          roleName = usuarioActual.roles.join(', ');
+        }
+        badge.className = 'token-badge';
+        badge.innerHTML = `<span>🔑 ${roleName}</span> <span style="opacity: 0.6;">(${tokenActual.substring(0, 10)}...)</span>`;
+      } else {
+        badge.className = 'token-badge empty';
+        badge.innerHTML = `<span>🔒 Sin Token</span>`;
+      }
+    }
+
+    function guardarToken(token, usuario = null) {
+      tokenActual = token;
+      usuarioActual = usuario;
+      localStorage.setItem('poncho_token', token);
+      if (usuario) localStorage.setItem('poncho_usuario', JSON.stringify(usuario));
+      actualizarBadgeToken();
+    }
+
+    function limpiarToken() {
+      tokenActual = '';
+      usuarioActual = null;
+      localStorage.removeItem('poncho_token');
+      localStorage.removeItem('poncho_usuario');
+      actualizarBadgeToken();
+      alert('Token eliminado.');
+    }
+
+    // LOGIN RÁPIDO COMO ADMIN
+    async function loginRapidoAdmin() {
+      const server = document.getElementById('serverUrl').value.trim();
+      try {
+        const res = await fetch(`${server}/usuarios/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: "admin@ponchodigital.gob.ar", password: "Admin1234#" })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          guardarToken(data.token, data.usuario);
+          alert('¡Sesión iniciada como ADMINISTRADOR!');
+        } else {
+          alert('Error en login: ' + (data.mensaje || data.error));
+        }
+      } catch (e) {
+        alert('No se pudo conectar al servidor: ' + e.message);
+      }
+    }
+
+    // RENDERIZADO DE ENDPOINTS
+    function renderizarEndpoints(moduloFiltro) {
+      const container = document.getElementById('endpointsContainer');
+      container.innerHTML = '';
+
+      const filtrados = moduloFiltro === 'todos' 
+        ? ENDPOINTS 
+        : ENDPOINTS.filter(e => e.modulo === moduloFiltro);
+
+      filtrados.forEach((ep, idx) => {
+        const cardId = `ep-${moduloFiltro}-${idx}`;
+        const roleClass = ep.rol.toLowerCase().includes('admin') ? 'role-admin'
+                        : ep.rol.toLowerCase().includes('artesano') ? 'role-artesano'
+                        : ep.rol.toLowerCase().includes('autenticado') ? 'role-auth'
+                        : 'role-publico';
+
+        const card = document.createElement('div');
+        card.className = 'endpoint-card';
+        card.id = cardId;
+
+        let paramsHtml = '';
+        if (ep.params.length > 0) {
+          paramsHtml = `
+            <div class="field-group" style="grid-column: 1 / -1;">
+              <label>Parámetros de Ruta (${ep.params.map(p => ':' + p.key).join(', ')}):</label>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                ${ep.params.map(p => `
+                  <input type="text" class="field-input param-input" data-param="${p.key}" placeholder=":${p.key} (${p.desc})" style="flex: 1; min-width: 140px;">
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        let queryHtml = '';
+        if (ep.query.length > 0) {
+          queryHtml = `
+            <div class="field-group" style="grid-column: 1 / -1;">
+              <label>Parámetros de Consulta (Query Params):</label>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                ${ep.query.map(q => `
+                  <input type="text" class="field-input query-input" data-query="${q.key}" placeholder="?${q.key}" value="${q.default || ''}" style="flex: 1; min-width: 120px;">
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        let bodyHtml = '';
+        if (ep.body) {
+          bodyHtml = `
+            <div class="field-group" style="grid-column: 1 / -1;">
+              <label>Cuerpo de la Petición (JSON Body):</label>
+              <textarea class="field-textarea body-input">${JSON.stringify(ep.body, null, 2)}</textarea>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="endpoint-header" onclick="toggleEndpoint('${cardId}')">
+            <div class="endpoint-left">
+              <span class="badge-method badge-${ep.metodo}">${ep.metodo}</span>
+              <span class="endpoint-path">${ep.ruta}</span>
+              <span class="endpoint-desc">${ep.descripcion}</span>
+            </div>
+            <div class="endpoint-right">
+              <span class="badge-role ${roleClass}">${ep.rol}</span>
+              <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+            </div>
+          </div>
+          <div class="endpoint-body">
+            <div class="form-grid">
+              ${paramsHtml}
+              ${queryHtml}
+              ${bodyHtml}
+            </div>
+            <div class="action-row">
+              <button class="btn btn-primary" onclick="enviarPeticion('${cardId}', ${JSON.stringify(ep).replace(/"/g, '&quot;')})">
+                🚀 Enviar Petición
+              </button>
+            </div>
+            <div class="response-box" id="${cardId}-res">
+              <div class="response-header">
+                <span class="response-status" id="${cardId}-status">200 OK</span>
+                <span id="${cardId}-time" style="color: var(--text-muted); font-family: var(--font-mono);">0ms</span>
+              </div>
+              <pre class="response-content" id="${cardId}-content"></pre>
+            </div>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    function toggleEndpoint(cardId) {
+      const card = document.getElementById(cardId);
+      const header = card.querySelector('.endpoint-header');
+      const body = card.querySelector('.endpoint-body');
+      header.classList.toggle('expanded');
+      body.classList.toggle('active');
+    }
+
+    function filtrarModulo(modulo, btn) {
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      btn.classList.add('active');
+      renderizarEndpoints(modulo);
+    }
+
+    // ENVIAR PETICIÓN A LA API
+    async function enviarPeticion(cardId, ep) {
+      const server = document.getElementById('serverUrl').value.trim();
+      const card = document.getElementById(cardId);
+      
+      // Construir ruta con parámetros
+      let urlPath = ep.ruta;
+      card.querySelectorAll('.param-input').forEach(input => {
+        const paramKey = input.dataset.param;
+        const paramVal = input.value.trim();
+        urlPath = urlPath.replace(':' + paramKey, paramVal);
+      });
+
+      // Construir query params
+      const queryParams = new URLSearchParams();
+      card.querySelectorAll('.query-input').forEach(input => {
+        const qKey = input.dataset.query;
+        const qVal = input.value.trim();
+        if (qVal) queryParams.append(qKey, qVal);
+      });
+      const queryString = queryParams.toString() ? '?' + queryParams.toString() : '';
+
+      const fullUrl = server + urlPath + queryString;
+
+      // Headers
+      const headers = { 'Content-Type': 'application/json' };
+      if (tokenActual) {
+        headers['Authorization'] = 'Bearer ' + tokenActual;
+      }
+
+      // Options
+      const options = {
+        method: ep.metodo,
+        headers
+      };
+
+      // Body si aplica
+      const bodyTextarea = card.querySelector('.body-input');
+      if (bodyTextarea && ['POST', 'PUT', 'PATCH'].includes(ep.metodo)) {
+        try {
+          const parsed = JSON.parse(bodyTextarea.value);
+          options.body = JSON.stringify(parsed);
+        } catch (e) {
+          alert('Error en JSON del body: ' + e.message);
+          return;
+        }
+      }
+
+      const resBox = document.getElementById(`${cardId}-res`);
+      const statusPill = document.getElementById(`${cardId}-status`);
+      const timeSpan = document.getElementById(`${cardId}-time`);
+      const contentPre = document.getElementById(`${cardId}-content`);
+
+      resBox.style.display = 'block';
+      contentPre.textContent = 'Enviando petición...';
+      const startTime = performance.now();
+
+      try {
+        const response = await fetch(fullUrl, options);
+        const duration = Math.round(performance.now() - startTime);
+
+        let data;
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          data = await response.text();
+        }
+
+        // Si responde un token en login, capturarlo opcionalmente
+        if (response.ok && data && data.token) {
+          guardarToken(data.token, data.usuario || null);
+        }
+
+        // Estilo de status
+        statusPill.textContent = `${response.status} ${response.statusText}`;
+        if (response.status >= 200 && response.status < 300) {
+          statusPill.style.background = 'rgba(16, 185, 129, 0.2)';
+          statusPill.style.color = '#34d399';
+        } else if (response.status >= 400 && response.status < 500) {
+          statusPill.style.background = 'rgba(245, 158, 11, 0.2)';
+          statusPill.style.color = '#fbbf24';
+        } else {
+          statusPill.style.background = 'rgba(239, 68, 68, 0.2)';
+          statusPill.style.color = '#f87171';
+        }
+
+        timeSpan.textContent = `${duration}ms`;
+        contentPre.textContent = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
+
+      } catch (err) {
+        statusPill.textContent = 'Error de Conexión';
+        statusPill.style.background = 'rgba(239, 68, 68, 0.2)';
+        statusPill.style.color = '#f87171';
+        contentPre.textContent = `No se pudo conectar a ${fullUrl}.\nDetalle: ${err.message}\nVerifica que el backend esté corriendo en el puerto configurado.`;
+      }
+    }
+
+    // MODAL DE CIRCUITO FERIAL
+    function abrirModalRunner() {
+      document.getElementById('flowModal').classList.add('active');
+      renderizarPasosIniciales();
+    }
+
+    function cerrarModalRunner() {
+      document.getElementById('flowModal').classList.remove('active');
+    }
+
+    function renderizarPasosIniciales() {
+      const container = document.getElementById('flowStepsBody');
+      container.innerHTML = `
+        <div class="flow-step" id="step-1">
+          <div class="step-badge">1</div>
+          <div class="step-info">
+            <h4>POST /usuarios/registro</h4>
+            <p>Registra un nuevo usuario único y le asigna el rol ARTESANO.</p>
+          </div>
+          <div class="step-status" style="color: var(--text-muted);">Pendiente</div>
+        </div>
+        <div class="flow-step" id="step-2">
+          <div class="step-badge">2</div>
+          <div class="step-info">
+            <h4>POST /usuarios/login</h4>
+            <p>Inicia sesión y obtiene el token JWT del artesano.</p>
+          </div>
+          <div class="step-status" style="color: var(--text-muted);">Pendiente</div>
+        </div>
+        <div class="flow-step" id="step-3">
+          <div class="step-badge">3</div>
+          <div class="step-info">
+            <h4>POST /artesanos/me</h4>
+            <p>Completa el perfil de artesano vinculado (activo: false por defecto).</p>
+          </div>
+          <div class="step-status" style="color: var(--text-muted);">Pendiente</div>
+        </div>
+        <div class="flow-step" id="step-4">
+          <div class="step-badge">4</div>
+          <div class="step-info">
+            <h4>POST /solicitudes</h4>
+            <p>Presenta la postulación para stand en la fiesta (estado PENDIENTE).</p>
+          </div>
+          <div class="step-status" style="color: var(--text-muted);">Pendiente</div>
+        </div>
+        <div class="flow-step" id="step-5">
+          <div class="step-badge">5</div>
+          <div class="step-info">
+            <h4>PATCH /solicitudes/:id/evaluar (Como Admin)</h4>
+            <p>El administrador dictamina APROBADA y el artesano se activa automáticamente (activo: true).</p>
+          </div>
+          <div class="step-status" style="color: var(--text-muted);">Pendiente</div>
+        </div>
+        <div class="flow-step" id="step-6">
+          <div class="step-badge">6</div>
+          <div class="step-info">
+            <h4>PATCH /solicitudes/:id/asignar-stand (Como Admin)</h4>
+            <p>Asigna un stand disponible a la solicitud y pasa el stand a OCUPADO.</p>
+          </div>
+          <div class="step-status" style="color: var(--text-muted);">Pendiente</div>
+        </div>
+        <div class="flow-step" id="step-7">
+          <div class="step-badge">7</div>
+          <div class="step-info">
+            <h4>GET /artesanos/me</h4>
+            <p>El artesano consulta su perfil verificado con activo: true y stand asignado.</p>
+          </div>
+          <div class="step-status" style="color: var(--text-muted);">Pendiente</div>
+        </div>
+      `;
+    }
+
+    async function ejecutarCircuitoCompleto() {
+      const btn = document.getElementById('btnEjecutarFlujo');
+      btn.disabled = true;
+      btn.textContent = '⏳ Ejecutando circuito...';
+
+      const server = document.getElementById('serverUrl').value.trim();
+      const rnd = Math.floor(Math.random() * 900000) + 100000;
+      const emailTest = `artesano_flujo_${rnd}@ponchodigital.gob.ar`;
+      const passTest = "Password123#";
+
+      function marcarPaso(stepNum, status, color, detalle = '') {
+        const el = document.getElementById(`step-${stepNum}`);
+        if (!el) return;
+        const statEl = el.querySelector('.step-status');
+        statEl.textContent = status;
+        statEl.style.color = color;
+        if (detalle) {
+          el.querySelector('.step-info p').textContent = detalle;
+        }
+      }
+
+      try {
+        // PASO 1: Registro
+        marcarPaso(1, 'Ejecutando...', '#6366f1');
+        const regRes = await fetch(`${server}/usuarios/registro`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre: "Artesano Circuito", email: emailTest, password: passTest })
+        });
+        const regData = await regRes.json();
+        if (!regRes.ok) throw new Error(regData.mensaje || 'Error en registro');
+        marcarPaso(1, '✓ 201 OK', '#10b981', `Registrado con roles: [${regData.nuevoUsuario.roles.join(', ')}]`);
+
+        // PASO 2: Login artesano
+        marcarPaso(2, 'Ejecutando...', '#6366f1');
+        const loginRes = await fetch(`${server}/usuarios/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailTest, password: passTest })
+        });
+        const loginData = await loginRes.json();
+        if (!loginRes.ok) throw new Error(loginData.mensaje || 'Error en login artesano');
+        const tokenArtesano = loginData.token;
+        marcarPaso(2, '✓ 200 OK', '#10b981', `Token JWT emitido exitosamente`);
+
+        // PASO 3: Completar perfil
+        marcarPaso(3, 'Ejecutando...', '#6366f1');
+        const perfilRes = await fetch(`${server}/artesanos/me`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenArtesano}` },
+          body: JSON.stringify({
+            nombre: "Artesano",
+            apellido: "Circuito",
+            dni: String(rnd),
+            localidadId: 1,
+            rubro: "Textil",
+            nombreEmprendimiento: `Taller Ferial ${rnd}`
+          })
+        });
+        const perfilData = await perfilRes.json();
+        if (!perfilRes.ok) throw new Error(perfilData.mensaje || 'Error al completar perfil');
+        marcarPaso(3, '✓ 201 OK', '#10b981', `Perfil creado con activo: ${perfilData.artesano.activo}`);
+
+        // PASO 4: Postulación
+        marcarPaso(4, 'Ejecutando...', '#6366f1');
+        const solRes = await fetch(`${server}/solicitudes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenArtesano}` },
+          body: JSON.stringify({ observaciones: "Postulación para feria ferial" })
+        });
+        const solData = await solRes.json();
+        if (!solRes.ok) throw new Error(solData.mensaje || 'Error al crear solicitud');
+        const solicitudId = solData.solicitud.id;
+        marcarPaso(4, '✓ 201 OK', '#10b981', `Solicitud ID #${solicitudId} en estado PENDIENTE`);
+
+        // PASO 5: Login Admin y Evaluación
+        marcarPaso(5, 'Ejecutando...', '#6366f1');
+        const adminLogRes = await fetch(`${server}/usuarios/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: "admin@ponchodigital.gob.ar", password: "Admin1234#" })
+        });
+        const adminLogData = await adminLogRes.json();
+        if (!adminLogRes.ok) throw new Error('Error login admin');
+        const tokenAdmin = adminLogData.token;
+
+        const evalRes = await fetch(`${server}/solicitudes/${solicitudId}/evaluar`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenAdmin}` },
+          body: JSON.stringify({ estado: "APROBADA", observaciones: "Aprobado por comité ferial" })
+        });
+        const evalData = await evalRes.json();
+        if (!evalRes.ok) throw new Error(evalData.mensaje || 'Error al evaluar');
+        marcarPaso(5, '✓ 200 OK', '#10b981', `Dictaminada como APROBADA (artesano activado en BD)`);
+
+        // PASO 6: Asignar Stand
+        marcarPaso(6, 'Ejecutando...', '#6366f1');
+        const standRes = await fetch(`${server}/solicitudes/${solicitudId}/asignar-stand`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenAdmin}` },
+          body: JSON.stringify({})
+        });
+        const standData = await standRes.json();
+        if (!standRes.ok) throw new Error(standData.mensaje || 'Error al asignar stand');
+        marcarPaso(6, '✓ 200 OK', '#10b981', standData.mensaje);
+
+        // PASO 7: Comprobar perfil del artesano
+        marcarPaso(7, 'Ejecutando...', '#6366f1');
+        const meRes = await fetch(`${server}/artesanos/me`, {
+          headers: { 'Authorization': `Bearer ${tokenArtesano}` }
+        });
+        const meData = await meRes.json();
+        if (!meRes.ok) throw new Error('Error al consultar perfil');
+        marcarPaso(7, '✓ 200 OK', '#10b981', `Verificado: activo = ${meData.activo}, Stand = ${meData.stand ? meData.stand.codigo : 'No asignado'}`);
+
+        guardarToken(tokenArtesano, loginData.usuario);
+        alert('🎉 ¡Circuito completo ejecutado con éxito! Se ha guardado el token del artesano activo.');
+
+      } catch (e) {
+        alert('Fallo en el circuito: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '▶ Re-ejecutar Pasos';
+      }
+    }
+  </script>
+</body>
+</html>

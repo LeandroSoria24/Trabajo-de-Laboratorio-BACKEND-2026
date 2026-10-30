@@ -17,5 +17,17 @@ export const validarSchema = (schema, origen) => (req, res, next) => {
         req[origen] = resultado.data;
     }
 
+    // Compatibilidad con la nomenclatura de la cátedra
+    if (origen === 'body') {
+        req.bodyValidado = resultado.data;
+    }
+    if (origen === 'params') {
+        req.parametrosValidados = resultado.data;
+    }
+
     next();
 };
+
+// Atajos que usa la cátedra
+export const validarBody = (schema) => validarSchema(schema, 'body');
+export const validarParametros = (schema) => validarSchema(schema, 'params');

@@ -7,56 +7,172 @@ datasource db {
   provider = "postgresql"
 }
 
+// ----------------------------------------------------
+// ENUMS
+// ----------------------------------------------------
+
+enum EstadoStand {
+  DISPONIBLE
+  OCUPADO
+  MANTENIMIENTO
+}
+
 enum EstadoSolicitud {
   PENDIENTE
+  EN_REVISION
   APROBADA
   RECHAZADA
+  CANCELADA
+}
+
+// ----------------------------------------------------
+// MODELOS
+// ----------------------------------------------------
+
+model Usuario {
+  id           String   @id @default(uuid()) @db.Uuid
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  activo       Boolean  @default(true)
+
+  artesano             Artesano?
+  solicitudesEvaluadas SolicitudPostulacion[] @relation("EvaluadorSolicitud")
+
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  roles     UsuarioRol[]
+}
+
+model Rol {
+  id       Int          @id @default(autoincrement())
+  nombre   String       @unique
+  usuarios UsuarioRol[]
+}
+
+model UsuarioRol {
+  usuarioId String  @db.Uuid
+  rolId     Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, rolId])
+}
+
+model Localidad {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  provincia String     @default("Catamarca")
+  artesanos Artesano[]
+  createdAt DateTime   @default(now())
 }
 
 model Artesano {
-  id                     Int        @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
+  usuarioId   String    @unique @db.Uuid
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  localidadId Int
+  localidad   Localidad @relation(fields: [localidadId], references: [id])
+
   nombre                 String
   apellido               String
-  dni                    String     @unique
-  email                  String     @unique
+  dni                    String  @unique
+  email                  String  @unique
   telefono               String?
-  localidad              String
-  rubro                  String
   nombreEmprendimiento   String
-  descripcionTrayectoria String?
-  productos              Producto[]
+  rubro                  String
+  descripcionTrayectoria String? @db.Text
+  activo                 Boolean @default(false)
 
-  stand                  Stand? // Relación 1:1 con Stand (un artesano tiene como máximo un stand asignado/solicitado)
-  createdAt              DateTime   @default(now())
-  updatedAt              DateTime   @default(now()) @updatedAt
-}
-/* hacer tabla para localidad */
-/* estaodo en artesano */
+  productos   Producto[]
+  stand       Stand? // Relación 1:1 con Stand (un artesano tiene como máximo un stand)
+  solicitudes SolicitudPostulacion[]
 
-model Stand {
-  id          Int             @id @default(autoincrement())
-  codigo      String          @unique // Código identificatorio único del stand (ej: STD-101)
-  numero      Int
-  ubicacion   String?
-  estado      EstadoSolicitud @default(PENDIENTE) // Estado de la solicitud restringido por enum
-  artesanoId  Int             @unique // @unique garantiza relación 1:1 estricta con Artesano
-  // onDelete: Cascade justificado porque la asignación del stand pertenece a la postulación del artesano
-  artesano    Artesano        @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @default(now()) @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Producto {
-  id          Int      @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
+  artesanoId Int
+  artesano   Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+
   nombre      String
-  descripcion String?
-  precio      Float
-  stock       Int      @default(0)
-  artesanoId  Int      // FK del lado N
-  // onDelete: Cascade justificado para mantener integridad si el artesano es dado de baja
-  artesano    Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
-  eliminado   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  descripcion String? @db.Text
+  precio      Decimal @db.Decimal(10, 2)
+  stock       Int     @default(0)
+  activo      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([artesanoId])
 }
 
+model Pabellon {
+  id        Int      @id @default(autoincrement())
+  nombre    String   @unique
+  stands    Stand[]
+  createdAt DateTime @default(now())
+}
+
+model Sector {
+  id        Int      @id @default(autoincrement())
+  nombre    String   @unique
+  stands    Stand[]
+  createdAt DateTime @default(now())
+}
+
+model Stand {
+  id     Int         @id @default(autoincrement())
+  codigo String      @unique
+  numero Int?
+  estado EstadoStand @default(DISPONIBLE)
+
+  pabellonId Int
+  pabellon   Pabellon @relation(fields: [pabellonId], references: [id])
+
+  sectorId Int
+  sector   Sector @relation(fields: [sectorId], references: [id])
+
+  // Relación 1:1 con Artesano (@unique garantiza máximo 1 stand por artesano)
+  artesanoId Int?      @unique
+  artesano   Artesano? @relation(fields: [artesanoId], references: [id], onDelete: SetNull)
+
+  solicitudes SolicitudPostulacion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pabellonId])
+  @@index([sectorId])
+}
+
+model SolicitudPostulacion {
+  id Int @id @default(autoincrement())
+
+  artesanoId Int
+  artesano   Artesano @relation(fields: [artesanoId], references: [id], onDelete: Cascade)
+
+  standId Int?
+  stand   Stand? @relation(fields: [standId], references: [id], onDelete: SetNull)
+
+  evaluadorId String?  @db.Uuid
+  evaluador   Usuario? @relation("EvaluadorSolicitud", fields: [evaluadorId], references: [id], onDelete: SetNull)
+
+  estado            EstadoSolicitud @default(PENDIENTE)
+  observaciones     String?         @db.Text
+  fechaPresentacion DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([artesanoId])
+  @@index([standId])
+  @@index([evaluadorId])
+}
+
+model TokenRevocado {
+  jti     String   @id
+  venceEn DateTime
+
+  @@index([venceEn])
+}
