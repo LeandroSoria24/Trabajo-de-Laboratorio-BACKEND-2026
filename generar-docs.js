@@ -1,11 +1,12 @@
 import swaggerAutogen from "swagger-autogen";
 import { fileURLToPath } from "node:url";
+import * as esquemas from "./src/documentacion/esquemas.js";
 
 const doc = {
   info: {
-    title: "API de Gestión de Eventos",
-    version: "1.0.0",
-    description: "Borrador: revisar esquemas, errores y permisos."
+    title: "Poncho Digital — API REST",
+    version: "4.0.0",
+    description: "Documentación interactiva de la API REST para la Fiesta Nacional e Internacional del Poncho (Catamarca). Proporciona gestión de usuarios, artesanos, catálogo de productos, stands, pabellones, sectores y postulaciones feriales con RBAC y autenticación JWT.",
   },
   servers: [{ url: "/", description: "Servidor actual" }],
   components: {
@@ -13,12 +14,15 @@ const doc = {
       bearerAuth: {
         type: "http",
         scheme: "bearer",
-        bearerFormat: "JWT"
-      }
-    }
-  }
+        bearerFormat: "JWT",
+      },
+    },
+    // @schemas conserva las definiciones explícitas en components.schemas en el swagger-output.json
+    "@schemas": esquemas,
+  },
 };
 
+// Resolver desde este archivo permite ejecutarlo desde cualquier carpeta
 const ruta = (archivo) =>
   fileURLToPath(new URL(archivo, import.meta.url)).replaceAll("\\", "/");
 
