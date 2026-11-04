@@ -17,6 +17,7 @@ const casosSolicitud = [
   ["observaciones válidas como texto", { observaciones: "Solicitud para el stand textil" }, true],
   ["observaciones como null", { observaciones: null }, true],
   ["campo adicional no permitido (rechazo por .strict())", { observaciones: "Test", campoInvalido: 123 }, false],
+  ["campo adicional 'artesanoId' rechazado por el servidor (.strict())", { observaciones: "Test", artesanoId: 10 }, false],
   ["observaciones con tipo numérico inválido", { observaciones: 12345 }, false],
 ];
 

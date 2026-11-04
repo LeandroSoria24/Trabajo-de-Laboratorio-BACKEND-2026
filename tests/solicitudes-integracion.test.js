@@ -6,6 +6,10 @@ import { crearEscenario, limpiarEscenario } from "./helpers/escenario-solicitude
 // Verificaciones de entorno según la guía de la Unidad 5
 assert.equal(process.env.NODE_ENV, "test", "El entorno debe estar configurado como test.");
 assert.ok(process.env.DATABASE_URL, "DATABASE_URL debe estar definida para pruebas en Supabase.");
+assert.ok(
+  new URL(process.env.DATABASE_URL).pathname.length > 1,
+  "Debe especificarse la base de datos en la URL de conexión."
+);
 
 const { default: prisma } = await import("../src/config/prisma.js");
 const { app } = await import("../src/app.js");
@@ -146,4 +150,20 @@ test("Test 4 (Actividad Integradora): Repetir postulación devuelve 409 y conser
   });
   assert.equal(total, 1, "Debe existir únicamente 1 postulación registrada en la base de datos.");
 });
+
+test("Test 5 (Verificación de Roles): Rol que no corresponde devuelve 403 Forbidden", async () => {
+  const { tokenAna } = datos;
+
+  // Ana posee rol ARTESANO. Al intentar consultar la bandeja administrativa de solicitudes (GET /solicitudes):
+  const respuesta = await request(app)
+    .get("/solicitudes")
+    .set("Authorization", `Bearer ${tokenAna}`)
+    .expect(403)
+    .expect("Content-Type", /json/);
+
+  assert.deepEqual(respuesta.body, {
+    mensaje: "No tiene permiso para esta operación."
+  });
+});
+
 

@@ -5,13 +5,13 @@ import { vaciarBaseDeDatos } from './empty.js';
 const FACTOR_COSTO = 10;
 
 async function main() {
-  console.log('🌱 INICIANDO SEEDER DE PONCHO DIGITAL...');
+  console.log(' INICIANDO SEEDER DE PONCHO DIGITAL...');
 
   // 1. Vaciado relacional preservando Localidad
   await vaciarBaseDeDatos();
 
   // 2. Roles del Sistema
-  console.log('📌 Creando roles...');
+  console.log(' Creando roles...');
   const rolAdmin = await prisma.rol.create({
     data: { nombre: 'ADMINISTRADOR' }
   });
@@ -21,7 +21,7 @@ async function main() {
   });
 
   // 3. Infraestructura: Pabellones
-  console.log('📌 Creando pabellones...');
+  console.log(' Creando pabellones...');
   const pabArtesanal = await prisma.pabellon.create({
     data: { nombre: 'Pabellón Artesanal' }
   });
@@ -36,7 +36,7 @@ async function main() {
   });
 
   // 4. Infraestructura: Sectores
-  console.log('📌 Creando sectores temáticos...');
+  console.log(' Creando sectores temáticos...');
   const secTextil = await prisma.sector.create({ data: { nombre: 'Sector Textil' } });
   const secCeramica = await prisma.sector.create({ data: { nombre: 'Sector Cerámica' } });
   const secMadera = await prisma.sector.create({ data: { nombre: 'Sector Madera' } });
@@ -44,7 +44,7 @@ async function main() {
   const secCuero = await prisma.sector.create({ data: { nombre: 'Sector Cuero' } });
 
   // 5. Infraestructura: Stands
-  console.log('📌 Creando stands...');
+  console.log(' Creando stands...');
   const standA01 = await prisma.stand.create({
     data: {
       codigo: 'A01',
@@ -126,7 +126,7 @@ async function main() {
   });
 
   // 6. Cuentas Administrativas
-  console.log('📌 Creando administradores...');
+  console.log(' Creando administradores...');
   const passAdminHash = await bcrypt.hash('Admin1234#', FACTOR_COSTO);
 
   const adminPrincipal = await prisma.usuario.create({
@@ -154,7 +154,7 @@ async function main() {
   });
 
   // 7. Artesanos, Productos y Postulaciones
-  console.log('📌 Creando artesanos de prueba...');
+  console.log(' Creando artesanos de prueba...');
   const passArtesanoHash = await bcrypt.hash('Artesano1234#', FACTOR_COSTO);
 
   // Buscar algunas localidades existentes para asociar
@@ -421,12 +421,12 @@ async function main() {
   });
 
   console.log('\n=============================================');
-  console.log('🎉 SEED COMPLETADO EXITOSAMENTE');
+  console.log(' SEED COMPLETADO EXITOSAMENTE');
   console.log('=============================================');
-  console.log('👑 Cuentas Administrador creadas:');
+  console.log(' Cuentas Administrador creadas:');
   console.log('   - admin@ponchodigital.gob.ar / Admin1234#');
   console.log('   - santiago.admin@ponchodigital.gob.ar / Admin1234#');
-  console.log('🎨 Cuentas Artesano creadas (Password: Artesano1234#):');
+  console.log(' Cuentas Artesano creadas (Password: Artesano1234#):');
   console.log('   - lorenza@artesanoscatamarca.com (Textil, Belén)');
   console.log('   - juan.ceramica@artesanoscatamarca.com (Cerámica, Santa María)');
   console.log('   - carmen.madera@artesanoscatamarca.com (Madera, Tinogasta)');
@@ -437,7 +437,7 @@ async function main() {
 
 main()
   .catch((e) => {
-    console.error('❌ Error durante el seed:', e);
+    console.error(' Error durante el seed:', e);
     process.exit(1);
   })
   .finally(async () => {
