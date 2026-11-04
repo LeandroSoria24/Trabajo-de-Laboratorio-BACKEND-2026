@@ -129,9 +129,38 @@ npm run docs
 | `npm run dev` | Inicia la API en desarrollo con recarga automática (`node --watch`). |
 | `npm start` | Inicia la API en producción. |
 | `npm run docs` | Ejecuta `generar-docs.js` y actualiza `swagger-output.json`. |
+| `npm test` | Ejecuta los 24 tests unitarios de validación Zod y contratos HTTP (sin tocar base de datos). |
+| `npm run test:clase10` | Alias de la cátedra para ejecutar pruebas unitarias y de contrato (`solicitud-schema` y `solicitudes-acceso`). |
+| `npm run test:integracion` | Ejecuta las pruebas de integración en PostgreSQL (Supabase) con ciclo de vida seguro (`.env.test`). |
+| `npm run test:todos` | Ejecuta la suite completa de pruebas (unitarias y de integración). |
 | `npm run seed` | Puebla la base de datos con roles, predio, stands, administradores y artesanos (preservando `Localidad`). |
 | `npm run db:empty` | Vacía de forma segura las tablas respetando claves foráneas (preservando `Localidad`). |
 | `npm run create-admin` | Asistente por consola (interactivo o por parámetros) para dar de alta usuarios con rol `ADMINISTRADOR`. |
+
+---
+
+## Verificación de Contratos y Testing Automatizado (Unidad 5 / Clase 10)
+
+El proyecto cuenta con una suite completa de pruebas automatizadas construida con **`node:test`**, **`node:assert/strict`** y **`supertest`**, adaptada al entorno en la nube de **Supabase**:
+
+### 1. Pruebas Unitarias de Esquemas Zod (`tests/solicitud-schema.test.js`)
+* Comprueba de manera aislada mediante `schema.safeParse(entrada)` que las reglas de entrada y validación se cumplan.
+* Evalúa matrices completas de casos: objetos válidos, campos opcionales/nulos, rechazo por `.strict()` ante campos adicionales, validación de enteros positivos, precios mayores a 0, stock no negativo y rechazo de decimales o cadenas inválidas.
+
+### 2. Pruebas de Contrato y Autenticación HTTP (`tests/solicitudes-acceso.test.js`)
+* Verifica el comportamiento del middleware `autenticarUsuario` directamente sobre las rutas de Express con `supertest` (sin tocar base de datos):
+  - Solicitud sin cabecera `Authorization` $\rightarrow$ **401 Unauthorized** (`"Se requiere un token de acceso."`).
+  - Cabecera mal formada (`Authorization: Basic abc`) $\rightarrow$ **400 Bad Request** (`"Usar Authorization: Bearer <token>."`).
+  - Token inválido, corrupto o revocado $\rightarrow$ **401 Unauthorized** (`"Token inválido, vencido o revocado."`).
+
+### 3. Pruebas de Integración con PostgreSQL en Supabase (`tests/solicitudes-integracion.test.js`)
+* Ejecución controlada mediante archivo de entorno exclusivo [`.env.test`](file:///.env.test).
+* **Protección de la Base de Datos:** El módulo de apoyo [`tests/helpers/escenario-solicitudes.js`](file:///tests/helpers/escenario-solicitudes.js) implementa `limpiarEscenario()`, el cual elimina de forma relacional y limpia **únicamente** los registros con dominio `@clase10.test`. La tabla institucional `Localidad` (44 municipios de Catamarca) y el seed de producción/feria permanecen **100% protegidos e intactos**.
+* **Casos Comprobados:**
+  1. **Creación y Persistencia (201):** Presenta una postulación oficial con token de artesana y verifica con `prisma.solicitudPostulacion.findUniqueOrThrow` que se guardó en Supabase con estado `PENDIENTE`.
+  2. **Listado de Recursos Propios (200):** Verifica que `GET /solicitudes/me` devuelva únicamente las postulaciones de la artesana autenticada y ninguna de otros artesanos.
+  3. **Aislamiento de Recursos Ajenos (404):** Comprueba que un artesano no pueda cancelar una postulación perteneciente a otro expositor, respondiendo `404` (`"Solicitud no encontrada."`) y conservando el registro original inalterado.
+  4. **Actividad Integradora - Conflicto y Duplicación (409):** Comprueba que intentar presentar una segunda postulación mientras ya existe una activa devuelve `409 Conflict` (`"Ya posee una solicitud de postulación en estado PENDIENTE."`) y garantiza que en la base de datos se conserva un único registro.
 
 ---
 
