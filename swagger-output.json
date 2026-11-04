@@ -692,6 +692,16 @@
           "201": {
             "description": "Created"
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NuevaInscripcion"
+              }
+            }
+          }
         }
       },
       "get": {
@@ -761,6 +771,15 @@
             "description": "OK"
           }
         }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   }

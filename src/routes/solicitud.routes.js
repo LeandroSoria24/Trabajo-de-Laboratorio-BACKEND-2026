@@ -29,7 +29,11 @@ const soloAdmin = [autenticarUsuario, cargarContextoUsuario, autorizarRoles("ADM
 // ──────────────────────────────────────────────────────
 
 router.get('/me', ...soloArtesano, getMisSolicitudes);
-router.post('/', ...soloArtesano, validarSchema(crearSolicitudSchema, 'body'), postCrearMiSolicitud);
+router.post('/', /* #swagger.requestBody = { required: true,
+content: { "application/json": { schema: {
+$ref: "#/components/schemas/NuevaInscripcion"
+} } }
+} */ ...soloArtesano, validarSchema(crearSolicitudSchema, 'body'), postCrearMiSolicitud);
 router.patch('/:id/cancelar', ...soloArtesano, validarSchema(idParamSchema, 'params'), patchCancelarMiSolicitud);
 
 // ──────────────────────────────────────────────────────
