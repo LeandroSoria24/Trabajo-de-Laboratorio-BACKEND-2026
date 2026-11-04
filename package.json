@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "node --watch src/app.js",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "docs": "node generar-docs.js"
   },
   "keywords": [],
   "author": "",
@@ -34,7 +35,8 @@
   "homepage": "https://github.com/LeandroSoria24/Trabajo-de-Laboratorio-BACKEND-2026#readme",
   "devDependencies": {
     "@prisma/client": "^7.10.0",
-    "prisma": "^7.10.0"
+    "prisma": "^7.10.0",
+    "swagger-autogen": "^2.23.7"
   },
   "allowScripts": {
     "@prisma/engines@7.10.0": true,

@@ -15,6 +15,14 @@ import { rutaNoEncontrada } from "./middlewares/rutaNoEncontrada.js"
 import cors from "cors"; /* esto es para permitir que se pueda usar el backend en un proyecto aparte que estoy haciendo de frontend */
 import "./config/jwt.js"; /*🟨 */
 import { iniciarLimpiezaRevocaciones }from "./tareas/limpiezaRevocaciones.js"; /*🟨 */
+import swaggerUi from "swagger-ui-express";
+import { readFileSync } from "node:fs";
+
+const swaggerDocument = JSON.parse(
+readFileSync(new URL("../swagger-output.json", import.meta.url), "utf8"),
+);
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
 
 const app = express();
 const PORT = 3000;
@@ -27,7 +35,20 @@ app.use(logger);
 // el logger tiene un res.on , eso significa que va a esperar la respuesta de manejoErrores (2)
 // y hasta que este no termine de procesar el error, no se va a cerrar la peticion
 
-
+const doc = {
+info: { title: "API de Gestión de Eventos", version: "1.0.0",
+description: "Borrador: revisar esquemas, errores y permisos." },
+servers: [{ url: "/", description: "Servidor actual" }],
+};
+const ruta = (archivo) =>
+fileURLToPath(new URL(archivo, import.meta.url)).replaceAll("\\", "/");
+const outputFile = ruta("./swagger-output.json");
+const routes = [ruta("./src/app.js")];
+const generar = swaggerAutogen({ openapi: "3.0.0" });
+const resultado = await generar(outputFile, routes, doc);
+if (!resultado.success) {
+throw new Error("No se pudo generar la especificación OpenAPI.");
+}
 
 
 /* GETTERS */
