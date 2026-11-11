@@ -1,0 +1,145 @@
+# ============================================================================
+# FLUJO 5: CATALOGO DE PRODUCTOS, VISTA DIFERENCIADA Y CACHE EN MEMORIA (30s)
+# ============================================================================
+# Cubre todas las operaciones de /productos:
+#   - GET /productos y GET /productos/all (Con cache de 30s e invalidacion automatica)
+#   - Vista diferenciada segun autenticacion:
+#       * Visitante sin token -> recibe solo { id, nombre, precio, descripcion, stock }
+#       * Usuario autenticado (Artesano/Admin) -> recibe entidad completa + objeto artesano
+#   - POST /productos (Creacion con invalidacion de cache)
+#   - PUT /productos/:id (Actualizacion con invalidacion de cache)
+#   - DELETE /productos/:id (Baja logica activo = false con invalidacion de cache)
+# ============================================================================
+
+@baseUrl = http://localhost:3000
+@emailLorenza = lorenza@artesanoscatamarca.com
+@passwordArtesano = Artesano1234#
+
+###
+# ============================================================================
+# 1. LOGIN DE ARTESANA Y CONSULTA DE PERFIL
+# ============================================================================
+
+### [EXITO 200 OK]: Login como Lorenza
+# @name loginLorenza
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailLorenza}}",
+  "password": "{{passwordArtesano}}"
+}
+
+###
+@tokenLorenza = {{loginLorenza.response.body.token}}
+
+### [EXITO 200 OK]: Obtener el artesanoId de Lorenza desde su perfil
+# @name perfilLorenza
+GET {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenLorenza}}
+
+###
+@lorenzaArtesanoId = {{perfilLorenza.response.body.id}}
+
+###
+# ============================================================================
+# 2. VISTA DIFERENCIADA (VISITANTE PUBLICO VS USUARIO AUTENTICADO) Y CACHE (30s)
+# ============================================================================
+
+### [EXITO 200 OK]: 1ra Consulta PUBLICA de productos (sin token -> X-Cache: MISS, solo campos basicos: id, nombre, precio, descripcion, stock)
+GET {{baseUrl}}/productos?pagina=1&limite=10
+
+### [EXITO 200 OK]: 2da Consulta PUBLICA inmediata a la misma URL (sin token -> X-Cache: HIT desde memoria RAM)
+GET {{baseUrl}}/productos?pagina=1&limite=10
+
+### [EXITO 200 OK]: Consulta AUTENTICADA de productos (con token -> incluye activo, createdAt, updatedAt y datos del artesano)
+GET {{baseUrl}}/productos?pagina=1&limite=10&ordenarPor=precio&direccion=desc
+Authorization: Bearer {{tokenLorenza}}
+
+### [EXITO 200 OK]: Consulta por alias /productos/all
+GET {{baseUrl}}/productos/all
+
+### [ERROR 400 Bad Request]: Filtro con parametro ordenarPor invalido
+GET {{baseUrl}}/productos?ordenarPor=campoInexistente
+
+###
+# ============================================================================
+# 3. ALTA, MODIFICACION Y BAJA LOGICA DE PRODUCTOS (CON INVALIDACION DE CACHE)
+# ============================================================================
+
+### [ERROR 401 Unauthorized]: Intentar crear un producto sin estar autenticado
+POST {{baseUrl}}/productos
+Content-Type: application/json
+
+{
+  "nombre": "Chal de Vicuna",
+  "precio": 85000,
+  "stock": 2,
+  "artesanoId": {{lorenzaArtesanoId}}
+}
+
+### [ERROR 400 Bad Request]: Intentar crear un producto asociado a un artesanoId inexistente
+POST {{baseUrl}}/productos
+Authorization: Bearer {{tokenLorenza}}
+Content-Type: application/json
+
+{
+  "nombre": "Chal de Vicuna",
+  "precio": 85000,
+  "stock": 2,
+  "artesanoId": 999999
+}
+
+### [EXITO 201 Created]: Crear un nuevo producto artesanal (invalida automaticamente la cache de /productos)
+# @name crearProducto
+POST {{baseUrl}}/productos
+Authorization: Bearer {{tokenLorenza}}
+Content-Type: application/json
+
+{
+  "nombre": "Chal de Vicuna Bordado",
+  "descripcion": "Chal tejido en telar criollo con lana de vicuna natural.",
+  "precio": 110000,
+  "stock": 3,
+  "artesanoId": {{lorenzaArtesanoId}}
+}
+
+###
+@nuevoProductoId = {{crearProducto.response.body.id}}
+
+### [EXITO 200 OK]: Consultar el producto recien creado por ID (vista publica sin token -> X-Cache: MISS)
+GET {{baseUrl}}/productos/{{nuevoProductoId}}
+
+### [EXITO 200 OK]: Actualizar precio y stock del producto (PUT /productos/:id -> invalida cache de /productos)
+PUT {{baseUrl}}/productos/{{nuevoProductoId}}
+Authorization: Bearer {{tokenLorenza}}
+Content-Type: application/json
+
+{
+  "nombre": "Chal de Vicuna Bordado Especial",
+  "descripcion": "Chal tejido en telar criollo con lana de vicuna natural certificada.",
+  "precio": 125000,
+  "stock": 5,
+  "artesanoId": {{lorenzaArtesanoId}}
+}
+
+### [EXITO 200 OK]: Consultar el producto por ID como usuario autenticado tras invalidar cache (con token -> X-Cache: MISS, devuelve entidad completa con artesano)
+GET {{baseUrl}}/productos/{{nuevoProductoId}}
+Authorization: Bearer {{tokenLorenza}}
+
+### [ERROR 404 Not Found]: Intentar actualizar un producto con ID inexistente
+PUT {{baseUrl}}/productos/999999
+Authorization: Bearer {{tokenLorenza}}
+Content-Type: application/json
+
+{
+  "nombre": "Producto Inexistente",
+  "precio": 10000
+}
+
+### [EXITO 200 OK]: Baja logica del producto (DELETE /productos/:id -> activo = false e invalida cache)
+DELETE {{baseUrl}}/productos/{{nuevoProductoId}}
+Authorization: Bearer {{tokenLorenza}}
+
+### [EXITO 200 OK]: Verificar que el producto dado de baja logica ya NO aparece en el listado publico de visitantes
+GET {{baseUrl}}/productos?nombre=Chal%20de%20Vicuna%20Bordado%20Especial

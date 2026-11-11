@@ -44,15 +44,9 @@ import { crearError } from '../utils/crearError.js';
 
 /*
   Servicio para obtener la lista de localidades.
-  Si la base de datos está vacía, se auto-sincroniza desde Georef.
 */
 export const obtenerLocalidades = async (criterios = {}) => {
     const { nombre, ordenarPor = 'nombre', direccion = 'asc' } = criterios;
-
-    let total = await prisma.localidad.count();
-    if (total === 0) {
-        await sincronizarDesdeGeoref();
-    }
 
     const where = {};
     if (nombre) {

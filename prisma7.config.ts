@@ -3,12 +3,19 @@
 import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
 
+let databaseUrl = "";
+try {
+  databaseUrl = env("DATABASE_URL");
+} catch {
+  databaseUrl = "";
+}
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    url: databaseUrl,
   },
 });

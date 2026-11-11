@@ -80,9 +80,9 @@ Se seleccionó el endpoint `GET /productos` de la API Poncho Digital, que retorn
 
 | Método | Ruta | Caché |
 | :--- | :--- | :--- |
-| GET | `/productos` | ✅ TTL 30s |
-| GET | `/productos/all` | ✅ TTL 30s |
-| GET | `/productos/:id` | ✅ TTL 30s |
+| GET | `/productos` | [OK] TTL 30s |
+| GET | `/productos/all` | [OK] TTL 30s |
+| GET | `/productos/:id` | [OK] TTL 30s |
 | POST | `/productos` | Invalida `/productos` |
 | PUT | `/productos/:id` | Invalida `/productos` |
 | DELETE | `/productos/:id` | Invalida `/productos` |
