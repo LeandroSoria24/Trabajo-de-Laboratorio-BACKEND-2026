@@ -174,7 +174,7 @@ Object.getOwnPropertyDescriptor(req, 'query');
 
 Cualquier intento de un middleware de validación de ejecutar:
 ```javascript
-req.query = resultado.data; // 💥 TypeError: Cannot set property query of #<IncomingMessage> which has only a getter
+req.query = resultado.data; // TypeError: Cannot set property query of #<IncomingMessage> which has only a getter
 ```
 
 **Solución Arquitectónica en Poncho Digital (`src/middlewares/validarSchema.js`):**
@@ -727,14 +727,14 @@ Las pruebas se organizan en tres niveles jerárquicos complementarios:
 ## 8.3 Resultados Consolidados de la Suite
 Al ejecutar `npm test` (`node --env-file=.env.test --test tests/solicitudes-acceso.test.js tests/solicitud-schema.test.js tests/solicitudes-integracion.test.js`):
 ```text
-ℹ tests 38
-ℹ suites 0
-ℹ pass 38
-ℹ fail 0
-ℹ cancelled 0
-ℹ skipped 0
-ℹ todo 0
-ℹ duration_ms 22662.6105
+[INFO] tests 38
+[INFO] suites 0
+[INFO] pass 38
+[INFO] fail 0
+[INFO] cancelled 0
+[INFO] skipped 0
+[INFO] todo 0
+[INFO] duration_ms 22662.6105
 ```
 **Resultado:** **38 de 38 pruebas superadas con éxito**, 0 fallos, 0 procesos bloqueados o colgados.
 

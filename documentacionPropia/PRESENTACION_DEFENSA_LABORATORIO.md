@@ -161,7 +161,7 @@ erDiagram
 * En Express 5, `req.query` implementa un getter nativo inmutable.
 * El intento clásico de mutación:
   ```javascript
-  req.query = resultado.data; // 💥 TypeError: Cannot set property query which has only a getter
+  req.query = resultado.data; // TypeError: Cannot set property query which has only a getter
   ```
 
 ### Nuestra Solución de Ingeniería (`validarSchema.js`)

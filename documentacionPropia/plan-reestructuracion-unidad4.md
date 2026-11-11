@@ -1,4 +1,4 @@
-# 📋 Plan de Reestructuración y Adaptación: Unidad 4 (Autorización y Protección de Recursos)
+# Plan de Reestructuración y Adaptación: Unidad 4 (Autorización y Protección de Recursos)
 > **Proyecto:** API Poncho Digital - Fiesta Nacional e Internacional del Poncho  
 > **Cátedra:** Desarrollo Backend - Facultad de Tecnología y Ciencias Aplicadas (UNCa)  
 > **Fecha de Validación:** Octubre 2026  
@@ -6,7 +6,7 @@
 
 ---
 
-## 🧘‍♂️ 1. Diagnóstico Inicial: ¡Que no cunda el pánico!
+## ‍1. Diagnóstico Inicial: ¡Que no cunda el pánico!
 
 **No cagamos en absoluto.** Tras revisar exhaustivamente:
 1. Las diapositivas de la **Unidad 4 (`1.md`)** de la UNCa.
@@ -23,7 +23,7 @@ Lo que enseñó la cátedra en la **Unidad 4** es el paso natural que sigue a la
 
 ---
 
-## 🔄 2. Mapeo Canónico: Cátedra UNCa vs. Poncho Digital
+## 2. Mapeo Canónico: Cátedra UNCa vs. Poncho Digital
 
 En las diapositivas de la cátedra se toma como ejemplo una *API de Gestión de Eventos*. En **Poncho Digital**, la equivalencia es exacta y directa:
 
@@ -39,7 +39,7 @@ En las diapositivas de la cátedra se toma como ejemplo una *API de Gestión de 
 
 ---
 
-## 🗄️ 3. Ajustes Validados en Base de Datos (`prisma/schema.prisma`)
+## 3. Ajustes Validados en Base de Datos (`prisma/schema.prisma`)
 
 ### A. Nuevos Modelos Relacionales de Seguridad (RBAC y Cuentas Activas)
 Reemplazamos el enum `RolUsuario` por tablas relacionales para soportar usuarios con roles múltiples (ej: un Administrador que además es Artesano) y el campo `activo`:
@@ -101,7 +101,7 @@ enum EstadoSolicitud {
 
 ---
 
-## 🛡️ 4. Pipeline de Middlewares: El Trío de Seguridad de la Cátedra
+## 4. Pipeline de Middlewares: El Trío de Seguridad de la Cátedra
 
 Toda ruta protegida ejecutará la secuencia de control:
 
@@ -120,9 +120,9 @@ En la cátedra se usan los nombres `req.bodyValidado` y `req.parametrosValidados
 
 ---
 
-## 🚦 5. Matriz Completa de Endpoints y Autorizaciones
+## 5. Matriz Completa de Endpoints y Autorizaciones
 
-### 🟢 1. Endpoints Públicos (Visitantes Anónimos - Sin JWT)
+### 1. Endpoints Públicos (Visitantes Anónimos - Sin JWT)
 * `GET /info`: Información de la API y de la Fiesta del Poncho.
 * `GET /stands`: Catálogo público de stands del predio ferial.
 * `GET /stands/:id`: Detalle de un stand específico.
@@ -133,7 +133,7 @@ En la cátedra se usan los nombres `req.bodyValidado` y `req.parametrosValidados
 * `POST /usuarios/login`: Autenticación con email y contraseña (entrega JWT).
 * `POST /usuarios/registro-artesano`: **Registro público de artesano**. En una sola transacción anidada crea: `Usuario` (activo: true) + `UsuarioRol` (ARTESANO) + perfil `Artesano`.
 
-### 🟡 2. Endpoints para Rol `ARTESANO` (Recursos Propios con Filtro de Propiedad)
+### 2. Endpoints para Rol `ARTESANO` (Recursos Propios con Filtro de Propiedad)
 * `GET /usuarios/me`: Perfil de usuario autenticado (`id`, `nombre`, `email`, `activo`, `roles`, `artesano: { id }`).
 * `GET /artesanos/me`: Consulta sus propios datos personales y comerciales.
 * `PUT /artesanos/me`: Modifica sus propios datos de artesano.
@@ -149,7 +149,7 @@ En la cátedra se usan los nombres `req.bodyValidado` y `req.parametrosValidados
   - Si ya está `CANCELADA` $\rightarrow$ `409 Conflicto`.
   - Si está `PENDIENTE` $\rightarrow$ cambia a `CANCELADA` y responde `200`.
 
-### 🔴 3. Endpoints para Rol `ADMINISTRADOR` (Gestión de la Feria y Cuentas)
+### 3. Endpoints para Rol `ADMINISTRADOR` (Gestión de la Feria y Cuentas)
 * `POST /usuarios/registro-administrador`: Alta de un usuario administrador (sin artesano).
 * `POST /usuarios/asignar-artesano`: Crea el perfil de artesano a un administrador existente y le suma el rol `ARTESANO`.
 * `POST /usuarios/:id/roles`: Asigna rol `ADMINISTRADOR` a un usuario existente.
@@ -165,7 +165,7 @@ En la cátedra se usan los nombres `req.bodyValidado` y `req.parametrosValidados
 
 ---
 
-## ⚠️ 6. Puntos Críticos y Trampas Técnicas a Tener en Cuenta
+## [AVISO] 6. Puntos Críticos y Trampas Técnicas a Tener en Cuenta
 
 1. **Orden de Rutas en Express (Regla de Diapositiva 46):**
    * En `artesano.routes.js`, `router.get('/me', ...)` **DEBE** declararse antes de `router.get('/:id', ...)`.
@@ -187,7 +187,7 @@ En la cátedra se usan los nombres `req.bodyValidado` y `req.parametrosValidados
 
 ---
 
-## 🛠️ 7. Plan de Ejecución Paso a Paso
+## 7. Plan de Ejecución Paso a Paso
 
 ```
 [ FASE 1: Prisma & Migración ]
@@ -211,7 +211,7 @@ En la cátedra se usan los nombres `req.bodyValidado` y `req.parametrosValidados
 [ FASE 7: Pruebas con Postman ]
 ```
 
-### 📍 FASE 1: Base de Datos y Roles Iniciales
+### FASE 1: Base de Datos y Roles Iniciales
 1. Modificar `prisma/schema.prisma` agregando `Rol`, `UsuarioRol`, agregando `CANCELADA` a `EstadoSolicitud` y actualizando relaciones de `Usuario` y `Artesano`.
 2. Ejecutar migración `--create-only`:
    ```bash
@@ -228,12 +228,12 @@ En la cátedra se usan los nombres `req.bodyValidado` y `req.parametrosValidados
    ```
 5. Crear el script `scripts/inicializar-admin.js` para dar de alta al primer administrador con credenciales de `.env` (`ADMIN_EMAIL`, `ADMIN_PASSWORD`).
 
-### 📍 FASE 2: Middlewares de Seguridad
+### FASE 2: Middlewares de Seguridad
 1. Crear `src/middlewares/cargarContextoUsuario.js`.
 2. Crear `src/middlewares/autorizarRoles.js`.
 3. Ajustar `src/middlewares/validarSchema.js` para asignar tanto a `req.body` como a `req.bodyValidado`.
 
-### 📍 FASE 3: Módulo de Usuarios, RBAC y Cuentas Activas
+### FASE 3: Módulo de Usuarios, RBAC y Cuentas Activas
 1. Actualizar `src/validators/usuario.schemas.js` con:
    - `registroArtesanoSchema` (incluye datos de cuenta + artesano + `localidadId`).
    - `registroAdminSchema`.
@@ -249,11 +249,11 @@ En la cátedra se usan los nombres `req.bodyValidado` y `req.parametrosValidados
    - `retirarRol` (con las 3 validaciones de seguridad).
 4. Actualizar `src/routes/usuario.routes.js`.
 
-### 📍 FASE 4: Módulo de Artesano y Propiedad
+### FASE 4: Módulo de Artesano y Propiedad
 1. Agregar `GET /artesanos/me` en `src/routes/artesano.routes.js` (ubicado **antes** de `/:id`).
 2. Ajustar `POST /productos` para asignar automáticamente el `artesanoId` del usuario autenticado.
 
-### 📍 FASE 5: Módulo de Solicitudes y Asignación de Stands
+### FASE 5: Módulo de Solicitudes y Asignación de Stands
 1. Crear `src/validators/solicitud.schemas.js`.
 2. Crear `src/services/solicitud.services.js`:
    - `crearMiSolicitud`: Crea postulación para el artesano del usuario logueado.
@@ -266,10 +266,10 @@ En la cátedra se usan los nombres `req.bodyValidado` y `req.parametrosValidados
 3. Crear `src/controllers/solicitud.controllers.js` y `src/routes/solicitud.routes.js`.
 4. Montar `/solicitudes` en `src/app.js`.
 
-### 📍 FASE 6: Ajuste de Manejo Global de Errores
+### FASE 6: Ajuste de Manejo Global de Errores
 1. Modificar `src/middlewares/manejoErrores.js` para responder `409` en `P2002` y `P2003`, y `404` en `P2025`.
 
-### 📍 FASE 7: Pruebas con Postman
+### FASE 7: Pruebas con Postman
 Ejecutar la suite de pruebas del laboratorio:
 * Registro público de artesano $\rightarrow$ `201`.
 * Reintento con mismo email o DNI $\rightarrow$ `409`.

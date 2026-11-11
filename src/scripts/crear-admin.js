@@ -24,7 +24,7 @@ export async function crearUsuarioAdmin(nombre, email, password) {
   if (usuarioExistente) {
     const yaEsAdmin = usuarioExistente.roles.some((r) => r.rol.nombre === 'ADMINISTRADOR');
     if (yaEsAdmin) {
-      console.log(`ℹ️ El usuario con email "${email}" ya cuenta con el rol ADMINISTRADOR.`);
+      console.log(`[INFO] El usuario con email "${email}" ya cuenta con el rol ADMINISTRADOR.`);
       return usuarioExistente;
     }
 
@@ -35,7 +35,7 @@ export async function crearUsuarioAdmin(nombre, email, password) {
       }
     });
 
-    console.log(`✅ Rol ADMINISTRADOR asignado al usuario existente: ${email}`);
+    console.log(`[OK] Rol ADMINISTRADOR asignado al usuario existente: ${email}`);
     return usuarioExistente;
   }
 
@@ -53,7 +53,7 @@ export async function crearUsuarioAdmin(nombre, email, password) {
     }
   });
 
-  console.log(`🎉 ¡Usuario ADMINISTRADOR creado exitosamente!`);
+  console.log(`[EXITO] ¡Usuario ADMINISTRADOR creado exitosamente!`);
   console.log(`   - ID: ${nuevoAdmin.id}`);
   console.log(`   - Nombre: ${nuevoAdmin.nombre}`);
   console.log(`   - Email: ${nuevoAdmin.email}`);
@@ -68,7 +68,7 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('src/scripts/crear-admin.js'))
     const [nombre, email, password] = args;
     crearUsuarioAdmin(nombre, email, password)
       .catch((err) => {
-        console.error('❌ Error al crear administrador:', err.message);
+        console.error('[ERROR] Error al crear administrador:', err.message);
         process.exit(1);
       })
       .finally(async () => {
@@ -88,7 +88,7 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('src/scripts/crear-admin.js'))
           try {
             await crearUsuarioAdmin(nombre.trim(), email.trim(), password.trim());
           } catch (err) {
-            console.error('❌ Error al crear administrador:', err.message);
+            console.error('[ERROR] Error al crear administrador:', err.message);
             process.exit(1);
           } finally {
             await prisma.$disconnect();

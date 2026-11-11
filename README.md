@@ -132,17 +132,17 @@ El servidor iniciará en: `http://localhost:3000`
 
 ---
 
-## 🔑 Credenciales de Prueba Precargadas (`npm run seed`)
+## Credenciales de Prueba Precargadas (`npm run seed`)
 
 Al ejecutar `npm run seed`, quedan disponibles las siguientes cuentas para probar en **Swagger UI (`/docs`)** o Postman:
 
-### 👑 Cuentas Administrador (Contraseña: `Admin1234#`)
+### Cuentas Administrador (Contraseña: `Admin1234#`)
 | Nombre | Email | Rol |
 |---|---|---|
 | **Administrador Poncho** | `admin@ponchodigital.gob.ar` | `ADMINISTRADOR` |
 | **Santiago Admin** | `santiago.admin@ponchodigital.gob.ar` | `ADMINISTRADOR` |
 
-### 🎨 Cuentas Artesano (Contraseña: `Artesano1234#`)
+### Cuentas Artesano (Contraseña: `Artesano1234#`)
 | Artesano/a | Email | Rubro y Localidad | Estado Perfil / Postulación | Stand |
 |---|---|---|---|---|
 | **Lorenza Gutiérrez** | `lorenza@artesanoscatamarca.com` | Textil (Belén) | `activo: true` / `APROBADA` | `A01` |
@@ -153,17 +153,17 @@ Al ejecutar `npm run seed`, quedan disponibles las siguientes cuentas para proba
 
 ---
 
-## 📖 Documentación Interactiva (Swagger UI & OpenAPI 3.0)
+## Documentación Interactiva (Swagger UI & OpenAPI 3.0)
 
 La API cuenta con documentación interactiva completa navegable desde el explorador:
 
-👉 **URL de acceso:** `http://localhost:3000/docs/`
+**URL de acceso:** `http://localhost:3000/docs/`
 
 ### Características de la Documentación:
 * **Exploración de Endpoints:** Los **32 endpoints** del sistema organizados en 8 módulos temáticos (`Usuarios`, `Artesanos`, `Productos`, `Stands`, `Pabellones`, `Sectores`, `Localidades`, `Solicitudes de Postulación` e `Información General`), sin operaciones huérfanas en `default`.
 * **Sincronización con Zod 4 (`$ref`):** Los modelos de entrada (`requestBody`) provienen directamente de los validadores de la aplicación convertidos mediante `z.toJSONSchema(schema, { target: "openapi-3.0", io: "input" })` en `src/documentacion/esquemas.js` (35 esquemas reutilizables y 69 referencias `$ref` resueltas).
 * **Coherencia Contrato–Implementación:** Los cuerpos documentados no exponen campos internos que el servidor deduce o rechaza (como `artesanoId`, `rol`, `activo` o `estado` en operaciones de autogestión).
-* **Autenticación con Botón "Authorize" 🔓:** Permite pegar el token JWT obtenido en `POST /usuarios/login` para probar en vivo (`Try it out`) todas las peticiones protegidas.
+* **Autenticación con Botón "Authorize":** Permite pegar el token JWT obtenido en `POST /usuarios/login` para probar en vivo (`Try it out`) todas las peticiones protegidas.
 
 ---
 
@@ -184,7 +184,7 @@ La API cuenta con documentación interactiva completa navegable desde el explora
 
 ---
 
-## 🧪 Verificación de Contratos y Testing Automatizado (Unidad 5)
+## Verificación de Contratos y Testing Automatizado (Unidad 5)
 
 El proyecto cuenta con **38 pruebas automatizadas** construidas con **`node:test`**, **`node:assert/strict`** y **`supertest`**, donde `src/app.js` se importa de manera limpia sin iniciar `app.listen` ni dejar sockets abiertos:
 
@@ -216,41 +216,41 @@ El proyecto cuenta con **38 pruebas automatizadas** construidas con **`node:test
 
 | Módulo / Router | Método y Ruta | Quién tiene acceso | Acción que realiza |
 | :--- | :--- | :--- | :--- |
-| **Usuarios** | `POST /usuarios/registro` | 🌐 **Público** | Registro público de usuario. Crea la cuenta (`activo: true`) y le asigna el rol `ARTESANO` por defecto. |
-| | `POST /usuarios/login` | 🌐 **Público** | Autenticación con email y contraseña. Emite token JWT firmado (15m). Valida que la cuenta esté activa. |
-| | `GET /usuarios/me` | 🟢 **Autenticado (Cualquier Rol)** | Consulta los datos de la propia cuenta, estado activo, roles asignados y perfil artesano asociado. |
-| | `POST /usuarios/logout` | 🟢 **Autenticado (Cualquier Rol)** | Cierra la sesión ingresando el identificador del token (`jti`) a la lista negra persistente. |
-| | `POST /usuarios/registro-administrador` | 🔴 **Solo ADMINISTRADOR** | Alta de una nueva cuenta con rol `ADMINISTRADOR`. |
-| | `POST /usuarios/:id/roles` | 🔴 **Solo ADMINISTRADOR** | Asigna el rol `ADMINISTRADOR` a un usuario existente. |
-| | `DELETE /usuarios/:id/roles/:rol` | 🔴 **Solo ADMINISTRADOR** | Retira un rol aplicando reglas de seguridad (conservar al menos 1 rol, garantizar al menos 1 admin activo, validar postulaciones). |
-| | `PATCH /usuarios/:id/activo` | 🔴 **Solo ADMINISTRADOR** | Activa o desactiva una cuenta de usuario (protege al último admin activo). |
-| **Artesanos** | `GET /artesanos`<br>`GET /artesanos/:id` | 🌐 **Público** | Catálogo público ferial de artesanos activos para visitantes con filtros y paginación. |
-| | `GET /artesanos/me` | 🟡 **Rol ARTESANO** | Consulta sus propios datos comerciales, trayectoria, productos y stand asignado. |
-| | `POST /artesanos/me` | 🟡 **Rol ARTESANO** | Completa su perfil de artesano vinculado a su usuario (`activo: false` por defecto). |
-| | `PUT /artesanos/me` | 🟡 **Rol ARTESANO** | Modifica sus propios datos personales y comerciales. |
-| | `POST /artesanos`<br>`PUT /artesanos/:id` | 🔴 **Solo ADMINISTRADOR** | Alta o modificación administrativa de perfiles de artesano. |
-| | `PATCH /artesanos/:id/activo` | 🔴 **Solo ADMINISTRADOR** | Habilita o inhabilita directamente a un artesano expositor. |
-| | `DELETE /artesanos/:id` | 🔴 **Solo ADMINISTRADOR** | **Soft delete:** Da de baja lógica al artesano (`activo = false`). |
-| **Productos** | `GET /productos`<br>`GET /productos/:id` | 🌐 **Público (Caché 30s)** | Catálogo general de productos con paginación, filtros y caché en memoria RAM. |
-| | `POST /productos` | 🟡 **ARTESANO / ADMINISTRADOR** | Publica un producto en el catálogo. Invalida caché. |
-| | `PUT /productos/:id` | 🟡 **ARTESANO / ADMINISTRADOR** | Modifica datos de un producto (precio, stock, descripción). Invalida caché. |
-| | `DELETE /productos/:id` | 🟡 **ARTESANO / ADMINISTRADOR** | Baja lógica (`activo: false`) de un producto. Invalida caché. |
-| **Stands** | `GET /stands`<br>`GET /stands/:id` | 🌐 **Público** | Mapa y directorio público de stands del predio ferial con filtros por pabellón/sector. |
-| | `POST /stands` | 🔴 **Solo ADMINISTRADOR** | Da de alta un nuevo stand físico asignado a un pabellón y sector. |
-| | `PUT /stands/:id` | 🔴 **Solo ADMINISTRADOR** | Modifica código, número o estado del stand. |
-| | `PATCH /stands/:id/artesano` | 🔴 **Solo ADMINISTRADOR** | Asigna directamente un stand a un artesano (pasa a `OCUPADO`). |
-| | `DELETE /stands/:id/artesano` | 🔴 **Solo ADMINISTRADOR** | Desvincula al artesano y vuelve el stand a estado `DISPONIBLE`. |
-| | `DELETE /stands/:id` | 🔴 **Solo ADMINISTRADOR** | Elimina físicamente un stand (valida que no esté ocupado). |
-| **Pabellones y Sectores** | `GET /pabellones`<br>`GET /sectores` | 🌐 **Público** | Consulta de la distribución física de la feria. |
-| | `POST`, `PUT`, `DELETE` | 🔴 **Solo ADMINISTRADOR** | Administración y mantenimiento de la infraestructura del predio. |
-| **Localidades** | `GET /localidades`<br>`GET /localidades/:id` | 🌐 **Público** | Listado de las 44 localidades/municipios de Catamarca para formularios y filtros. |
-| **Solicitudes de Postulación** | `POST /solicitudes` | 🟡 **Rol ARTESANO** | Presenta postulación para participar en la fiesta (estado `PENDIENTE`). |
-| | `GET /solicitudes/me` | 🟡 **Rol ARTESANO** | Consulta el estado y dictamen de sus propias postulaciones. |
-| | `PATCH /solicitudes/:id/cancelar` | 🟡 **Rol ARTESANO** | Cancela su postulación si se encuentra en estado `PENDIENTE`. |
-| | `GET /solicitudes` | 🔴 **Solo ADMINISTRADOR** | Auditoría global: lista todas las postulaciones con filtros y paginación. |
-| | `PATCH /solicitudes/:id/evaluar` | 🔴 **Solo ADMINISTRADOR** | Dictamina la solicitud (`APROBADA` o `RECHAZADA`). Al aprobar, activa automáticamente al artesano (`activo: true`). |
-| | `PATCH /solicitudes/:id/stand` | 🔴 **Solo ADMINISTRADOR** | Asigna un stand disponible a una postulación aprobada y lo pasa a `OCUPADO`. |
-| **Información General** | `GET /`<br>`GET /info` | 🌐 **Público** | Información de bienvenida, versión y estado del servicio. |
+| **Usuarios** | `POST /usuarios/registro` | **Público** | Registro público de usuario. Crea la cuenta (`activo: true`) y le asigna el rol `ARTESANO` por defecto. |
+| | `POST /usuarios/login` | **Público** | Autenticación con email y contraseña. Emite token JWT firmado (15m). Valida que la cuenta esté activa. |
+| | `GET /usuarios/me` | **Autenticado (Cualquier Rol)** | Consulta los datos de la propia cuenta, estado activo, roles asignados y perfil artesano asociado. |
+| | `POST /usuarios/logout` | **Autenticado (Cualquier Rol)** | Cierra la sesión ingresando el identificador del token (`jti`) a la lista negra persistente. |
+| | `POST /usuarios/registro-administrador` | **Solo ADMINISTRADOR** | Alta de una nueva cuenta con rol `ADMINISTRADOR`. |
+| | `POST /usuarios/:id/roles` | **Solo ADMINISTRADOR** | Asigna el rol `ADMINISTRADOR` a un usuario existente. |
+| | `DELETE /usuarios/:id/roles/:rol` | **Solo ADMINISTRADOR** | Retira un rol aplicando reglas de seguridad (conservar al menos 1 rol, garantizar al menos 1 admin activo, validar postulaciones). |
+| | `PATCH /usuarios/:id/activo` | **Solo ADMINISTRADOR** | Activa o desactiva una cuenta de usuario (protege al último admin activo). |
+| **Artesanos** | `GET /artesanos`<br>`GET /artesanos/:id` | **Público** | Catálogo público ferial de artesanos activos para visitantes con filtros y paginación. |
+| | `GET /artesanos/me` | **Rol ARTESANO** | Consulta sus propios datos comerciales, trayectoria, productos y stand asignado. |
+| | `POST /artesanos/me` | **Rol ARTESANO** | Completa su perfil de artesano vinculado a su usuario (`activo: false` por defecto). |
+| | `PUT /artesanos/me` | **Rol ARTESANO** | Modifica sus propios datos personales y comerciales. |
+| | `POST /artesanos`<br>`PUT /artesanos/:id` | **Solo ADMINISTRADOR** | Alta o modificación administrativa de perfiles de artesano. |
+| | `PATCH /artesanos/:id/activo` | **Solo ADMINISTRADOR** | Habilita o inhabilita directamente a un artesano expositor. |
+| | `DELETE /artesanos/:id` | **Solo ADMINISTRADOR** | **Soft delete:** Da de baja lógica al artesano (`activo = false`). |
+| **Productos** | `GET /productos`<br>`GET /productos/:id` | **Público (Caché 30s)** | Catálogo general de productos con paginación, filtros y caché en memoria RAM. |
+| | `POST /productos` | **ARTESANO / ADMINISTRADOR** | Publica un producto en el catálogo. Invalida caché. |
+| | `PUT /productos/:id` | **ARTESANO / ADMINISTRADOR** | Modifica datos de un producto (precio, stock, descripción). Invalida caché. |
+| | `DELETE /productos/:id` | **ARTESANO / ADMINISTRADOR** | Baja lógica (`activo: false`) de un producto. Invalida caché. |
+| **Stands** | `GET /stands`<br>`GET /stands/:id` | **Público** | Mapa y directorio público de stands del predio ferial con filtros por pabellón/sector. |
+| | `POST /stands` | **Solo ADMINISTRADOR** | Da de alta un nuevo stand físico asignado a un pabellón y sector. |
+| | `PUT /stands/:id` | **Solo ADMINISTRADOR** | Modifica código, número o estado del stand. |
+| | `PATCH /stands/:id/artesano` | **Solo ADMINISTRADOR** | Asigna directamente un stand a un artesano (pasa a `OCUPADO`). |
+| | `DELETE /stands/:id/artesano` | **Solo ADMINISTRADOR** | Desvincula al artesano y vuelve el stand a estado `DISPONIBLE`. |
+| | `DELETE /stands/:id` | **Solo ADMINISTRADOR** | Elimina físicamente un stand (valida que no esté ocupado). |
+| **Pabellones y Sectores** | `GET /pabellones`<br>`GET /sectores` | **Público** | Consulta de la distribución física de la feria. |
+| | `POST`, `PUT`, `DELETE` | **Solo ADMINISTRADOR** | Administración y mantenimiento de la infraestructura del predio. |
+| **Localidades** | `GET /localidades`<br>`GET /localidades/:id` | **Público** | Listado de las 44 localidades/municipios de Catamarca para formularios y filtros. |
+| **Solicitudes de Postulación** | `POST /solicitudes` | **Rol ARTESANO** | Presenta postulación para participar en la fiesta (estado `PENDIENTE`). |
+| | `GET /solicitudes/me` | **Rol ARTESANO** | Consulta el estado y dictamen de sus propias postulaciones. |
+| | `PATCH /solicitudes/:id/cancelar` | **Rol ARTESANO** | Cancela su postulación si se encuentra en estado `PENDIENTE`. |
+| | `GET /solicitudes` | **Solo ADMINISTRADOR** | Auditoría global: lista todas las postulaciones con filtros y paginación. |
+| | `PATCH /solicitudes/:id/evaluar` | **Solo ADMINISTRADOR** | Dictamina la solicitud (`APROBADA` o `RECHAZADA`). Al aprobar, activa automáticamente al artesano (`activo: true`). |
+| | `PATCH /solicitudes/:id/stand` | **Solo ADMINISTRADOR** | Asigna un stand disponible a una postulación aprobada y lo pasa a `OCUPADO`. |
+| **Información General** | `GET /`<br>`GET /info` | **Público** | Información de bienvenida, versión y estado del servicio. |
 
 ---
 
@@ -296,15 +296,15 @@ flowchart TD
 
 ---
 
-## 📚 Documentación Técnica y Recursos de Defensa (`documentacionPropia/`)
+## Documentación Técnica y Recursos de Defensa (`documentacionPropia/`)
 
 En la carpeta [`documentacionPropia/`](documentacionPropia/) se encuentran todos los informes técnicos, auditorías y recursos de presentación del proyecto:
 
 | # | Documento | Contenido |
 |---|---|---|
-| ⭐ | **[Documentación Completa Unificada (`DOCUMENTACION_COMPLETA.md`)](documentacionPropia/DOCUMENTACION_COMPLETA.md)** | **Manual maestro (885 líneas): arquitectura, base de datos, seguridad JWT, caché, catálogo de endpoints y evolución en las 13 ramas.** |
-| 🎤 | **[Presentación Defensa de Laboratorio (`PRESENTACION_DEFENSA_LABORATORIO.md`)](documentacionPropia/PRESENTACION_DEFENSA_LABORATORIO.md)** | **Mazo de 16 diapositivas con notas de orador, circuito de demostración en vivo en 5 pasos y preguntas frecuentes.** |
-| ✅ | **[Reporte de Auditoría Unidad 5 (`REPORTE_AUDITORIA_UNIDAD5.md`)](documentacionPropia/REPORTE_AUDITORIA_UNIDAD5.md)** | **Matriz de cumplimiento punto por punto contra `pautas.md` (Nivel 1 OpenAPI y Nivel 2 Testing).** |
+| Ref 1 | **[Documentación Completa Unificada (`DOCUMENTACION_COMPLETA.md`)](documentacionPropia/DOCUMENTACION_COMPLETA.md)** | **Manual maestro (885 líneas): arquitectura, base de datos, seguridad JWT, caché, catálogo de endpoints y evolución en las 13 ramas.** |
+| Ref 2 | **[Presentación Defensa de Laboratorio (`PRESENTACION_DEFENSA_LABORATORIO.md`)](documentacionPropia/PRESENTACION_DEFENSA_LABORATORIO.md)** | **Mazo de 16 diapositivas con notas de orador, circuito de demostración en vivo en 5 pasos y preguntas frecuentes.** |
+| Ref 3 | **[Reporte de Auditoría Unidad 5 (`REPORTE_AUDITORIA_UNIDAD5.md`)](documentacionPropia/REPORTE_AUDITORIA_UNIDAD5.md)** | **Matriz de cumplimiento punto por punto contra `pautas.md` (Nivel 1 OpenAPI y Nivel 2 Testing).** |
 | 1 | [Arquitectura por Capas (`arquitectura-capas.md`)](documentacionPropia/arquitectura-capas.md) | Organización desacoplada Routes $\rightarrow$ Middlewares $\rightarrow$ Controllers $\rightarrow$ Services $\rightarrow$ Prisma |
 | 2 | [Estructura de Base de Datos (`estructura-base-de-datos.md`)](documentacionPropia/estructura-base-de-datos.md) | Modelo relacional, RBAC con `UsuarioRol`, diagrama ER, normalización y decisiones de diseño |
 | 3 | [Guía de Prisma ORM (`guia-prisma.md`)](documentacionPropia/guia-prisma.md) | Configuración con PostgreSQL, Prisma 7, schema declarativo, migraciones y cliente singleton |

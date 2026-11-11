@@ -175,65 +175,65 @@ Se ejecutó la suite de pruebas mediante el comando `npm test` (`node --env-file
 
 ### 5.1 Desglose de Pruebas Unitarias de Esquema (`tests/solicitud-schema.test.js`)
 - `crearSolicitudSchema`:
-  - ✔ Objeto vacío válido (observaciones es opcional)
-  - ✔ Observaciones válidas como texto
-  - ✔ Observaciones como null
-  - ✔ Campo adicional no permitido (rechazo por `.strict()`)
-  - ✔ Campo adicional `artesanoId` rechazado por el servidor (`.strict()`)
-  - ✔ Observaciones con tipo numérico inválido
+  - Objeto vacío válido (observaciones es opcional)
+  - Observaciones válidas como texto
+  - Observaciones como null
+  - Campo adicional no permitido (rechazo por `.strict()`)
+  - Campo adicional `artesanoId` rechazado por el servidor (`.strict()`)
+  - Observaciones con tipo numérico inválido
 - `evaluarSolicitudSchema`:
-  - ✔ Estado `APROBADA` válido
-  - ✔ Estado `RECHAZADA` válido con observaciones
-  - ✔ Estado vacío inválido
-  - ✔ Estado no permitido en enum (`PENDIENTE`)
-  - ✔ Campo adicional no permitido (`.strict()`)
+  - Estado `APROBADA` válido
+  - Estado `RECHAZADA` válido con observaciones
+  - Estado vacío inválido
+  - Estado no permitido en enum (`PENDIENTE`)
+  - Campo adicional no permitido (`.strict()`)
 - `asignarStandSolicitudSchema` (Nuevas pruebas incorporadas):
-  - ✔ Objeto vacío válido (`standId` es opcional)
-  - ✔ `standId` numérico positivo válido
-  - ✔ `standId` numérico string válido (coerción Zod)
-  - ✔ `standId` cero rechazado (debe ser positivo)
-  - ✔ `standId` negativo rechazado
-  - ✔ `standId` decimal rechazado (debe ser entero)
-  - ✔ `standId` alfanumérico inválido
-  - ✔ Campo adicional no permitido (`.strict()`)
+  - Objeto vacío válido (`standId` es opcional)
+  - `standId` numérico positivo válido
+  - `standId` numérico string válido (coerción Zod)
+  - `standId` cero rechazado (debe ser positivo)
+  - `standId` negativo rechazado
+  - `standId` decimal rechazado (debe ser entero)
+  - `standId` alfanumérico inválido
+  - Campo adicional no permitido (`.strict()`)
 - `crearProductoSchema`:
-  - ✔ Producto completo válido
-  - ✔ Precio cero rechazado (debe ser positivo)
-  - ✔ Precio negativo rechazado
-  - ✔ Precio ausente rechazado
-  - ✔ Nombre vacío rechazado
-  - ✔ Stock decimal rechazado (debe ser entero)
-  - ✔ Stock negativo rechazado
-  - ✔ `artesanoId` ausente rechazado
-  - ✔ `artesanoId` cero rechazado (debe ser positivo)
+  - Producto completo válido
+  - Precio cero rechazado (debe ser positivo)
+  - Precio negativo rechazado
+  - Precio ausente rechazado
+  - Nombre vacío rechazado
+  - Stock decimal rechazado (debe ser entero)
+  - Stock negativo rechazado
+  - `artesanoId` ausente rechazado
+  - `artesanoId` cero rechazado (debe ser positivo)
 *Subtotal: 28 pruebas pasadas.*
 
 ### 5.2 Desglose de Pruebas de Contrato y Acceso HTTP (`tests/solicitudes-acceso.test.js`)
-- ✔ `POST /solicitudes` sin token devuelve `401 Unauthorized` (`"Se requiere un token de acceso."`)
-- ✔ `POST /solicitudes` con cabecera mal formada (`Basic abc`) devuelve `400 Bad Request` (`"Usar Authorization: Bearer <token>."`)
-- ✔ `POST /solicitudes` con token inválido devuelve `401 Unauthorized` (`"Token inválido, vencido o revocado."`)
-- ✔ `GET /solicitudes/me` sin token devuelve `401 Unauthorized`
-- ✔ `GET /artesanos/me` sin token devuelve `401 Unauthorized`
+- `POST /solicitudes` sin token devuelve `401 Unauthorized` (`"Se requiere un token de acceso."`)
+- `POST /solicitudes` con cabecera mal formada (`Basic abc`) devuelve `400 Bad Request` (`"Usar Authorization: Bearer <token>."`)
+- `POST /solicitudes` con token inválido devuelve `401 Unauthorized` (`"Token inválido, vencido o revocado."`)
+- `GET /solicitudes/me` sin token devuelve `401 Unauthorized`
+- `GET /artesanos/me` sin token devuelve `401 Unauthorized`
 *Subtotal: 5 pruebas pasadas en 886ms con desconexión limpia de Prisma.*
 
 ### 5.3 Desglose de Pruebas de Integración con Supabase (`tests/solicitudes-integracion.test.js`)
-- ✔ **Test 1:** Crear una postulación correcta la guarda en PostgreSQL (Supabase). Verifica que el registro persista en la base con estado `PENDIENTE` vinculado al artesano Ana.
-- ✔ **Test 2:** Listar devuelve todas las postulaciones propias y ninguna ajena. Comprueba aislamiento multitenant entre Ana y Bruno.
-- ✔ **Test 3:** Impedir cancelar una postulación existente perteneciente a otro artesano. Ana intenta cancelar la postulación de Bruno y recibe `404 Not Found`. El registro de Bruno permanece intacto.
-- ✔ **Test 4 (Actividad Integradora):** Repetir postulación devuelve `409 Conflict` y conserva un único registro en Supabase.
-- ✔ **Test 5 (Verificación de Roles):** Rol que no corresponde devuelve `403 Forbidden` (`"No tiene permiso para esta operación."`). Ana intenta acceder a la bandeja administrativa `GET /solicitudes`.
+- **Test 1:** Crear una postulación correcta la guarda en PostgreSQL (Supabase). Verifica que el registro persista en la base con estado `PENDIENTE` vinculado al artesano Ana.
+- **Test 2:** Listar devuelve todas las postulaciones propias y ninguna ajena. Comprueba aislamiento multitenant entre Ana y Bruno.
+- **Test 3:** Impedir cancelar una postulación existente perteneciente a otro artesano. Ana intenta cancelar la postulación de Bruno y recibe `404 Not Found`. El registro de Bruno permanece intacto.
+- **Test 4 (Actividad Integradora):** Repetir postulación devuelve `409 Conflict` y conserva un único registro en Supabase.
+- **Test 5 (Verificación de Roles):** Rol que no corresponde devuelve `403 Forbidden` (`"No tiene permiso para esta operación."`). Ana intenta acceder a la bandeja administrativa `GET /solicitudes`.
 *Subtotal: 5 pruebas pasadas en base remota con transacciones reales.*
 
 ### 5.4 Resumen Consolidado del Test Runner
 ```text
-ℹ tests 38
-ℹ suites 0
-ℹ pass 38
-ℹ fail 0
-ℹ cancelled 0
-ℹ skipped 0
-ℹ todo 0
-ℹ duration_ms 22133.88
+[INFO] tests 38
+[INFO] suites 0
+[INFO] pass 38
+[INFO] fail 0
+[INFO] cancelled 0
+[INFO] skipped 0
+[INFO] todo 0
+[INFO] duration_ms 22133.88
 ```
 
 ---
