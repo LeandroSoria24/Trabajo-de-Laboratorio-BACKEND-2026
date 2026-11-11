@@ -312,6 +312,7 @@ Flujo de 5 pasos para la defensa ante el tribunal de evaluación:
 Leandro Soria Rosales (M.U. 00292) & Santiago Ortiz (M.U. 00451)  
 Cátedra Laboratorio de Computación II — UNCa 2026  
 
----
+<hr>
+
 ### Espacio de Preguntas y Respuestas (Q&A)
 *Repositorio oficial: Rama `semana13`*
