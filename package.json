@@ -4,9 +4,12 @@
   "description": "- Leandro Soria Rosales, MUN° 00292 \r - Santiago Ortiz, MUN° 00451",
   "main": "src/server.js",
   "scripts": {
+    "prestart": "prisma generate",
     "start": "node src/server.js",
+    "predev": "prisma generate",
     "dev": "node --watch src/server.js",
     "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
     "docs": "node generar-docs.js",
     "seed": "node prisma/seed.js",
     "db:empty": "node prisma/empty.js",

@@ -98,7 +98,7 @@ cd Trabajo-de-Laboratorio-BACKEND-2026
 ```bash
 npm install
 ```
-> El script `postinstall` ejecuta `prisma generate` automáticamente.
+> El script `postinstall` ejecuta `prisma generate` automáticamente (incluso antes de que exista `.env`). Además, `predev` y `prestart` vuelven a asegurar que el cliente de Prisma esté generado en `src/generated/prisma`, o podés ejecutarlo manualmente con `npm run db:generate`.
 
 ### 3. Configurar variables de entorno
 Crear un archivo `.env` en la raíz del proyecto (basado en `.env.example`) y `.env.test` para pruebas (basado en `.env.test.example`):
@@ -173,8 +173,9 @@ La API cuenta con documentación interactiva completa navegable desde el explora
 
 | Comando | Descripción |
 |---|---|
-| `npm run dev` | Inicia `src/server.js` en desarrollo con recarga automática (`node --watch`). |
-| `npm start` | Inicia `src/server.js` en modo producción. |
+| `npm run dev` | Inicia `src/server.js` en desarrollo con recarga automática (`node --watch`). Ejecuta `predev` (`prisma generate`) previamente. |
+| `npm start` | Inicia `src/server.js` en modo producción. Ejecuta `prestart` (`prisma generate`) previamente. |
+| `npm run db:generate` | Genera manualmente el cliente de Prisma 7 en `src/generated/prisma`. |
 | `npm run docs` | Ejecuta `generar-docs.js` y actualiza `swagger-output.json`. |
 | `npm test` | Ejecuta la **suite completa de 38 pruebas** (esquemas Zod, acceso HTTP e integración en Supabase). |
 | `npm run test:clase10` | Ejecuta las 33 pruebas rápidas de esquemas Zod y rechazos de acceso HTTP (sin tocar base de datos). |

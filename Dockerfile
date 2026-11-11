@@ -5,9 +5,9 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 
 WORKDIR /app
 
-# Copiar dependencias y schema de Prisma antes del install
+# Copiar dependencias, configuración y schema de Prisma antes del install
 # (Requerido para el script "postinstall": "prisma generate")
-COPY package*.json ./
+COPY package*.json prisma7.config.ts ./
 COPY prisma ./prisma/
 
 # Instalar dependencias
