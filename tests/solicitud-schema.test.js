@@ -43,6 +43,24 @@ for (const [nombre, entrada, valido] of casosEvaluarSolicitud) {
   });
 }
 
+const casosAsignarStand = [
+  ["objeto vacío válido (standId es opcional)", {}, true],
+  ["standId numérico positivo válido", { standId: 5 }, true],
+  ["standId numérico string válido (coerce)", { standId: "12" }, true],
+  ["standId cero rechazado (debe ser positivo)", { standId: 0 }, false],
+  ["standId negativo rechazado", { standId: -3 }, false],
+  ["standId decimal rechazado (debe ser entero)", { standId: 2.5 }, false],
+  ["standId alfanumérico inválido", { standId: "invalido" }, false],
+  ["campo adicional no permitido (.strict())", { standId: 5, campoInvalido: true }, false],
+];
+
+for (const [nombre, entrada, valido] of casosAsignarStand) {
+  test(`Esquema asignarStandSolicitudSchema: ${nombre}`, () => {
+    const resultado = asignarStandSolicitudSchema.safeParse(entrada);
+    assert.equal(resultado.success, valido);
+  });
+}
+
 const casosProducto = [
   ["producto completo válido", { nombre: "Poncho de Vicuña", precio: 150000, artesanoId: 1, stock: 5 }, true],
   ["precio cero rechazado (debe ser positive)", { nombre: "Poncho", precio: 0, artesanoId: 1 }, false],

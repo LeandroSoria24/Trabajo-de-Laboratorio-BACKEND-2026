@@ -1,6 +1,7 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
+import prisma from "../src/config/prisma.js";
 
 // Configuración de entorno de prueba antes de importar la aplicación
 process.env.NODE_ENV = "test";
@@ -68,4 +69,9 @@ test("GET /artesanos/me sin token devuelve 401", async () => {
     mensaje: "Se requiere un token de acceso."
   });
 });
+
+after(async () => {
+  await prisma.$disconnect();
+});
+
 
