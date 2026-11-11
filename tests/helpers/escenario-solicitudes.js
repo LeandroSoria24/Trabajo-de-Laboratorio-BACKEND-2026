@@ -22,6 +22,10 @@ export async function limpiarEscenario(prisma) {
     const artesanoIds = artesanosTest.map((a) => a.id);
 
     if (artesanoIds.length > 0) {
+      await prisma.stand.updateMany({
+        where: { artesanoId: { in: artesanoIds } },
+        data: { artesanoId: null, estado: "DISPONIBLE" }
+      });
       await prisma.solicitudPostulacion.deleteMany({
         where: { artesanoId: { in: artesanoIds } }
       });
@@ -33,6 +37,11 @@ export async function limpiarEscenario(prisma) {
       });
     }
 
+    await prisma.solicitudPostulacion.updateMany({
+      where: { evaluadorId: { in: userIds } },
+      data: { evaluadorId: null }
+    });
+
     await prisma.usuarioRol.deleteMany({
       where: { usuarioId: { in: userIds } }
     });
@@ -40,6 +49,16 @@ export async function limpiarEscenario(prisma) {
       where: { id: { in: userIds } }
     });
   }
+
+  await prisma.stand.deleteMany({
+    where: { codigo: { startsWith: "TEST-" } }
+  });
+  await prisma.sector.deleteMany({
+    where: { nombre: { startsWith: "TEST-" } }
+  });
+  await prisma.pabellon.deleteMany({
+    where: { nombre: { startsWith: "TEST-" } }
+  });
 
   const localidadesDespues = await prisma.localidad.count();
   if (localidadesAntes !== localidadesDespues) {

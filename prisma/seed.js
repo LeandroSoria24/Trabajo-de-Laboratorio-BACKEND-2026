@@ -336,6 +336,16 @@ async function main() {
     }
   });
 
+  await prisma.solicitudPostulacion.create({
+    data: {
+      artesanoId: artCarmen.id,
+      standId: standC01.id,
+      evaluadorId: adminPrincipal.id,
+      estado: 'APROBADA',
+      observaciones: 'Aprobada para sector Madera con piezas tradicionales en algarrobo.'
+    }
+  });
+
   // Artesano 4: Marcos (Metales - Postulación Pendiente)
   const userMarcos = await prisma.usuario.create({
     data: {

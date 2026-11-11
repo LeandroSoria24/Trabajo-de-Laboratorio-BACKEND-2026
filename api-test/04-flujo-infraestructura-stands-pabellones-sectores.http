@@ -298,13 +298,43 @@ Content-Type: application/json
   "artesanoId": {{artesanoInactivoId}}
 }
 
-### [ERROR 400 Bad Request]: Regla de Negocio 1:1 - Intentar asignar al stand E99 un artesano que YA tiene otro stand asignado
+### [ERROR 400 Bad Request]: Regla de Negocio 1:1 (en creacion POST /stands) - Intentar crear un stand asignado a un artesano que YA ocupa otro stand
+POST {{baseUrl}}/stands
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "codigo": "E101",
+  "numero": 101,
+  "pabellonId": {{pabellonConStandsId}},
+  "sectorId": {{sectorConStandsId}},
+  "artesanoId": {{artesanoConStandId}}
+}
+
+### [ERROR 400 Bad Request]: Regla de Negocio 1:1 (via PATCH /stands/:id/asignar-artesano) - Intentar asignar al stand E99 un artesano que YA tiene otro stand asignado
 PATCH {{baseUrl}}/stands/{{nuevoStandId}}/asignar-artesano
 Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {
   "artesanoId": {{artesanoConStandId}}
+}
+
+### [EXITO 200 OK]: Consultar la solicitud aprobada de Lorenza (quien ya ocupa el stand A01)
+# @name solicitudesLorenza
+GET {{baseUrl}}/solicitudes/me
+Authorization: Bearer {{tokenLorenza}}
+
+###
+@solicitudLorenzaId = {{solicitudesLorenza.response.body.$[0].id}}
+
+### [ERROR 409 Conflict]: Regla de Negocio 1:1 (via PATCH /solicitudes/:id/asignar-stand) - Intentar asignar el stand E99 a la solicitud de Lorenza que YA ocupa el stand A01
+PATCH {{baseUrl}}/solicitudes/{{solicitudLorenzaId}}/asignar-stand
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "standId": {{nuevoStandId}}
 }
 
 ### [EXITO 200 OK]: Buscar a la artesana Elena (activa y sin stand ocupado en el seeder)
@@ -321,6 +351,15 @@ Content-Type: application/json
 
 {
   "artesanoId": {{elenaArtesanoId}}
+}
+
+### [ERROR 400 Bad Request]: Regla de Negocio - Intentar asignar otro artesano al stand E99 cuando ya se encuentra OCUPADO por Elena
+PATCH {{baseUrl}}/stands/{{nuevoStandId}}/asignar-artesano
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "artesanoId": {{artesanoConStandId}}
 }
 
 ### [ERROR 400 Bad Request]: Regla de Integridad - Intentar eliminar fisicamente el stand E99 mientras esta OCUPADO por un artesano

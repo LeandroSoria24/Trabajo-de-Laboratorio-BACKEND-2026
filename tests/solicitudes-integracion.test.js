@@ -166,4 +166,149 @@ test("Test 5 (Verificación de Roles): Rol que no corresponde devuelve 403 Forbi
   });
 });
 
+test("Test 6 (Regla 1:1 de Stands y Propiedad de Productos): Impedir asignar otro stand a un artesano que ya tiene stand y proteger productos ajenos", async () => {
+  const { ana, bruno, tokenAna, tokenBruno } = datos;
+  const { generarToken } = await import("../src/services/token.services.js");
+
+  // 1. Crear un usuario administrador de prueba y dos stands disponibles de prueba
+  const adminUser = await prisma.usuario.create({
+    data: {
+      nombre: "Admin Test",
+      email: "admin@clase10.test",
+      passwordHash: "hash-no-usado-en-login",
+      activo: true,
+      roles: {
+        create: {
+          rol: {
+            connectOrCreate: {
+              where: { nombre: "ADMINISTRADOR" },
+              create: { nombre: "ADMINISTRADOR" }
+            }
+          }
+        }
+      }
+    }
+  });
+  const tokenAdmin = generarToken({ id: adminUser.id, roles: ["ADMINISTRADOR"] });
+
+  const pabellon = await prisma.pabellon.create({ data: { nombre: "TEST-Pabellon" } });
+  const sector = await prisma.sector.create({ data: { nombre: "TEST-Sector" } });
+  const stand1 = await prisma.stand.create({
+    data: { codigo: "TEST-S1", numero: 901, pabellonId: pabellon.id, sectorId: sector.id, estado: "DISPONIBLE" }
+  });
+  const stand2 = await prisma.stand.create({
+    data: { codigo: "TEST-S2", numero: 902, pabellonId: pabellon.id, sectorId: sector.id, estado: "DISPONIBLE" }
+  });
+
+  // 2. Ana y Bruno presentan sus postulaciones y el Administrador las aprueba
+  const resInscripcion = await inscribir(tokenAna, "Postulación de Ana para asignación de stand");
+  const solicitudId = resInscripcion.body.solicitud.id;
+  const resInscripcionBruno = await inscribir(tokenBruno, "Postulación de Bruno para asignación de stand");
+  const solicitudBrunoId = resInscripcionBruno.body.solicitud.id;
+
+  await request(app)
+    .patch(`/solicitudes/${solicitudId}/evaluar`)
+    .set("Authorization", `Bearer ${tokenAdmin}`)
+    .send({ estado: "APROBADA", observaciones: "Aprobada en test de integración" })
+    .expect(200);
+
+  await request(app)
+    .patch(`/solicitudes/${solicitudBrunoId}/evaluar`)
+    .set("Authorization", `Bearer ${tokenAdmin}`)
+    .send({ estado: "APROBADA", observaciones: "Aprobada Bruno en test de integración" })
+    .expect(200);
+
+  // 3. El Administrador asigna el primer stand (TEST-S1) a la solicitud aprobada de Ana (200 OK)
+  await request(app)
+    .patch(`/solicitudes/${solicitudId}/asignar-stand`)
+    .set("Authorization", `Bearer ${tokenAdmin}`)
+    .send({ standId: stand1.id })
+    .expect(200);
+
+  // 4. Intentar asignarle un segundo stand (TEST-S2) a Ana vía Solicitudes devuelve 409 Conflict
+  const resReasignacionSolicitud = await request(app)
+    .patch(`/solicitudes/${solicitudId}/asignar-stand`)
+    .set("Authorization", `Bearer ${tokenAdmin}`)
+    .send({ standId: stand2.id })
+    .expect(409);
+
+  assert.match(resReasignacionSolicitud.body.mensaje, /ya tiene asignado el stand 'TEST-S1'/);
+
+  // 5. Intentar asignarle un segundo stand (TEST-S2) a Ana vía Stands directo devuelve 400 Bad Request
+  const resReasignacionDirecta = await request(app)
+    .patch(`/stands/${stand2.id}/asignar-artesano`)
+    .set("Authorization", `Bearer ${tokenAdmin}`)
+    .send({ artesanoId: ana.id })
+    .expect(400);
+
+  assert.match(resReasignacionDirecta.body.mensaje, /ya tiene asignado el stand 'TEST-S1'/);
+
+  // 6. Intentar sobrescribir el stand ocupado TEST-S1 con Bruno vía PUT /stands/:id devuelve 400 Bad Request
+  const resSobrescribirStand = await request(app)
+    .put(`/stands/${stand1.id}`)
+    .set("Authorization", `Bearer ${tokenAdmin}`)
+    .send({ artesanoId: bruno.id })
+    .expect(400);
+
+  assert.match(resSobrescribirStand.body.mensaje, /ya se encuentra asignado a otro artesano/);
+
+  // 7. Liberar TEST-S1 y probar concurrencia simultánea (dos peticiones paralelas intentando asignar TEST-S2 a Ana y Bruno)
+  await request(app)
+    .patch(`/stands/${stand1.id}/liberar`)
+    .set("Authorization", `Bearer ${tokenAdmin}`)
+    .expect(200);
+
+  const [resConc1, resConc2] = await Promise.all([
+    request(app)
+      .patch(`/solicitudes/${solicitudId}/asignar-stand`)
+      .set("Authorization", `Bearer ${tokenAdmin}`)
+      .send({ standId: stand2.id }),
+    request(app)
+      .patch(`/solicitudes/${solicitudBrunoId}/asignar-stand`)
+      .set("Authorization", `Bearer ${tokenAdmin}`)
+      .send({ standId: stand2.id })
+  ]);
+
+  const codigosConcurrencia = [resConc1.status, resConc2.status].sort((a, b) => a - b);
+  assert.deepEqual(
+    codigosConcurrencia,
+    [200, 409],
+    "En asignación concurrente del mismo stand, exactamente una solicitud debe tener éxito (200) y la otra fallar con 409."
+  );
+
+  // 8. Ana publica un producto propio (201) y Bruno intenta modificarlo/eliminarlo recibiendo 403 Forbidden
+  const { body: productoAna } = await request(app)
+    .post("/productos")
+    .set("Authorization", `Bearer ${tokenAna}`)
+    .send({
+      nombre: "Poncho Test Propiedad",
+      precio: 80000,
+      stock: 3,
+      artesanoId: ana.id
+    })
+    .expect(201);
+
+  await request(app)
+    .put(`/productos/${productoAna.id}`)
+    .set("Authorization", `Bearer ${tokenBruno}`)
+    .send({ nombre: "Intento de edición por Bruno", precio: 1000 })
+    .expect(403);
+
+  await request(app)
+    .delete(`/productos/${productoAna.id}`)
+    .set("Authorization", `Bearer ${tokenBruno}`)
+    .expect(403);
+
+  // 9. Ana da de baja lógica su propio producto (200 OK) y un visitante público ya no puede accederlo por ID (404)
+  await request(app)
+    .delete(`/productos/${productoAna.id}`)
+    .set("Authorization", `Bearer ${tokenAna}`)
+    .expect(200);
+
+  await request(app)
+    .get(`/productos/${productoAna.id}`)
+    .expect(404);
+});
+
+
 

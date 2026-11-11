@@ -419,11 +419,11 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Baja lógica realizada (sin contenido)."
+          "200": {
+            "description": "Baja lógica realizada (activo = false)."
           },
           "400": {
-            "description": "ID inválido."
+            "description": "ID inválido o el artesano ya se encuentra inactivo."
           },
           "401": {
             "description": "Token no proporcionado o inválido."
@@ -755,8 +755,8 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Producto dado de baja lógicamente (sin contenido)."
+          "200": {
+            "description": "Producto dado de baja lógicamente (activo = false)."
           },
           "400": {
             "description": "ID inválido."
@@ -1039,8 +1039,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Rol retirado correctamente."
+          "204": {
+            "description": "Rol retirado correctamente (sin contenido)."
           },
           "400": {
             "description": "Parámetros inválidos."

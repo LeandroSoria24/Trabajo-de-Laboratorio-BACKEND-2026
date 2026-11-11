@@ -141,6 +141,16 @@ Authorization: Bearer {{tokenMarcos}}
 PATCH {{baseUrl}}/solicitudes/{{solicitudMarcosId}}/cancelar
 Authorization: Bearer {{tokenMarcos}}
 
+### [ERROR 409 Conflict]: Regla de Negocio - El Administrador intenta evaluar una solicitud que ya fue CANCELADA por el artesano
+PATCH {{baseUrl}}/solicitudes/{{solicitudMarcosId}}/evaluar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "estado": "APROBADA",
+  "observaciones": "Intento de aprobar una solicitud que el artesano ya cancelo."
+}
+
 ### [EXITO 201 Created]: Como su solicitud anterior quedo CANCELADA, Marcos puede presentar una segunda postulacion
 # @name segundaSolicitudMarcos
 POST {{baseUrl}}/solicitudes

@@ -318,12 +318,26 @@ Content-Type: application/json
   "observaciones": "Piezas textiles verificadas por la comision evaluadora. Se aprueba participacion."
 }
 
+### [ERROR 409 Conflict]: Regla de Negocio - Intentar evaluar nuevamente una solicitud que ya fue dictaminada (APROBADA)
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/evaluar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "estado": "RECHAZADA",
+  "observaciones": "Intento de cambiar dictamen de una solicitud ya aprobada."
+}
+
+### [ERROR 409 Conflict]: Regla de Negocio - El artesano intenta cancelar su solicitud luego de que ya fue APROBADA
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/cancelar
+Authorization: Bearer {{tokenArtesano}}
+
 ### [EXITO 200 OK]: Verificar que el artesano paso automaticamente a estado activo = true en el catalogo publico
 GET {{baseUrl}}/artesanos/{{artesanoId}}
 
 ###
 # ============================================================================
-# ETAPA 6: ASIGNACION TRANSACCIONAL DE STAND FERIAL (PATCH /solicitudes/:id/asignar-stand)
+# ETAPA 6: ASIGNACION TRANSACCIONAL DE STAND FERIAL Y REGLA 1:1 (PATCH /solicitudes/:id/asignar-stand)
 # ============================================================================
 
 ### [EXITO 200 OK]: Consultar stands disponibles en el predio ferial antes de asignar
@@ -332,6 +346,7 @@ GET {{baseUrl}}/stands?estado=DISPONIBLE
 
 ###
 @standDisponibleId = {{listarStandsDisponibles.response.body.stands[0].id}}
+@segundoStandDisponibleId = {{listarStandsDisponibles.response.body.stands[1].id}}
 
 ### [EXITO 200 OK]: Consultar stands ocupados para probar el caso de error de conflicto
 # @name listarStandsOcupados
@@ -340,6 +355,13 @@ GET {{baseUrl}}/stands?estado=OCUPADO
 ###
 @standOcupadoId = {{listarStandsOcupados.response.body.stands[0].id}}
 
+### [EXITO 200 OK]: Consultar stands en mantenimiento para probar el caso de rechazo
+# @name listarStandsMantenimiento
+GET {{baseUrl}}/stands?estado=MANTENIMIENTO
+
+###
+@standMantenimientoId = {{listarStandsMantenimiento.response.body.stands[0].id}}
+
 ### [ERROR 409 Conflict]: Regla de Negocio - Intentar asignar un stand que ya se encuentra OCUPADO por otro artesano
 PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/asignar-stand
 Authorization: Bearer {{tokenAdmin}}
@@ -347,6 +369,15 @@ Content-Type: application/json
 
 {
   "standId": {{standOcupadoId}}
+}
+
+### [ERROR 409 Conflict]: Regla de Negocio - Intentar asignar un stand que se encuentra en MANTENIMIENTO
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/asignar-stand
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "standId": {{standMantenimientoId}}
 }
 
 ### [ERROR 404 Not Found]: Intentar asignar un stand con ID inexistente
@@ -367,13 +398,39 @@ Content-Type: application/json
   "standId": {{standDisponibleId}}
 }
 
+### [ERROR 409 Conflict]: Caso de Estudio Regla 1:1 (via Solicitud) - Intentar asignar otro stand a un artesano que YA tiene un stand asignado
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/asignar-stand
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "standId": {{segundoStandDisponibleId}}
+}
+
+### [ERROR 400 Bad Request]: Caso de Estudio Regla 1:1 (via Stand directo) - Intentar asignar otro stand fisico a un artesano que YA tiene un stand asignado
+PATCH {{baseUrl}}/stands/{{segundoStandDisponibleId}}/asignar-artesano
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "artesanoId": {{artesanoId}}
+}
+
 ### [EXITO 200 OK]: Verificar el stand asignado (ahora figura como OCUPADO y con los datos del artesano Sebastian Quiroga)
 GET {{baseUrl}}/stands/{{standDisponibleId}}
 
 ###
 # ============================================================================
-# ETAPA 7: PUBLICACION DE PRODUCTOS, VISTA DIFERENCIADA Y CACHE (POST / PUT / GET /productos)
+# ETAPA 7: PUBLICACION DE PRODUCTOS, PROPIEDAD (OWNERSHIP), VISTA DIFERENCIADA Y CACHE
 # ============================================================================
+
+### [EXITO 200 OK]: Consultar una artesana existente en el catalogo (Lorenza) para probar aislamiento de propiedad (Ownership)
+# @name buscarLorenza
+GET {{baseUrl}}/artesanos?nombre=Lorenza
+
+###
+@lorenzaArtesanoId = {{buscarLorenza.response.body.artesanos[0].id}}
+@productoAjenoId = {{buscarLorenza.response.body.artesanos[0].productos[0].id}}
 
 ### [ERROR 400 Bad Request]: Intentar crear producto con precio negativo o cero
 POST {{baseUrl}}/productos
@@ -388,7 +445,20 @@ Content-Type: application/json
   "artesanoId": {{artesanoId}}
 }
 
-### [EXITO 201 Created]: El artesano publica un nuevo producto en su catalogo (invalida la cache de /productos)
+### [ERROR 403 Forbidden]: Regla de Propiedad (Ownership) - El artesano intenta crear un producto a nombre de otro artesano (Lorenza)
+POST {{baseUrl}}/productos
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "nombre": "Producto Impostor en Catalogo Ajeno",
+  "descripcion": "Intento de publicar en el catalogo de otro artesano",
+  "precio": 50000,
+  "stock": 2,
+  "artesanoId": {{lorenzaArtesanoId}}
+}
+
+### [EXITO 201 Created]: El artesano publica un nuevo producto en su propio catalogo (invalida la cache de /productos)
 # @name crearProducto
 POST {{baseUrl}}/productos
 Authorization: Bearer {{tokenArtesano}}
@@ -404,6 +474,20 @@ Content-Type: application/json
 
 ###
 @productoId = {{crearProducto.response.body.id}}
+
+### [ERROR 403 Forbidden]: Regla de Propiedad (Ownership) - El artesano intenta modificar un producto que pertenece a otro artesano (Lorenza)
+PUT {{baseUrl}}/productos/{{productoAjenoId}}
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "nombre": "Intento de Modificar Producto Ajeno",
+  "precio": 1000
+}
+
+### [ERROR 403 Forbidden]: Regla de Propiedad (Ownership) - El artesano intenta eliminar un producto que pertenece a otro artesano (Lorenza)
+DELETE {{baseUrl}}/productos/{{productoAjenoId}}
+Authorization: Bearer {{tokenArtesano}}
 
 ### [EXITO 200 OK]: Consulta PUBLICA del producto (sin token -> X-Cache: MISS, devuelve vista resumida: id, nombre, precio, descripcion, stock)
 GET {{baseUrl}}/productos/{{productoId}}
@@ -433,7 +517,7 @@ Authorization: Bearer {{tokenArtesano}}
 # ETAPA 8: CIERRE DE SESION Y REVOCACION DE TOKEN EN LISTA NEGRA (POST /usuarios/logout)
 # ============================================================================
 
-### [EXITO 204 No Content]: Cerrar sesion del artesano (el JTI del token se guarda hasheado en la tabla tokens_revocados)
+### [EXITO 204 No Content]: Cerrar sesion del artesano (el JTI del token se registra en la tabla TokenRevocado)
 POST {{baseUrl}}/usuarios/logout
 Authorization: Bearer {{tokenArtesano}}
 

@@ -170,6 +170,17 @@ export const actualizarArtesano = async (id, actualizarArtesanoDto) => {
         }
     }
 
+    if (usuarioId && usuarioId !== artesano.usuarioId) {
+        const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+        if (!usuario) {
+            throw crearError(`No existe un usuario con id ${usuarioId}`, 404);
+        }
+        const usuarioConArtesano = await prisma.artesano.findUnique({ where: { usuarioId } });
+        if (usuarioConArtesano && usuarioConArtesano.id !== id) {
+            throw crearError(`El usuario ya tiene un perfil de artesano asociado`, 409);
+        }
+    }
+
     return prisma.artesano.update({
         where: { id },
         data: {
@@ -228,15 +239,15 @@ export const obtenerArtesanos = async (criterios = {}) => {
 
     const desplazamiento = (pagina - 1) * limite;
 
-    const [artesanos, total] = await prisma.$transaction([
-        prisma.artesano.findMany({
+    const [artesanos, total] = await prisma.$transaction(async (tx) => [
+        await tx.artesano.findMany({
             where,
             orderBy: [{ [ordenarPor]: direccion }, { id: 'asc' }],
             skip: desplazamiento,
             take: limite,
             include: { localidad: true, productos: true, stand: true }
         }),
-        prisma.artesano.count({ where })
+        await tx.artesano.count({ where })
     ]);
 
     return {

@@ -6,11 +6,16 @@ import { crearError } from '../utils/crearError.js';
  */
 export const crearMiSolicitud = async (usuarioId, dto = {}) => {
     const artesano = await prisma.artesano.findUnique({
-        where: { usuarioId }
+        where: { usuarioId },
+        include: { stand: true }
     });
 
     if (!artesano) {
         throw crearError("Debe completar su perfil de artesano antes de postularse a la feria.", 404);
+    }
+
+    if (artesano.stand) {
+        throw crearError(`Ya tiene asignado el stand '${artesano.stand.codigo}' en la feria.`, 409);
     }
 
     // Regla: no permitir más de una solicitud PENDIENTE o APROBADA activa
@@ -105,8 +110,8 @@ export const listarTodasSolicitudes = async (filtros = {}) => {
 
     const desplazamiento = (pagina - 1) * limite;
 
-    const [solicitudes, total] = await prisma.$transaction([
-        prisma.solicitudPostulacion.findMany({
+    const [solicitudes, total] = await prisma.$transaction(async (tx) => [
+        await tx.solicitudPostulacion.findMany({
             where,
             orderBy: { fechaPresentacion: 'desc' },
             skip: desplazamiento,
@@ -121,7 +126,7 @@ export const listarTodasSolicitudes = async (filtros = {}) => {
                 evaluador: { select: { id: true, nombre: true, email: true } }
             }
         }),
-        prisma.solicitudPostulacion.count({ where })
+        await tx.solicitudPostulacion.count({ where })
     ]);
 
     return {
@@ -146,6 +151,10 @@ export const evaluarSolicitud = async (solicitudId, evaluadorId, dto) => {
 
         if (!solicitud) {
             throw crearError(`No existe una solicitud con id ${solicitudId}`, 404);
+        }
+
+        if (!['PENDIENTE', 'EN_REVISION'].includes(solicitud.estado)) {
+            throw crearError(`No se puede evaluar una solicitud que ya se encuentra en estado ${solicitud.estado}.`, 409);
         }
 
         const solicitudActualizada = await tx.solicitudPostulacion.update({
@@ -187,6 +196,18 @@ export const asignarStandASolicitud = async (solicitudId, standIdDeseado) => {
             throw crearError("La solicitud debe estar en estado APROBADA para asignarle un stand.", 409);
         }
 
+        if (!solicitud.artesano.activo) {
+            throw crearError("El artesano se encuentra inactivo y no puede recibir un stand.", 409);
+        }
+
+        // Regla 1 a 1: impedir asignar un nuevo stand si el artesano ya ocupa uno
+        const standPrevio = await tx.stand.findUnique({
+            where: { artesanoId: solicitud.artesanoId }
+        });
+        if (standPrevio) {
+            throw crearError(`El artesano ya tiene asignado el stand '${standPrevio.codigo}'. Debe liberarlo antes de asignarle otro.`, 409);
+        }
+
         // Buscar stand
         let stand;
         if (standIdDeseado) {
@@ -205,20 +226,22 @@ export const asignarStandASolicitud = async (solicitudId, standIdDeseado) => {
             }
         }
 
-        // Si el artesano ya tenía un stand previo, se libera
-        await tx.stand.updateMany({
-            where: { artesanoId: solicitud.artesanoId },
-            data: { estado: 'DISPONIBLE', artesanoId: null }
-        });
-
-        // Ocupar el nuevo stand
-        const standAsignado = await tx.stand.update({
-            where: { id: stand.id },
+        // Ocupar el nuevo stand de forma atómica (previene condiciones de carrera en peticiones concurrentes)
+        const reserva = await tx.stand.updateMany({
+            where: {
+                id: stand.id,
+                estado: 'DISPONIBLE',
+                artesanoId: null
+            },
             data: {
                 estado: 'OCUPADO',
                 artesanoId: solicitud.artesanoId
             }
         });
+
+        if (reserva.count === 0) {
+            throw crearError(`El stand ${stand.codigo} no se encuentra disponible.`, 409);
+        }
 
         // Asociar el stand a la solicitud
         const solicitudConStand = await tx.solicitudPostulacion.update({
@@ -228,7 +251,7 @@ export const asignarStandASolicitud = async (solicitudId, standIdDeseado) => {
         });
 
         return {
-            mensaje: `Stand ${standAsignado.codigo} asignado exitosamente al artesano ${solicitud.artesano.nombre} ${solicitud.artesano.apellido}.`,
+            mensaje: `Stand ${stand.codigo} asignado exitosamente al artesano ${solicitud.artesano.nombre} ${solicitud.artesano.apellido}.`,
             solicitud: solicitudConStand
         };
     });

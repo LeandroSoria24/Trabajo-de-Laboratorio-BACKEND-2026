@@ -202,16 +202,16 @@ erDiagram
 ### Soporte Completo de Seguridad Bearer
 * Componente `bearerAuth` configurado para pruebas interactivas en vivo.
 * Disponible en la ruta pública: **`http://localhost:3000/docs`**.
-* Todas las 51 operaciones mapeadas con códigos de respuesta (200, 201, 204, 400, 401, 403, 404, 409).
+* Las 50 operaciones HTTP (en 32 rutas REST) mapeadas con códigos de respuesta (200, 201, 204, 400, 401, 403, 404, 409).
 
 ---
 
 ## Diapositiva 10: Pirámide de Pruebas y Estrategia de Verificación
 
 ```text
-                [ 5 Tests Integración Supabase ]
+                [ 6 Tests Integración Supabase ]
                 - Transacciones reales, aislamiento @clase10.test
-                - Aislamiento multitenant, unicidad de postulación
+                - Aislamiento multitenant, stands 1:1, propiedad de productos
 
             [ 5 Tests de Contrato y Acceso HTTP ]
             - Validación de cabeceras RFC 6750 (401, 400, 403)
@@ -223,7 +223,7 @@ erDiagram
 ```
 
 * **Runner:** `node:test` nativo + `supertest` ejecutado con `npm test`.
-* **Resultado Consolidado:** **38 tests ejecutados, 38 superados (100% pass)** en ~22 segundos.
+* **Resultado Consolidado:** **39 tests ejecutados, 39 superados (100% pass)** en ~25 segundos.
 
 ---
 
@@ -274,7 +274,7 @@ Flujo de 5 pasos para la defensa ante el tribunal de evaluación:
    * `GET /productos` $\rightarrow$ Segundo acceso: `X-Cache: HIT` (< 2ms).
    * `POST /productos` $\rightarrow$ Alta de producto e invalidación automática de RAM.
 5. **Swagger UI y Suite de Pruebas:**
-   * Exploración interactiva en `/docs` y ejecución de `npm test` (38/38 tests pasando).
+   * Exploración interactiva en `/docs` y ejecución de `npm test` (39/39 tests pasando).
 
 ---
 
@@ -288,7 +288,7 @@ Flujo de 5 pasos para la defensa ante el tribunal de evaluación:
 | **Seguridad y RBAC** | Bearer RFC 6750, HS256, Bcrypt, Blacklist | **100% Cumplido** |
 | **Caché en Memoria** | `node-cache` 30s TTL, HIT/MISS, Eviction | **100% Cumplido** |
 | **Documentación OpenAPI** | Swagger UI montado en `/docs` con Bearer | **100% Cumplido** |
-| **Estrategia de Tests** | Esquemas, contratos y DB real Supabase | **100% Cumplido** (38/38) |
+| **Estrategia de Tests** | Esquemas, contratos y DB real Supabase | **100% Cumplido** (39/39) |
 | **Seguridad de Datos** | Invariabilidad de 44 municipios de Catamarca | **100% Cumplido** (44 intactos) |
 
 ---

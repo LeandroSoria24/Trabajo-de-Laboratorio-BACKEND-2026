@@ -90,6 +90,40 @@ Content-Type: application/json
   "artesanoId": 999999
 }
 
+### [EXITO 200 OK]: Consultar datos de otro artesano activo (Juan) para probar aislamiento de propiedad (Ownership)
+# @name buscarJuan
+GET {{baseUrl}}/artesanos?nombre=Juan
+
+###
+@juanArtesanoId = {{buscarJuan.response.body.artesanos[0].id}}
+@productoJuanId = {{buscarJuan.response.body.artesanos[0].productos[0].id}}
+
+### [ERROR 403 Forbidden]: Regla de Propiedad (Ownership) - Lorenza intenta crear un producto a nombre de otro artesano existente (Juan)
+POST {{baseUrl}}/productos
+Authorization: Bearer {{tokenLorenza}}
+Content-Type: application/json
+
+{
+  "nombre": "Vasija infiltrada en catalogo ajeno",
+  "precio": 45000,
+  "stock": 3,
+  "artesanoId": {{juanArtesanoId}}
+}
+
+### [ERROR 403 Forbidden]: Regla de Propiedad (Ownership) - Lorenza intenta modificar un producto que pertenece a otro artesano (Juan)
+PUT {{baseUrl}}/productos/{{productoJuanId}}
+Authorization: Bearer {{tokenLorenza}}
+Content-Type: application/json
+
+{
+  "nombre": "Intento de editar vasija de Juan",
+  "precio": 1000
+}
+
+### [ERROR 403 Forbidden]: Regla de Propiedad (Ownership) - Lorenza intenta dar de baja logica un producto que pertenece a otro artesano (Juan)
+DELETE {{baseUrl}}/productos/{{productoJuanId}}
+Authorization: Bearer {{tokenLorenza}}
+
 ### [EXITO 201 Created]: Crear un nuevo producto artesanal (invalida automaticamente la cache de /productos)
 # @name crearProducto
 POST {{baseUrl}}/productos

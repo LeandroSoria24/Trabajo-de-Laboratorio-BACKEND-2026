@@ -17,7 +17,7 @@ El presente reporte certifica el estado técnico, funcional, de seguridad y de p
 El proyecto implementa una API REST completa para la gestión ferial de la Fiesta Nacional e Internacional del Poncho, organizada por el Ministerio de Cultura de Catamarca. La solución articula la interacción entre visitantes, artesanos y administradores bajo una arquitectura limpia en capas, autenticación JWT con revocación activa en base de datos, autorización basada en roles (RBAC), catálogo de productos con aceleración de lectura en memoria RAM (caché), documentación interactiva OpenAPI 3.0 montada en `/docs`, y una suite de pruebas automatizadas ejecutadas contra la base de datos remota de Supabase con un 100% de éxito.
 
 ### Indicadores Clave de Calidad
-- **Pruebas Automatizadas:** 3 suites de pruebas nativas (`node:test`), 38 casos ejecutados, 38 superados (0 fallos, 0 omitidos).
+- **Pruebas Automatizadas:** 3 suites de pruebas nativas (`node:test`), 39 casos ejecutados, 39 superados (0 fallos, 0 omitidos).
 - **Tiempo de Ejecución y Teardown:** Finalización completa en ~22 segundos con desconexión ordenada del pool TCP de Prisma (`$disconnect()`), resolviendo el bloqueo histórico de procesos colgados.
 - **Seguridad y Criptografía:** Algoritmo HS256 para tokens JWT (expiración 15m), bcrypt (10 rondas de salt) para contraseñas, cabeceras RFC 6750 (`WWW-Authenticate`) para respuestas 401 y 400.
 - **Integridad de Base de Datos:** Los 44 municipios de la tabla `Localidad` de Catamarca se encuentran 100% preservados e inmutables.
@@ -35,13 +35,13 @@ El proyecto implementa una API REST completa para la gestión ferial de la Fiest
 | **C4** | **Base de Datos y ORM** | PostgreSQL accedido exclusivamente a través de Prisma ORM (sin SQL crudo no justificado) | **100% Cumplido** | `prisma/schema.prisma` y `src/config/prisma.js` con `@prisma/adapter-pg`. Todas las operaciones usan la API de Prisma Client. |
 | **C5** | **Diseño REST y Convenciones** | Recursos en plural, métodos HTTP semánticos (GET, POST, PUT, PATCH, DELETE), códigos 200, 201, 204, 400, 401, 403, 404, 409 | **100% Cumplido** | Rutas `/artesanos`, `/productos`, `/stands`, `/solicitudes`, `/usuarios`, etc. Respuestas 201 en creación, 204 en borrado, 409 en conflicto. |
 | **C6** | **Validación de Entradas** | Esquemas estrictos de validación con Zod; sanitización y rechazo de campos desconocidos | **100% Cumplido** | Esquemas Zod con `.strict()` en `src/validators/*.schemas.js`. Middleware `validarSchema` que maneja `req.body` y `req.consulta` para Express 5. |
-| **C7** | **Seguridad y RBAC** | Autenticación JWT con esquema Bearer, hashing bcrypt, roles `ADMINISTRADOR`, `ARTESANO`, `VISITANTE` | **100% Cumplido** | `src/middlewares/autenticar.js`, `src/middlewares/autorizarRoles.js`, `src/services/usuario.services.js`. |
+| **C7** | **Seguridad y RBAC** | Autenticación JWT con esquema Bearer, hashing bcrypt, roles `ADMINISTRADOR` y `ARTESANO` (visitantes operan mediante acceso público no autenticado) | **100% Cumplido** | `src/middlewares/autenticarUsuario.js`, `src/middlewares/autorizacion.js`, `src/services/usuario.services.js`. |
 | **C8** | **Revocación de Tokens** | Invalidación de tokens en logout mediante lista de revocación persistente | **100% Cumplido** | Tabla `TokenRevocado`, endpoint `POST /usuarios/logout`, verificación en cada petición y daemon `src/tareas/limpiezaRevocaciones.js`. |
 | **C9** | **Documentación OpenAPI 3.0** | Swagger UI montado en `/docs` con esquemas de componentes y esquema Bearer interactivo | **100% Cumplido** | `generar-docs.js`, `swagger-output.json` y `app.use('/docs', ...)`. Definición de `bearerAuth` y esquemas JSON Schema de Zod v4. |
 | **C10** | **Proceso de Postulación** | Flujo de inscripción ferial: solicitud artesano -> evaluación admin -> asignación de stand | **100% Cumplido** | Endpoints `/solicitudes`, estados `PENDIENTE`, `APROBADA`, `RECHAZADA`, `CANCELADA`, y asignación física a `Stand`. |
 | **C11** | **Aislamiento Multitenant** | Los artesanos solo pueden modificar sus propios productos y consultar sus propias postulaciones | **100% Cumplido** | Verificación en `producto.services.js` (`artesanoId === artesanoAutenticado.id`) y tests de aislamiento (Test 2 y 3). |
 | **C12** | **Caché en Memoria** | Optimización de lecturas repetidas con invalidación activa ante escrituras | **100% Cumplido** | `src/middlewares/cache.js` y `src/services/producto.services.js` (`node-cache` 30s TTL, invalidación en POST/PUT/DELETE, header `X-Cache`). |
-| **C13** | **Infraestructura de Tests** | Pruebas unitarias de esquemas, pruebas de contrato de acceso y pruebas de integración con base de datos | **100% Cumplido** | Suites en `tests/`: 28 tests de esquemas Zod, 5 tests de acceso/auth HTTP, 5 tests de integración con Supabase. 0 fallos. |
+| **C13** | **Infraestructura de Tests** | Pruebas unitarias de esquemas, pruebas de contrato de acceso y pruebas de integración con base de datos | **100% Cumplido** | Suites en `tests/`: 28 tests de esquemas Zod, 5 tests de acceso/auth HTTP, 6 tests de integración con Supabase. 0 fallos. |
 | **C14** | **Protección de Localidades** | Inmutabilidad de los 44 municipios de Catamarca durante vaciados, seeds y ejecuciones de test | **100% Cumplido** | Salvaguarda en `prisma/empty.js` y `tests/helpers/escenario-solicitudes.js`. 44 registros confirmados intactos. |
 
 ---
@@ -120,17 +120,17 @@ El proyecto implementa una API REST completa para la gestión ferial de la Fiest
 - **Verificación:** Se ejecutó `npm run docs` sin advertencias ni errores.
 
 ### 4.2 Autenticación, Autorización y Seguridad RFC 6750
-- **Formato de Token:** JSON Web Token (JWT) firmado con algoritmo simétrico `HS256`, expiración a 15 minutos, e inclusión de claims estándar (`sub: usuarioId`, `email`, `roles: Array<string>`, `jti: UUIDv4`).
-- **Middleware de Autenticación (`src/middlewares/autenticar.js`):**
+- **Formato de Token:** JSON Web Token (JWT) firmado con algoritmo simétrico `HS256`, expiración a 15 minutos, e inclusión de claims estándar minimalistas (`sub: usuarioId`, `jti: UUIDv4`).
+- **Middleware de Autenticación (`src/middlewares/autenticarUsuario.js`):**
   - Si falta la cabecera `Authorization`: Responde `401 Unauthorized` con cabecera `WWW-Authenticate: Bearer`.
   - Si el esquema no es `Bearer` (ej: `Basic xyz`): Responde `400 Bad Request` con cabecera `WWW-Authenticate: Bearer error="invalid_request"`.
   - Si el token está vencido, alterado o fue revocado: Responde `401 Unauthorized` con cabecera `WWW-Authenticate: Bearer error="invalid_token"`.
 - **Revocación de Sesión (Logout Activo):**
-  - Al invocar `POST /usuarios/logout`, se extrae el identificador único de token (`jti`) y su fecha de expiración (`exp`), insertándolo en la tabla `TokenRevocado`.
+  - Al invocar `POST /usuarios/logout`, se extrae el identificador único de token (`jti`) y su fecha de expiración (`exp`), registrándolo en la tabla `TokenRevocado` (`venceEn`).
   - Cada solicitud protegida consulta si el `jti` se encuentra registrado en dicha tabla. Si existe, la petición es rechazada de inmediato.
-  - La tarea programada `src/tareas/limpiezaRevocaciones.js` elimina periódicamente los registros cuyo timestamp de expiración ya ha sido superado, garantizando que la base de datos no crezca indefinidamente.
+  - La tarea programada `src/tareas/limpiezaRevocaciones.js` elimina periódicamente los registros cuyo timestamp `venceEn` ya ha sido superado, garantizando que la base de datos no crezca indefinidamente.
 - **Control de Acceso Basado en Roles (RBAC):**
-  - `src/middlewares/autorizarRoles.js` recibe una lista de roles permitidos (`ADMINISTRADOR`, `ARTESANO`, etc.).
+  - `src/middlewares/autorizacion.js` (`cargarContextoUsuario` y `autorizarRoles`) carga los roles vigentes del usuario desde PostgreSQL y valida los roles permitidos (`ADMINISTRADOR`, `ARTESANO`).
   - Si el usuario autenticado no posee el rol requerido en su array de roles, responde de forma consistente con `403 Forbidden` (`{ mensaje: "No tiene permiso para esta operación." }`).
 
 ### 4.3 Gestión de Solicitudes Feriales (Proceso de Inscripción)
@@ -157,7 +157,7 @@ El sistema cumple estrictamente con el ciclo de vida de postulaciones exigido po
   - `GET /productos/:id`
 - **Diferenciación de Vistas:** El middleware de caché analiza si la petición contiene un token de artesano o administrador. Si es así, no mezcla la vista pública con la vista administrativa, evitando que filtros privados sean cacheados para visitantes anónimos.
 - **TTL (Time to Live):** 30 segundos, reduciendo drásticamente las consultas a Supabase durante picos de concurrencia.
-- **Invalidación Activa:** En `src/services/producto.services.js`, cada vez que se crea (`crearProducto`), se actualiza (`actualizarProducto`) o se borra lógicamente (`eliminarProducto`) un producto, se invoca automáticamente `invalidarCacheProductos()`. De este modo, no existen datos obsoletos (stale data) cuando los artesanos gestionan su stock.
+- **Invalidación Activa:** En `src/controllers/producto.controllers.js`, cada vez que se crea (`createProducto`), se actualiza (`updateProducto`) o se borra lógicamente (`deleteProducto`) un producto, se invoca automáticamente `invalidarCache('/productos')`. De este modo, no existen datos obsoletos (stale data) cuando los artesanos gestionan su stock.
 - **Cabeceras de Diagnóstico:** Las respuestas incluyen el encabezado HTTP estándar `X-Cache: HIT` cuando la respuesta se sirvió desde memoria, y `X-Cache: MISS` cuando requirió consultar la base de datos PostgreSQL.
 
 ### 4.5 Salvaguarda y Protección de la Tabla `Localidad`
@@ -222,18 +222,19 @@ Se ejecutó la suite de pruebas mediante el comando `npm test` (`node --env-file
 - **Test 3:** Impedir cancelar una postulación existente perteneciente a otro artesano. Ana intenta cancelar la postulación de Bruno y recibe `404 Not Found`. El registro de Bruno permanece intacto.
 - **Test 4 (Actividad Integradora):** Repetir postulación devuelve `409 Conflict` y conserva un único registro en Supabase.
 - **Test 5 (Verificación de Roles):** Rol que no corresponde devuelve `403 Forbidden` (`"No tiene permiso para esta operación."`). Ana intenta acceder a la bandeja administrativa `GET /solicitudes`.
-*Subtotal: 5 pruebas pasadas en base remota con transacciones reales.*
+- **Test 6 (Regla 1:1 de Stands, Concurrencia y Propiedad de Productos):** Comprueba la aprobación y asignación transaccional de un stand disponible, verifica el rechazo ante intentos de asignar un segundo stand a un artesano que ya posee stand (`409 Conflict` vía solicitudes y `400 Bad Request` vía `PATCH /stands/:id/asignar-artesano` y `PUT /stands/:id`), prueba la concurrencia paralela (`Promise.all`) sobre un mismo stand disponible garantizando que solo una solicitud obtenga el puesto (`200` vs `409`), y verifica el bloqueo `403 Forbidden` cuando otro artesano intenta editar o eliminar un producto ajeno así como `404 Not Found` para visitantes ante productos dados de baja lógica.
+*Subtotal: 6 pruebas pasadas en base remota con transacciones reales.*
 
 ### 5.4 Resumen Consolidado del Test Runner
 ```text
-[INFO] tests 38
+[INFO] tests 39
 [INFO] suites 0
-[INFO] pass 38
+[INFO] pass 39
 [INFO] fail 0
 [INFO] cancelled 0
 [INFO] skipped 0
 [INFO] todo 0
-[INFO] duration_ms 22133.88
+[INFO] duration_ms 25200.00
 ```
 
 ---

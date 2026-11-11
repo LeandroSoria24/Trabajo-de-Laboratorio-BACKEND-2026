@@ -24,7 +24,7 @@ La API REST proporciona servicios desacoplados para:
 * **Optimización y Caché en Memoria RAM:** Respuestas inmediatas (< 1ms) con `node-cache` (TTL 30s) en lectura de catálogo e invalidación selectiva ante mutaciones.
 * **Infraestructura Física del Predio Ferial:** Gestión de pabellones, sectores y stands disponibles/ocupados/en mantenimiento.
 * **Documentación Interactiva OpenAPI 3.0:** Especificación OpenAPI generada automáticamente con `swagger-autogen` a partir de esquemas Zod 4 (`z.toJSONSchema`) y servida mediante Swagger UI en `/docs`.
-* **Suite de Verificación de Contratos (38 Tests Automatizados):** Pruebas unitarias de esquemas Zod, contratos HTTP de acceso y pruebas de integración reales contra PostgreSQL en Supabase usando `node:test` y `supertest`.
+* **Suite de Verificación de Contratos (39 Tests Automatizados):** Pruebas unitarias de esquemas Zod, contratos HTTP de acceso y pruebas de integración reales contra PostgreSQL en Supabase usando `node:test` y `supertest`.
 
 ---
 
@@ -53,7 +53,7 @@ La API REST proporciona servicios desacoplados para:
 ```text
 Trabajo-de-Laboratorio-BACKEND-2026/
 ├── prisma/
-│   ├── schema.prisma                  # Esquema relacional (10 modelos, 2 enums)
+│   ├── schema.prisma                  # Esquema relacional (11 modelos, 2 enums)
 │   ├── migrations/                    # Historial versionado de migraciones SQL
 │   ├── empty.js                       # Vaciado relacional seguro (protege 44 Localidades)
 │   └── seed.js                        # Sembrador inicial (roles, predio, admins y artesanos)
@@ -74,12 +74,12 @@ Trabajo-de-Laboratorio-BACKEND-2026/
 ├── tests/
 │   ├── solicitud-schema.test.js       # 28 pruebas unitarias de validación con safeParse()
 │   ├── solicitudes-acceso.test.js     # 5 pruebas de contrato y rechazos 400/401 con Supertest
-│   ├── solicitudes-integracion.test.js# 5 pruebas de integración relacional contra Supabase
+│   ├── solicitudes-integracion.test.js# 6 pruebas de integración relacional contra Supabase
 │   └── helpers/
 │       └── escenario-solicitudes.js   # Aislamiento seguro (@clase10.test) protegiendo Localidad
-├── api-test/                          # 5 archivos .http (163 peticiones para VS Code REST Client) y colección Postman
-├── documentacionPropia/               # Documentación maestra, guía de flujos, auditoría Unidad 5 y diapositivas
-├── Poncho_Digital_Postman_Collection.json # Colección Postman v2.1 completa (163 peticiones y scripts automáticos)
+├── api-test/                          # 5 archivos .http (182 peticiones para VS Code REST Client) y colección Postman
+├── documentacionPropia/               # Documentación maestra sintetizada, guía de flujos, auditoría Unidad 5 y diapositivas
+├── Poncho_Digital_Postman_Collection.json # Colección Postman v2.1 completa (182 peticiones y scripts automáticos)
 ├── generar-docs.js                    # Script compilador de swagger-output.json
 └── swagger-output.json                # Especificación OpenAPI 3.0 generada
 ```
@@ -162,7 +162,7 @@ La API cuenta con documentación interactiva completa navegable desde el explora
 **URL de acceso:** `http://localhost:3000/docs/`
 
 ### Características de la Documentación:
-* **Exploración de Endpoints:** Los **32 endpoints** del sistema organizados en 8 módulos temáticos (`Usuarios`, `Artesanos`, `Productos`, `Stands`, `Pabellones`, `Sectores`, `Localidades`, `Solicitudes de Postulación` e `Información General`), sin operaciones huérfanas en `default`.
+* **Exploración de Endpoints:** Las **50 operaciones HTTP (32 rutas REST)** del sistema organizadas en módulos temáticos (`Usuarios`, `Artesanos`, `Productos`, `Stands`, `Pabellones y Sectores`, `Localidades`, `Solicitudes de Postulación` e `Información General`), sin operaciones huérfanas en `default`.
 * **Sincronización con Zod 4 (`$ref`):** Los modelos de entrada (`requestBody`) provienen directamente de los validadores de la aplicación convertidos mediante `z.toJSONSchema(schema, { target: "openapi-3.0", io: "input" })` en `src/documentacion/esquemas.js` (35 esquemas reutilizables y 69 referencias `$ref` resueltas).
 * **Coherencia Contrato–Implementación:** Los cuerpos documentados no exponen campos internos que el servidor deduce o rechaza (como `artesanoId`, `rol`, `activo` o `estado` en operaciones de autogestión).
 * **Autenticación con Botón "Authorize":** Permite pegar el token JWT obtenido en `POST /usuarios/login` para probar en vivo (`Try it out`) todas las peticiones protegidas.
@@ -177,9 +177,9 @@ La API cuenta con documentación interactiva completa navegable desde el explora
 | `npm start` | Inicia `src/server.js` en modo producción. Ejecuta `prestart` (`prisma generate`) previamente. |
 | `npm run db:generate` | Genera manualmente el cliente de Prisma 7 en `src/generated/prisma`. |
 | `npm run docs` | Ejecuta `generar-docs.js` y actualiza `swagger-output.json`. |
-| `npm test` | Ejecuta la **suite completa de 38 pruebas** (esquemas Zod, acceso HTTP e integración en Supabase). |
+| `npm test` | Ejecuta la **suite completa de 39 pruebas** (esquemas Zod, acceso HTTP e integración en Supabase). |
 | `npm run test:clase10` | Ejecuta las 33 pruebas rápidas de esquemas Zod y rechazos de acceso HTTP (sin tocar base de datos). |
-| `npm run test:integracion` | Ejecuta las 5 pruebas de integración relacionales contra PostgreSQL en Supabase (`.env.test`). |
+| `npm run test:integracion` | Ejecuta las 6 pruebas de integración relacionales contra PostgreSQL en Supabase (`.env.test`). |
 | `npm run test:todos` | Ejecuta todos los archivos `tests/*.test.js` con `--env-file=.env.test`. |
 | `npm run seed` | Puebla la base de datos con roles, predio, stands, administradores y artesanos (preservando `Localidad`). |
 | `npm run db:empty` | Vacía de forma segura las tablas respetando claves foráneas (preservando `Localidad`). |
@@ -189,7 +189,7 @@ La API cuenta con documentación interactiva completa navegable desde el explora
 
 ## Verificación de Contratos y Testing Automatizado (Unidad 5)
 
-El proyecto cuenta con **38 pruebas automatizadas** construidas con **`node:test`**, **`node:assert/strict`** y **`supertest`**, donde `src/app.js` se importa de manera limpia sin iniciar `app.listen` ni dejar sockets abiertos:
+El proyecto cuenta con **39 pruebas automatizadas** construidas con **`node:test`**, **`node:assert/strict`** y **`supertest`**, donde `src/app.js` se importa de manera limpia sin iniciar `app.listen` ni dejar sockets abiertos:
 
 ### 1. Pruebas Unitarias de Esquemas Zod (`tests/solicitud-schema.test.js` — 28 tests)
 * Comprueba de manera aislada mediante `schema.safeParse(entrada)` las matrices de casos válidos e inválidos para:
@@ -205,13 +205,14 @@ El proyecto cuenta con **38 pruebas automatizadas** construidas con **`node:test
   - Token inválido, corrupto o revocado $\rightarrow$ **401 Unauthorized** (`"Token inválido, vencido o revocado."`).
   - Protección de `/solicitudes/me` y `/artesanos/me` sin token $\rightarrow$ **401 Unauthorized**.
 
-### 3. Pruebas de Integración con PostgreSQL en Supabase (`tests/solicitudes-integracion.test.js` — 5 tests)
+### 3. Pruebas de Integración con PostgreSQL en Supabase (`tests/solicitudes-integracion.test.js` — 6 tests)
 * Ejecución controlada mediante [`.env.test`](.env.test) y aislamiento seguro en [`tests/helpers/escenario-solicitudes.js`](tests/helpers/escenario-solicitudes.js) sobre usuarios `@clase10.test` (**preservando siempre los 44 registros de `Localidad`**):
   1. **Creación y Persistencia (201):** Presenta una postulación con token de artesana y verifica con `prisma.solicitudPostulacion.findUniqueOrThrow` que se guardó en Supabase con estado `PENDIENTE` y pertenece a la cuenta autenticada.
   2. **Listado de Recursos Propios (200):** Verifica que `GET /solicitudes/me` devuelva únicamente las postulaciones de la artesana autenticada y ninguna ajena.
   3. **Aislamiento de Recursos Ajenos (404):** Comprueba que un artesano no pueda cancelar la postulación de otro expositor, respondiendo `404` (`"Solicitud no encontrada."`) y conservando intacto el registro original.
   4. **Actividad Integradora - Conflicto y Duplicación (409):** Comprueba que intentar presentar una segunda postulación activa devuelve `409 Conflict` (`"Ya posee una solicitud de postulación en estado PENDIENTE."`) y conserva un único registro en la base.
   5. **Verificación de Roles (403):** Comprueba que un usuario con rol `ARTESANO` reciba `403 Forbidden` (`"No tiene permiso para esta operación."`) al intentar consultar el listado administrativo `GET /solicitudes`.
+  6. **Regla 1:1 de Stands, Concurrencia y Propiedad de Productos (409 / 400 / 403):** Comprueba que tras aprobar la solicitud y asignarle un stand, intentar asignarle un segundo stand al mismo artesano se rechaza tanto por solicitud (`409 Conflict`) como por stand directo (`400 Bad Request`), impide sobrescribir un stand ocupado vía `PUT /stands/:id` (`400 Bad Request`), garantiza atomicidad ante peticiones simultáneas concurrentes sobre el mismo stand (`200` y `409`), y asegura que un artesano no pueda editar ni eliminar productos pertenecientes a otro artesano (`403 Forbidden`) ni que visitantes accedan por ID a productos dados de baja lógica (`404 Not Found`).
 
 ---
 
@@ -241,8 +242,8 @@ El proyecto cuenta con **38 pruebas automatizadas** construidas con **`node:test
 | **Stands** | `GET /stands`<br>`GET /stands/:id` | **Público** | Mapa y directorio público de stands del predio ferial con filtros por pabellón/sector. |
 | | `POST /stands` | **Solo ADMINISTRADOR** | Da de alta un nuevo stand físico asignado a un pabellón y sector. |
 | | `PUT /stands/:id` | **Solo ADMINISTRADOR** | Modifica código, número o estado del stand. |
-| | `PATCH /stands/:id/artesano` | **Solo ADMINISTRADOR** | Asigna directamente un stand a un artesano (pasa a `OCUPADO`). |
-| | `DELETE /stands/:id/artesano` | **Solo ADMINISTRADOR** | Desvincula al artesano y vuelve el stand a estado `DISPONIBLE`. |
+| | `PATCH /stands/:id/asignar-artesano` | **Solo ADMINISTRADOR** | Asigna directamente un stand a un artesano activo que no tenga otro stand (pasa a `OCUPADO`). |
+| | `PATCH /stands/:id/liberar` | **Solo ADMINISTRADOR** | Desvincula al artesano y vuelve el stand a estado `DISPONIBLE`. |
 | | `DELETE /stands/:id` | **Solo ADMINISTRADOR** | Elimina físicamente un stand (valida que no esté ocupado). |
 | **Pabellones y Sectores** | `GET /pabellones`<br>`GET /sectores` | **Público** | Consulta de la distribución física de la feria. |
 | | `POST`, `PUT`, `DELETE` | **Solo ADMINISTRADOR** | Administración y mantenimiento de la infraestructura del predio. |
@@ -252,7 +253,7 @@ El proyecto cuenta con **38 pruebas automatizadas** construidas con **`node:test
 | | `PATCH /solicitudes/:id/cancelar` | **Rol ARTESANO** | Cancela su postulación si se encuentra en estado `PENDIENTE`. |
 | | `GET /solicitudes` | **Solo ADMINISTRADOR** | Auditoría global: lista todas las postulaciones con filtros y paginación. |
 | | `PATCH /solicitudes/:id/evaluar` | **Solo ADMINISTRADOR** | Dictamina la solicitud (`APROBADA` o `RECHAZADA`). Al aprobar, activa automáticamente al artesano (`activo: true`). |
-| | `PATCH /solicitudes/:id/stand` | **Solo ADMINISTRADOR** | Asigna un stand disponible a una postulación aprobada y lo pasa a `OCUPADO`. |
+| | `PATCH /solicitudes/:id/asignar-stand` | **Solo ADMINISTRADOR** | Asigna un stand disponible a una postulación aprobada cuyo artesano no posea ya stand y lo pasa a `OCUPADO`. |
 | **Información General** | `GET /`<br>`GET /info` | **Público** | Información de bienvenida, versión y estado del servicio. |
 
 ---
@@ -301,20 +302,11 @@ flowchart TD
 
 ## Documentación Técnica y Recursos de Defensa (`documentacionPropia/`)
 
-En la carpeta [`documentacionPropia/`](documentacionPropia/) se encuentran todos los informes técnicos, auditorías y recursos de presentación del proyecto:
+Toda la documentación del proyecto fue sintetizada y consolidada en **4 documentos maestros** dentro de [`documentacionPropia/`](documentacionPropia/):
 
 | # | Documento | Contenido |
 |---|---|---|
-| Ref 1 | **[Documentación Completa Unificada (`DOCUMENTACION_COMPLETA.md`)](documentacionPropia/DOCUMENTACION_COMPLETA.md)** | **Manual maestro (885 líneas): arquitectura, base de datos, seguridad JWT, caché, catálogo de endpoints y evolución en las 13 ramas.** |
-| Ref 2 | **[Guía de Defensa, Flujos y Pruebas (`GUIA_DEFENSA_FLUJOS_Y_PRUEBAS.md`)](documentacionPropia/GUIA_DEFENSA_FLUJOS_Y_PRUEBAS.md)** | **Flujo crítico paso a paso con casos de error, flujos de respaldo, uso de `.http` en VS Code (REST Client), Postman (163 peticiones) y banco de preguntas de defensas semanales.** |
-| Ref 3 | **[Presentación Defensa de Laboratorio (`PRESENTACION_DEFENSA_LABORATORIO.md`)](documentacionPropia/PRESENTACION_DEFENSA_LABORATORIO.md)** | **Mazo de 16 diapositivas con notas de orador, circuito de demostración en vivo en 5 pasos y preguntas frecuentes.** |
-| Ref 4 | **[Reporte de Auditoría Unidad 5 (`REPORTE_AUDITORIA_UNIDAD5.md`)](documentacionPropia/REPORTE_AUDITORIA_UNIDAD5.md)** | **Matriz de cumplimiento punto por punto contra `pautas.md` (Nivel 1 OpenAPI y Nivel 2 Testing).** |
-| 1 | [Arquitectura por Capas (`arquitectura-capas.md`)](documentacionPropia/arquitectura-capas.md) | Organización desacoplada Routes $\rightarrow$ Middlewares $\rightarrow$ Controllers $\rightarrow$ Services $\rightarrow$ Prisma |
-| 2 | [Estructura de Base de Datos (`estructura-base-de-datos.md`)](documentacionPropia/estructura-base-de-datos.md) | Modelo relacional, RBAC con `UsuarioRol`, diagrama ER, normalización y decisiones de diseño |
-| 3 | [Guía de Prisma ORM (`guia-prisma.md`)](documentacionPropia/guia-prisma.md) | Configuración con PostgreSQL, Prisma 7, schema declarativo, migraciones y cliente singleton |
-| 4 | [Guía de Validación con Zod (`guia-zod.md`)](documentacionPropia/guia-zod.md) | Esquemas Zod 4, validación de UUIDs, esquemas `.strict()`, DTOs y validación de parámetros |
-| 5 | [Middlewares y Utilidades (`middlewares-y-utils.md`)](documentacionPropia/middlewares-y-utils.md) | `logger`, `validarSchema`, `autenticarUsuario`, `cargarContextoUsuario`, `autorizarRoles`, `manejoErrores` |
-| 6 | [Consultas y CRUD con Prisma (`consultas-y-crud-prisma.md`)](documentacionPropia/consultas-y-crud-prisma.md) | `findMany`, `findUnique`, transacciones interactivas `$transaction`, upserts y filtros |
-| 7 | [Flujograma de Ejecución (`flujoprograma.md`)](documentacionPropia/flujoprograma.md) | Diagramas Mermaid del ciclo de vida de peticiones, autenticación, autorización y manejo global de errores |
-| 8 | [Informe de Caché en Memoria (`informe-cache-basica.md`)](documentacionPropia/informe-cache-basica.md) | Implementación de `node-cache` (TTL 30s) e invalidación selectiva en mutaciones |
-| 9 | [Plan de Reestructuración Unidad 4 (`plan-reestructuracion-unidad4.md`)](documentacionPropia/plan-reestructuracion-unidad4.md) | Diagnóstico, justificación teórica y alineación con la cátedra de Desarrollo Backend UNCa |
+| 1 | **[Documentación Completa Unificada (`DOCUMENTACION_COMPLETA.md`)](documentacionPropia/DOCUMENTACION_COMPLETA.md)** | **Manual técnico maestro: arquitectura por capas, flujograma de ejecución y manejo de errores, modelo ER y patrones de Prisma 7, validación con Zod 4, seguridad JWT/RBAC, caché en memoria RAM, catálogo de endpoints y evolución en las 13 semanas.** |
+| 2 | **[Guía de Defensa, Flujos y Pruebas (`GUIA_DEFENSA_FLUJOS_Y_PRUEBAS.md`)](documentacionPropia/GUIA_DEFENSA_FLUJOS_Y_PRUEBAS.md)** | **Flujo crítico paso a paso con casos de estudio y error (incluyendo reasignación 1:1 de stands a artesanos que ya tienen stand, propiedad de productos y reglas de roles), flujos de respaldo, uso de `.http` en VS Code (REST Client), Postman (182 peticiones) y banco de preguntas de defensas semanales.** |
+| 3 | **[Presentación Defensa de Laboratorio (`PRESENTACION_DEFENSA_LABORATORIO.md`)](documentacionPropia/PRESENTACION_DEFENSA_LABORATORIO.md)** | **Mazo de 16 diapositivas con notas de orador, circuito de demostración en vivo en 5 pasos y preguntas frecuentes.** |
+| 4 | **[Reporte de Auditoría Unidad 5 (`REPORTE_AUDITORIA_UNIDAD5.md`)](documentacionPropia/REPORTE_AUDITORIA_UNIDAD5.md)** | **Matriz de cumplimiento punto por punto contra las pautas de la cátedra (Nivel 1 OpenAPI y Nivel 2 Testing).** |

@@ -20,7 +20,7 @@
 2. [Sección 2: Arquitectura del Sistema y Diseño Limpio en Capas](#sección-2-arquitectura-del-sistema-y-diseño-limpio-en-capas)
 3. [Sección 3: Modelo de Datos Completo y Esquema Relacional](#sección-3-modelo-de-datos-completo-y-esquema-relacional)
 4. [Sección 4: Seguridad, Autenticación y Arquitectura RBAC](#sección-4-seguridad-autenticación-y-arquitectura-rbac)
-5. [Sección 5: Catálogo Exhaustivo de Endpoints REST (43 Endpoints / 51 Operaciones)](#sección-5-catálogo-exhaustivo-de-endpoints-rest)
+5. [Sección 5: Catálogo Exhaustivo de Endpoints REST (32 Rutas / 50 Operaciones HTTP)](#sección-5-catálogo-exhaustivo-de-endpoints-rest)
 6. [Sección 6: Estrategia de Caché en Memoria RAM (`node-cache`)](#sección-6-estrategia-de-caché-en-memoria-ram)
 7. [Sección 7: Documentación Interactiva OpenAPI 3.0 y Swagger UI](#sección-7-documentación-interactiva-openapi-30-y-swagger-ui)
 8. [Sección 8: Pirámide de Pruebas y Verificación Automatizada](#sección-8-pirámide-de-pruebas-y-verificación-automatizada)
@@ -116,7 +116,7 @@ El sistema adopta el patrón de **Arquitectura en Capas Limpia (Clean Layered Ar
        ┌────────────────────────────────────────────────────────┐
        │  Capa de Controladores HTTP (src/controllers/)         │
        │  - Extracción de parámetros y DTOs                     │
-       │  - Invocación de Servicios                             │
+       │  - Invocación de Servicios e invalidación de caché     │
        │  - Formateo de respuesta JSON y códigos de estado      │
        └──────────────────────────┬─────────────────────────────┘
                                   │
@@ -125,7 +125,7 @@ El sistema adopta el patrón de **Arquitectura en Capas Limpia (Clean Layered Ar
        │  Capa de Lógica de Negocio y Dominio (src/services/)   │
        │  - Reglas de postulación, validación de titularidad    │
        │  - Transacciones y orquestación de datos               │
-       │  - Invalidación activa de caché ante mutaciones        │
+       │  - Garantías de integridad 1:1 y control de estados    │
        └──────────────────────────┬─────────────────────────────┘
                                   │
                                   ▼
@@ -203,6 +203,41 @@ export const validarSchema = (schema, origen) => (req, res, next) => {
 };
 ```
 Todos los controladores consumen de forma homogénea `req.consulta || req.query`, garantizando total seguridad de tipos y compatibilidad con el estándar de Express 5.
+
+## 2.4 Flujograma del Ciclo de Vida de Peticiones y Manejo Centralizado de Errores
+Toda petición que ingresa a Express atraviesa la cadena de middlewares globales, seguridad, validación y manejo de errores:
+
+```mermaid
+flowchart TD
+    A["1. Cliente envía Petición HTTP"] --> B["2. app.use(logger)<br>Registra inicio y escucha res.on('finish')"]
+    B --> C{"3. ¿Coincide con alguna Ruta?"}
+    C -->|"No coincide"| D["4a. app.use(rutaNoEncontrada)<br>Crea error 404 y llama next(error)"]
+    C -->|"Sí coincide"| E["4b. Cadena de Ruta<br>autenticarUsuario -> cargarContextoUsuario -> autorizarRoles -> validarSchema -> cacheMiddleware"]
+    E -->|"Falla validación o negocio"| F["Controlador / Middleware invoca next(error)"]
+    E -->|"Éxito"| G["Controlador y Servicio ejecutan lógica y responden res.status(...).json(...)"]
+    D --> H["5. app.use(manejoErrores)<br>Traduce códigos Prisma (P2002, P2003, P2025, P2034) o err.status"]
+    F --> H
+    H --> I["6. Respuesta JSON estandarizada { mensaje, error, details? }"]
+    G --> J["7. Evento 'finish' imprime método, URL, status y ms en consola"]
+    I --> J
+```
+
+El middleware `src/middlewares/manejoErrores.js` traduce automáticamente los códigos de error nativos de Prisma ORM a respuestas HTTP semánticas sin filtrar trazas internas:
+
+| Código Prisma / Origen | Significado | Estado HTTP | Mensaje Devuelto |
+|---|---|---|---|
+| `P2002` | Violación de restricción `UNIQUE` | `409 Conflict` | `"Ya existe un registro con esos datos únicos."` |
+| `P2003` | Violación de clave foránea (`FOREIGN KEY`) | `409 Conflict` | `"La operación afecta registros relacionados."` |
+| `P2025` | Registro no encontrado en `findUniqueOrThrow` / `update` | `404 Not Found` | `"Registro no encontrado."` |
+| `P2034` | Conflicto de concurrencia en transacción | `409 Conflict` | `"Hubo otro cambio simultáneo. Reintentar."` |
+| `crearError(msg, status, details)` | Error de validación Zod o regla de negocio | `400 / 401 / 403 / 404 / 409` | Mensaje específico del dominio y arreglo `details` si proviene de Zod |
+
+## 2.5 Patrones de Validación Declarativa con Zod v4 (`src/validators/`)
+Los validadores del proyecto aplican cuatro reglas de diseño con Zod v4:
+1. **Objetos estrictos (`.strict()`):** Todos los esquemas de entrada (`body`) rechazan cualquier propiedad no declarada (por ejemplo, impidiendo que un usuario inyecte `rol: "ADMINISTRADOR"` en `/usuarios/registro` o `artesanoId` en `/solicitudes`).
+2. **Coerción segura en parámetros de URL y Query (`z.coerce.number()`):** Dado que Express entrega `req.params` y `req.query` como cadenas de texto, esquemas como `idParamSchema` y los filtros de paginación convierten y validan enteros positivos (`z.coerce.number().int().positive()`).
+3. **Validación sin excepciones no controladas (`safeParse`):** El middleware `validarSchema` utiliza `schema.safeParse(datos)` en lugar de `parse()`, recolectando todos los errores de campos simultáneamente mediante `detallarErroresZod(resultado.error)`.
+4. **Fuente única de verdad para OpenAPI 3.0:** Los mismos esquemas Zod se transforman automáticamente en esquemas JSON Schema mediante `z.toJSONSchema(schema, { target: "openapi-3.0", io: "input" })` en `src/documentacion/esquemas.js`.
 
 ---
 
@@ -358,22 +393,32 @@ erDiagram
 ### 6. `Pabellon` y `Sector`
 * **Propósito:** Segmentación de la infraestructura física del Predio Ferial.
 * **Campos:** `id`, `nombre` (Unique).
-* **Integridad:** No se permite eliminar un pabellón o sector si posee stands vinculados (`409 Conflict`).
+* **Integridad:** No se permite eliminar un pabellón o sector si posee stands vinculados (`400 Bad Request`).
 
 ### 7. `Stand`
 * **Propósito:** Puesto físico de exposición y comercialización.
-* **Campos:** `codigo` (Unique, ej: `"P1-S2-05"`), `numero`, `estado` (`EstadoStand`: `DISPONIBLE`, `OCUPADO`, `MANTENIMIENTO`), `artesanoId` (Nullable Unique).
+* **Campos:** `codigo` (Unique, ej: `"A01"`), `numero`, `estado` (`EstadoStand`: `DISPONIBLE`, `OCUPADO`, `MANTENIMIENTO`), `artesanoId` (Nullable Unique).
 * **Relación Unipersonal (1:1):** La directiva `@unique` sobre `artesanoId` asegura a nivel de motor de base de datos que un artesano jamás pueda ocupar más de un stand simultáneamente. Al liberar el stand o borrarse el artesano, la clave foránea se establece en nulo (`onDelete: SetNull`).
 
 ### 8. `SolicitudPostulacion`
 * **Propósito:** Registro formal del trámite administrativo de postulación ferial.
 * **Estados (`EstadoSolicitud`):** `PENDIENTE` $\rightarrow$ `EN_REVISION` $\rightarrow$ `APROBADA` / `RECHAZADA` / `CANCELADA`.
 * **Relaciones:** `artesanoId` (FK), `standId` (FK Nullable), `evaluadorId` (FK Nullable hacia `Usuario`).
-* **Unicidad Activa:** Regla de negocio que prohíbe crear una nueva solicitud si el artesano ya cuenta con una en estado `PENDIENTE`.
+* **Unicidad Activa:** Regla de negocio que prohíbe crear una nueva solicitud si el artesano ya cuenta con una en estado `PENDIENTE`, `EN_REVISION` o `APROBADA`, o si ya ocupa un stand.
 
 ### 9. `TokenRevocado`
 * **Propósito:** Lista negra persistente de tokens revocados (logout).
 * **Campos:** `jti` (String PK, UUIDv4), `venceEn` (DateTime, con índice para purga automática).
+
+## 3.3 Patrones de Consultas y Transacciones con Prisma ORM v7 (`src/services/`)
+El acceso a datos se centraliza en `src/config/prisma.js` mediante una instancia singleton de `PrismaClient` conectada a través del adaptador `@prisma/adapter-pg` (`pg.Pool`). Los servicios implementan los siguientes patrones:
+* **Paginación atómica (`prisma.$transaction([findMany, count])`):** Los listados paginados (`obtenerProductos`, `obtenerArtesanos`, `obtenerStands`, `listarTodasSolicitudes`) ejecutan en una misma transacción la consulta con `skip`/`take` y el `count({ where })`, devolviendo `{ items, paginacion: { pagina, limite, total, totalPaginas } }`.
+* **Transacciones interactivas (`prisma.$transaction(async (tx) => ...)`):**
+  * `evaluarSolicitud`: Verifica que la postulación esté en estado `PENDIENTE` o `EN_REVISION`, actualiza el dictamen y, si es `APROBADA`, activa automáticamente al artesano (`tx.artesano.update({ data: { activo: true } })`).
+  * `asignarStandASolicitud`: Verifica que la solicitud esté `APROBADA`, que el artesano esté activo y que **no posea ya otro stand asignado (regla 1:1)**, ocupa el stand disponible (`estado: 'OCUPADO'`) y asocia `standId` a la solicitud.
+  * `liberarStand`: Desvincula al artesano del stand (`artesanoId: null, estado: 'DISPONIBLE'`) y limpia la referencia `standId` en las solicitudes asociadas.
+  * `retirarRol` y `cambiarActivo`: Garantizan transaccionalmente las invariantes de seguridad (conservar al menos 1 rol, nunca desactivar ni quitar el rol al último `ADMINISTRADOR` activo, y no retirar `ARTESANO` si registra postulaciones).
+* **Proyección diferenciada (`select` vs `include`) y Baja Lógica (`Soft Delete`):** En `/productos`, los visitantes anónimos reciben un `select` acotado (`id, nombre, precio, descripcion, stock`) filtrando `activo: true`, mientras que usuarios autenticados (`ARTESANO` / `ADMINISTRADOR`) reciben relaciones completas (`include: { artesano: true }`). Las bajas de artesanos y productos actualizan `activo: false` sin destruir el historial relacional.
 
 ---
 
@@ -383,18 +428,16 @@ erDiagram
 * **Hashing de Contraseñas:** Se utiliza `bcrypt` con un costo de trabajo (*salt rounds*) de **10**. Las contraseñas en texto plano nunca se almacenan ni se imprimen en logs.
 * **Firma de Tokens:** JSON Web Tokens (JWT) generados mediante algoritmo simétrico **HS256** utilizando el secreto robusto `process.env.JWT_SECRET`.
 * **Tiempo de Vida (TTL):** Expiración estricta de **15 minutos** (`expiresIn: "15m"`), minimizando la ventana de vulnerabilidad ante eventuales capturas de tráfico.
-* **Estructura del Payload JWT:**
+* **Estructura del Payload JWT (`src/services/token.services.js`):**
   ```json
   {
     "sub": "b2f4c6e8-3a1d-4f7e-9c2b-8a1e3d5f7a9b",
-    "email": "artesano@ponchodigital.catamarca.gob.ar",
-    "roles": ["ARTESANO"],
     "jti": "550e8400-e29b-41d4-a716-446655440000",
     "iat": 1731290000,
     "exp": 1731290900
   }
   ```
-  La inclusión del claim estándar `jti` (*JWT ID*) proporciona un identificador criptográfico único para cada sesión emitida.
+  El token contiene exclusivamente la identidad (`sub: usuario.id`) y el identificador único de sesión (`jti: randomUUID()`), mientras que el estado activo (`activo`) y los roles (`roles`) se consultan en vivo desde PostgreSQL en `cargarContextoUsuario` para que cualquier desactivación o cambio de rol tenga efecto inmediato.
 
 ## 4.2 Lista Negra Persistente y Revocación Inmediata (Logout)
 En arquitecturas REST sin estado (stateless), la invalidación de un JWT antes de su expiración natural representa un desafío técnico. Poncho Digital lo resuelve mediante un patrón híbrido de lista negra relacional persistente:
@@ -402,10 +445,13 @@ En arquitecturas REST sin estado (stateless), la invalidación de un JWT antes d
 1. **Cierre de Sesión (`POST /usuarios/logout`):**
    * El usuario envía su token en la cabecera `Authorization`.
    * El controlador extrae el `jti` y el timestamp de expiración `exp`.
-   * Se registra el registro en la tabla `TokenRevocado` en Supabase:
+   * Se registra el token en la tabla `TokenRevocado` en Supabase (`src/services/revocaciones.services.js`):
      ```javascript
-     await prisma.tokenRevocado.create({
-         data: { jti, venceEn: new Date(exp * 1000) }
+     const venceEn = new Date(exp * 1000);
+     await prisma.tokenRevocado.upsert({
+         where: { jti },
+         create: { jti, venceEn },
+         update: { venceEn }
      });
      ```
 2. **Validación en Cada Solicitud Protegida (`autenticarUsuario.js`):**
@@ -417,14 +463,21 @@ En arquitecturas REST sin estado (stateless), la invalidación de un JWT antes d
      ```
 3. **Daemon Desacoplado de Purga Automática (`src/tareas/limpiezaRevocaciones.js`):**
    * Para evitar el crecimiento indefinido de la tabla `TokenRevocado`, se ejecuta un daemon periódico cada 60 minutos.
-   * Elimina todos los registros cuya fecha de expiración sea menor a `new Date()` (`venceEn < NOW()`), dado que una vez superado el TTL, el validador criptográfico de JWT los rechazará de todos modos.
+   * Elimina todos los registros cuya fecha de expiración sea menor o igual a `new Date()` (`venceEn <= NOW()`), dado que una vez superado el TTL, el validador criptográfico de JWT los rechazará de todos modos.
    * **Propiedad `unref()`:** El temporizador de Node.js se configura con `.unref()`:
      ```javascript
      export const iniciarLimpiezaRevocaciones = () => {
-         const timer = setInterval(async () => {
-             await purgarTokensRevocadosExpirados();
-         }, 60 * 60 * 1000);
-         timer.unref(); // Permite que el proceso de Node.js finalice limpiamente si no hay sockets activos
+         const ejecutar = async () => {
+             try {
+                 const { count } = await eliminarRevocacionesVencidas();
+                 console.log("Revocaciones vencidas eliminadas:", count);
+             } catch (error) {
+                 console.error("Falló la limpieza:", error.message);
+             } finally {
+                 setTimeout(ejecutar, INTERVALO_MS).unref();
+             }
+         };
+         void ejecutar();
      };
      ```
 
@@ -457,11 +510,22 @@ Para garantizar la integridad y privacidad de los expositores, el sistema impone
   * Cuando un artesano intenta cancelar una postulación (`PATCH /solicitudes/:id/cancelar`), la consulta en Prisma filtra obligatoriamente por `id: solicitudId` y `artesanoId: artesano.id`.
   * Si la solicitud existe pero pertenece a otro colega, el sistema devuelve **`404 Not Found`** (`"Solicitud no encontrada."`). Esto evita la fuga de información (no revela si el ID ajeno existe en el sistema).
 
+## 4.6 Equivalencia con el Modelo Canónico de la Cátedra (Unidad 4 y 5)
+
+| Concepto Cátedra UNCa | Implementación en Poncho Digital | Regla de Dominio Aplicada |
+|---|---|---|
+| **Visitante Anónimo** | Consultas públicas sin token (`GET /productos`, `GET /artesanos`, `GET /stands`) | No es un rol en base de datos; accede a vistas públicas filtradas (`activo: true`). |
+| **Rol `PARTICIPANTE`** | Rol **`ARTESANO`** | Se asigna por defecto en `POST /usuarios/registro`. Gestiona `/artesanos/me`, `/solicitudes` y sus propios `/productos`. |
+| **Rol `ADMINISTRADOR`** | Rol **`ADMINISTRADOR`** | Audita solicitudes, evalúa postulaciones, asigna stands y administra infraestructura y roles. |
+| **Entidad `Participante`** | Modelo **`Artesano`** (1:1 con `Usuario`) | Nace con `activo: false` en `POST /artesanos/me` y pasa a `activo: true` al aprobarse su solicitud. |
+| **Entidad `Inscripcion`** | Modelo **`SolicitudPostulacion`** | Impide postulaciones activas duplicadas (`409 Conflict`) y permite cancelación propia en estado `PENDIENTE`. |
+| **Recurso Físico** | Modelo **`Stand`** (1:1 con `Artesano`) | Un artesano activo puede ocupar a lo sumo un stand (`@unique` y validación `409`/`400` ante intentos de doble asignación). |
+
 ---
 
 # Sección 5: Catálogo Exhaustivo de Endpoints REST
 
-La API expone **43 endpoints REST principales** (51 operaciones en total contemplando alias y submétodos), organizados en 9 categorías funcionales.
+La API expone **32 rutas REST principales** (50 operaciones HTTP en total contemplando todos los métodos por ruta), organizadas en 9 categorías funcionales.
 
 ## 5.1 Información General y Documentación (3 Endpoints)
 
@@ -480,9 +544,9 @@ La API expone **43 endpoints REST principales** (51 operaciones en total contemp
 | `GET` | `/usuarios/me` | Bearer (Cualquiera) | Header `Authorization` | Ninguno | `200 OK`: `UsuarioRespuesta` con roles | `401`: token ausente, inválido o revocado. |
 | `POST` | `/usuarios/logout` | Bearer (Cualquiera) | Header `Authorization` | Ninguno | `204 No Content` (invalida `jti` en DB) | `401`: token ausente o inválido. |
 | `POST` | `/usuarios/registro-administrador` | Bearer [ADMIN] | Header `Authorization` | `registroUsuarioSchema`: `{ nombre, email, password }` (.strict()) | `201 Created`: `UsuarioRespuesta` (con rol `ADMINISTRADOR`) | `401`: no auth; `403`: no admin; `409`: email en uso. |
-| `POST` | `/usuarios/:id/roles` | Bearer [ADMIN] | Path: `:id` (UUID) | `{ rol: "ADMINISTRADOR" }` | `200 OK`: `{ mensaje: "Rol asignado..." }` | `400`: UUID inválido; `403`: no admin; `404`: usuario inexistente. |
-| `DELETE` | `/usuarios/:id/roles/:rol` | Bearer [ADMIN] | Path: `:id` (UUID), `:rol` | Ninguno | `200 OK`: `{ mensaje: "Rol revocado..." }` | `403`: no admin; `404`: no existe; `409`: único rol o último admin activo. |
-| `PATCH` | `/usuarios/:id/activo` | Bearer [ADMIN] | Path: `:id` (UUID) | `{ activo: boolean }` | `200 OK`: `{ mensaje: "Estado actualizado..." }` | `403`: no admin; `404`: no existe; `409`: último admin activo. |
+| `POST` | `/usuarios/:id/roles` | Bearer [ADMIN] | Path: `:id` (UUID) | `{ rol: "ADMINISTRADOR" }` | `200 OK`: `UsuarioRespuesta` con roles actualizados | `400`: UUID inválido; `403`: no admin; `404`: usuario inexistente. |
+| `DELETE` | `/usuarios/:id/roles/:rol` | Bearer [ADMIN] | Path: `:id` (UUID), `:rol` | Ninguno | `204 No Content` | `403`: no admin; `404`: no existe; `409`: único rol, tiene postulaciones o último admin activo. |
+| `PATCH` | `/usuarios/:id/activo` | Bearer [ADMIN] | Path: `:id` (UUID) | `{ activo: boolean }` | `200 OK`: `UsuarioRespuesta` actualizada | `403`: no admin; `404`: no existe; `409`: último admin activo. |
 
 ## 5.3 Perfil y Gestión de Artesanos (9 Endpoints)
 
@@ -495,8 +559,8 @@ La API expone **43 endpoints REST principales** (51 operaciones en total contemp
 | `GET` | `/artesanos/:id` | Público | Path: `:id` (Entero positivo) | Ninguno | `200 OK`: `ArtesanoRespuesta` con localidad, productos y stand | `400`: ID inválido; `404`: no encontrado. |
 | `POST` | `/artesanos` | Bearer [ADMIN] | Header `Authorization` | `crearArtesanoSchema` (incluye `usuarioId`) | `201 Created`: `ArtesanoRespuesta` | `403`: no admin; `409`: usuario ya posee artesano o DNI duplicado. |
 | `PUT` | `/artesanos/:id` | Bearer [ADMIN] | Path: `:id`, Header `Authorization` | `actualizarArtesanoSchema` | `200 OK`: `ArtesanoRespuesta` | `403`: no admin; `404`: no existe; `409`: conflicto de unicidad. |
-| `PATCH` | `/artesanos/:id/activo` | Bearer [ADMIN] | Path: `:id`, Header `Authorization` | `{ activo: boolean }` | `200 OK`: `{ mensaje: "Estado de habilitación..." }` | `403`: no admin; `404`: no existe. |
-| `DELETE` | `/artesanos/:id` | Bearer [ADMIN] | Path: `:id`, Header `Authorization` | Ninguno | `204 No Content` (soft-delete, `activo = false`) | `403`: no admin; `404`: no existe. |
+| `PATCH` | `/artesanos/:id/activo` | Bearer [ADMIN] | Path: `:id`, Header `Authorization` | `{ activo: boolean }` | `200 OK`: `ArtesanoRespuesta` actualizada | `403`: no admin; `404`: no existe. |
+| `DELETE` | `/artesanos/:id` | Bearer [ADMIN] | Path: `:id`, Header `Authorization` | Ninguno | `200 OK` (soft-delete, `activo = false`) | `400`: ya estaba inactivo; `403`: no admin; `404`: no existe. |
 
 ## 5.4 Catálogo y Gestión de Productos (6 Endpoints)
 
@@ -504,10 +568,10 @@ La API expone **43 endpoints REST principales** (51 operaciones en total contemp
 |---|---|---|---|---|---|---|
 | `GET` | `/productos` | Público / Auth Opcional | Query: `pagina`, `limite`, `nombre`, `artesanoId`, `ordenarPor`, `direccion` | Ninguno | `200 OK`: `ListadoProductos` (Cabecera `X-Cache: HIT/MISS`, 30s TTL) | `400`: parámetros inválidos. |
 | `GET` | `/productos/all` | Público / Auth Opcional | Mismos query params que `/productos` | Ninguno | `200 OK`: `ListadoProductos` (Cabecera `X-Cache: HIT/MISS`) | `400`: parámetros inválidos. |
-| `GET` | `/productos/:id` | Público / Auth Opcional | Path: `:id` (Entero positivo) | Ninguno | `200 OK`: `ProductoRespuesta` con artesano (Caché 30s) | `400`: ID inválido; `404`: no encontrado. |
+| `GET` | `/productos/:id` | Público / Auth Opcional | Path: `:id` (Entero positivo) | Ninguno | `200 OK`: `ProductoRespuesta` con artesano (Caché 30s) | `400`: ID inválido; `404`: no encontrado (o inactivo para visitantes). |
 | `POST` | `/productos` | Bearer [ARTESANO, ADMIN] | Header `Authorization` | `crearProductoSchema`: `{ nombre, descripcion?, precio, stock, artesanoId }` (.strict()) | `201 Created`: `ProductoRespuesta` (Invalida caché `/productos`) | `400`: precio <= 0 o stock inválido; `403`: artesano no es titular del producto. |
 | `PUT` | `/productos/:id` | Bearer [ARTESANO, ADMIN] | Path: `:id`, Header `Authorization` | `actualizarProductoSchema` (.strict()) | `200 OK`: `ProductoRespuesta` (Invalida caché `/productos`) | `403`: artesano intenta editar producto ajeno; `404`: no encontrado. |
-| `DELETE` | `/productos/:id` | Bearer [ARTESANO, ADMIN] | Path: `:id`, Header `Authorization` | Ninguno | `204 No Content` (baja lógica, invalida caché `/productos`) | `403`: producto ajeno; `404`: no encontrado. |
+| `DELETE` | `/productos/:id` | Bearer [ARTESANO, ADMIN] | Path: `:id`, Header `Authorization` | Ninguno | `200 OK`: `{ mensaje, producto }` (baja lógica, invalida caché `/productos`) | `400`: ya estaba inactivo; `403`: producto ajeno; `404`: no encontrado. |
 
 ## 5.5 Stands del Predio Ferial (7 Endpoints)
 
@@ -515,22 +579,22 @@ La API expone **43 endpoints REST principales** (51 operaciones en total contemp
 |---|---|---|---|---|---|---|
 | `GET` | `/stands` | Público | Query: `pagina`, `limite`, `estado`, `pabellonId`, `sectorId` | Ninguno | `200 OK`: `ListadoStands` con pabellón, sector y artesano | `400`: query inválido. |
 | `GET` | `/stands/:id` | Público | Path: `:id` (Entero) | Ninguno | `200 OK`: `StandRespuesta` con relaciones | `400`: ID inválido; `404`: no encontrado. |
-| `POST` | `/stands` | Bearer [ADMIN] | Header `Authorization` | `crearStandSchema`: `{ codigo, pabellonId, sectorId, numero? }` | `201 Created`: `StandRespuesta` (`DISPONIBLE`) | `403`: no admin; `409`: código duplicado. |
-| `PUT` | `/stands/:id` | Bearer [ADMIN] | Path: `:id` | `actualizarStandSchema` | `200 OK`: `StandRespuesta` | `403`: no admin; `404`: no encontrado; `409`: conflicto. |
-| `PATCH` | `/stands/:id/asignar-artesano` | Bearer [ADMIN] | Path: `:id` | `{ artesanoId: number }` | `200 OK`: `StandRespuesta` (`estado: OCUPADO`) | `403`: no admin; `409`: stand u artesano ya ocupado (relación 1:1). |
-| `PATCH` | `/stands/:id/liberar` | Bearer [ADMIN] | Path: `:id` | Ninguno | `200 OK`: `StandRespuesta` (`estado: DISPONIBLE`) | `403`: no admin; `404`: no encontrado. |
-| `DELETE` | `/stands/:id` | Bearer [ADMIN] | Path: `:id` | Ninguno | `204 No Content` (eliminación física) | `403`: no admin; `409`: tiene artesano o solicitudes asociadas. |
+| `POST` | `/stands` | Bearer [ADMIN] | Header `Authorization` | `crearStandSchema`: `{ codigo, pabellonId, sectorId, numero? }` | `201 Created`: `StandRespuesta` (`DISPONIBLE`) | `400`: código duplicado o artesano ocupado; `403`: no admin. |
+| `PUT` | `/stands/:id` | Bearer [ADMIN] | Path: `:id` | `actualizarStandSchema` | `200 OK`: `StandRespuesta` | `400`: stand u artesano ocupado o estado inválido; `403`: no admin; `404`: no encontrado. |
+| `PATCH` | `/stands/:id/asignar-artesano` | Bearer [ADMIN] | Path: `:id` | `{ artesanoId: number }` | `200 OK`: `StandRespuesta` (`estado: OCUPADO`) | `400`: stand no disponible o artesano ya tiene stand (relación 1:1); `403`: no admin. |
+| `PATCH` | `/stands/:id/liberar` | Bearer [ADMIN] | Path: `:id` | Ninguno | `200 OK`: `StandRespuesta` (`estado: DISPONIBLE`) | `400`: stand en mantenimiento o sin artesano; `403`: no admin; `404`: no encontrado. |
+| `DELETE` | `/stands/:id` | Bearer [ADMIN] | Path: `:id` | Ninguno | `204 No Content` (eliminación física) | `400`: tiene artesano o solicitudes asociadas; `403`: no admin; `404`: no encontrado. |
 
 ## 5.6 Postulaciones y Solicitudes Feriales (6 Endpoints)
 
 | Método | Ruta | Auth / Rol | Parámetros | Request Body Schema | Respuestas | Errores Posibles |
 |---|---|---|---|---|---|---|
 | `GET` | `/solicitudes/me` | Bearer [ARTESANO] | Header `Authorization` | Ninguno | `200 OK`: Array de `SolicitudRespuesta` propias | `401`: no auth; `403`: no artesano. |
-| `POST` | `/solicitudes` | Bearer [ARTESANO] | Header `Authorization` | `crearSolicitudSchema`: `{ observaciones? }` (.strict()) | `201 Created`: `SolicitudRespuesta` (`estado: PENDIENTE`) | `400`: campos ajenos (.strict()); `404`: sin perfil artesano; `409`: ya tiene postulación PENDIENTE. |
+| `POST` | `/solicitudes` | Bearer [ARTESANO] | Header `Authorization` | `crearSolicitudSchema`: `{ observaciones? }` (.strict()) | `201 Created`: `SolicitudRespuesta` (`estado: PENDIENTE`) | `400`: campos ajenos (.strict()); `404`: sin perfil artesano; `409`: ya tiene postulación activa o stand asignado. |
 | `PATCH` | `/solicitudes/:id/cancelar` | Bearer [ARTESANO] | Path: `:id`, Header `Authorization` | Ninguno | `200 OK`: `SolicitudRespuesta` (`estado: CANCELADA`) | `404`: solicitud no encontrada o de otro artesano; `409`: solicitud no está PENDIENTE. |
 | `GET` | `/solicitudes` | Bearer [ADMIN] | Query: `estado`, `artesanoId`, `pagina`, `limite` | Ninguno | `200 OK`: `ListadoSolicitudes` global | `401`: no auth; `403`: no admin. |
-| `PATCH` | `/solicitudes/:id/evaluar` | Bearer [ADMIN] | Path: `:id` | `evaluarSolicitudSchema`: `{ estado: "APROBADA" \| "RECHAZADA", observaciones? }` (.strict()) | `200 OK`: `SolicitudRespuesta` (si es APROBADA activa al artesano) | `400`: estado inválido; `403`: no admin; `404`: no existe; `409`: no está PENDIENTE. |
-| `PATCH` | `/solicitudes/:id/asignar-stand` | Bearer [ADMIN] | Path: `:id` | `asignarStandSolicitudSchema`: `{ standId? }` (.strict()) | `200 OK`: `{ mensaje, solicitud }` | `403`: no admin; `404`: solicitud/stand inexistente; `409`: solicitud no aprobada o stand ocupado. |
+| `PATCH` | `/solicitudes/:id/evaluar` | Bearer [ADMIN] | Path: `:id` | `evaluarSolicitudSchema`: `{ estado: "APROBADA" \| "RECHAZADA", observaciones? }` (.strict()) | `200 OK`: `SolicitudRespuesta` (si es APROBADA activa al artesano) | `400`: estado inválido; `403`: no admin; `404`: no existe; `409`: ya evaluada o cancelada. |
+| `PATCH` | `/solicitudes/:id/asignar-stand` | Bearer [ADMIN] | Path: `:id` | `asignarStandSolicitudSchema`: `{ standId? }` (.strict()) | `200 OK`: `{ mensaje, solicitud }` | `403`: no admin; `404`: solicitud/stand inexistente; `409`: solicitud no aprobada, artesano ya tiene stand o stand ocupado. |
 
 ## 5.7 Pabellones Feriales (5 Endpoints)
 
@@ -538,9 +602,9 @@ La API expone **43 endpoints REST principales** (51 operaciones en total contemp
 |---|---|---|---|---|---|---|
 | `GET` | `/pabellones` | Público | Query: `nombre`, `ordenarPor`, `direccion` | Ninguno | `200 OK`: Array de `PabellonRespuesta` | `400`: parámetros inválidos. |
 | `GET` | `/pabellones/:id` | Público | Path: `:id` (Entero) | Ninguno | `200 OK`: `PabellonRespuesta` | `400`: ID inválido; `404`: no encontrado. |
-| `POST` | `/pabellones` | Bearer [ADMIN] | Header `Authorization` | `crearPabellonSchema`: `{ nombre }` | `201 Created`: `PabellonRespuesta` | `403`: no admin; `409`: nombre duplicado. |
-| `PUT` | `/pabellones/:id` | Bearer [ADMIN] | Path: `:id` | `actualizarPabellonSchema`: `{ nombre }` | `200 OK`: `PabellonRespuesta` | `403`: no admin; `404`: no encontrado; `409`: nombre duplicado. |
-| `DELETE` | `/pabellones/:id` | Bearer [ADMIN] | Path: `:id` | Ninguno | `204 No Content` | `403`: no admin; `404`: no encontrado; `409`: posee stands asociados. |
+| `POST` | `/pabellones` | Bearer [ADMIN] | Header `Authorization` | `crearPabellonSchema`: `{ nombre }` | `201 Created`: `PabellonRespuesta` | `400`: nombre duplicado; `403`: no admin. |
+| `PUT` | `/pabellones/:id` | Bearer [ADMIN] | Path: `:id` | `actualizarPabellonSchema`: `{ nombre }` | `200 OK`: `PabellonRespuesta` | `400`: nombre duplicado; `403`: no admin; `404`: no encontrado. |
+| `DELETE` | `/pabellones/:id` | Bearer [ADMIN] | Path: `:id` | Ninguno | `204 No Content` | `400`: posee stands asociados; `403`: no admin; `404`: no encontrado. |
 
 ## 5.8 Sectores Feriales (5 Endpoints)
 
@@ -548,9 +612,9 @@ La API expone **43 endpoints REST principales** (51 operaciones en total contemp
 |---|---|---|---|---|---|---|
 | `GET` | `/sectores` | Público | Query: `nombre`, `ordenarPor`, `direccion` | Ninguno | `200 OK`: Array de `SectorRespuesta` | `400`: parámetros inválidos. |
 | `GET` | `/sectores/:id` | Público | Path: `:id` (Entero) | Ninguno | `200 OK`: `SectorRespuesta` | `400`: ID inválido; `404`: no encontrado. |
-| `POST` | `/sectores` | Bearer [ADMIN] | Header `Authorization` | `crearSectorSchema`: `{ nombre }` | `201 Created`: `SectorRespuesta` | `403`: no admin; `409`: nombre duplicado. |
-| `PUT` | `/sectores/:id` | Bearer [ADMIN] | Path: `:id` | `actualizarSectorSchema`: `{ nombre }` | `200 OK`: `SectorRespuesta` | `403`: no admin; `404`: no encontrado; `409`: nombre duplicado. |
-| `DELETE` | `/sectores/:id` | Bearer [ADMIN] | Path: `:id` | Ninguno | `204 No Content` | `403`: no admin; `404`: no encontrado; `409`: posee stands asociados. |
+| `POST` | `/sectores` | Bearer [ADMIN] | Header `Authorization` | `crearSectorSchema`: `{ nombre }` | `201 Created`: `SectorRespuesta` | `400`: nombre duplicado; `403`: no admin. |
+| `PUT` | `/sectores/:id` | Bearer [ADMIN] | Path: `:id` | `actualizarSectorSchema`: `{ nombre }` | `200 OK`: `SectorRespuesta` | `400`: nombre duplicado; `403`: no admin; `404`: no encontrado. |
+| `DELETE` | `/sectores/:id` | Bearer [ADMIN] | Path: `:id` | Ninguno | `204 No Content` | `400`: posee stands asociados; `403`: no admin; `404`: no encontrado. |
 
 ## 5.9 Localidades de Catamarca (2 Endpoints — Solo Lectura)
 
@@ -671,7 +735,7 @@ const swaggerDocument = JSON.parse(
 );
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 ```
-Cualquier evaluador o desarrollador puede acceder a `http://localhost:3000/docs`, explorar interactivamente los 43 endpoints, autenticarse y ejecutar peticiones directamente desde el navegador.
+Cualquier evaluador o desarrollador puede acceder a `http://localhost:3000/docs`, explorar interactivamente las 32 rutas REST (50 operaciones HTTP), autenticarse y ejecutar peticiones directamente desde el navegador.
 
 ---
 
@@ -688,8 +752,8 @@ Las pruebas se organizan en tres niveles jerárquicos complementarios:
 ```text
                      / \
                     /   \
-                   / Int \     5 Tests de Integración en Supabase
-                  /───────\    (Aislamiento multitenant, DB real)
+                   / Int \     6 Tests de Integración en Supabase
+                  /───────\    (Aislamiento multitenant, stands 1:1, DB real)
                  / Contrat \   5 Tests de Contrato y Acceso HTTP
                 /───────────\  (Cabeceras RFC 6750, 401/400 sin DB)
                /   Unitarias \ 28 Tests Unitarios de Esquema Zod
@@ -714,7 +778,7 @@ Las pruebas se organizan en tres niveles jerárquicos complementarios:
   5. `GET /artesanos/me` sin token $\rightarrow$ `401 Unauthorized`.
 * **Teardown Limpio:** Incorpora un hook `after(async () => { await prisma.$disconnect(); });` que desconecta el pool de conexiones de Prisma inicializado al importar la app, permitiendo que la suite finalice en menos de 900 milisegundos.
 
-### 3. Pruebas de Integración con Supabase (`tests/solicitudes-integracion.test.js` — 5 Tests)
+### 3. Pruebas de Integración con Supabase (`tests/solicitudes-integracion.test.js` — 6 Tests)
 * **Objetivo:** Validar el comportamiento transaccional del sistema de punta a punta interactuando con la base de datos real de PostgreSQL en Supabase.
 * **Estrategia de Aislamiento:** Las pruebas utilizan el dominio reservado `@clase10.test` para crear usuarios y artesanos de prueba (Ana y Bruno), limpiando de forma determinista únicamente los datos generados durante la prueba y comprobando que la tabla `Localidad` permanezca inmutable con sus 44 registros.
 * **Casos Verificados:**
@@ -723,20 +787,21 @@ Las pruebas se organizan en tres niveles jerárquicos complementarios:
   * **Test 3:** Intento de cancelación cruzada: Ana intenta cancelar la postulación de Bruno y recibe `404 Not Found`. La solicitud de Bruno continúa intacta.
   * **Test 4 (Actividad Integradora):** Intento de postulación duplicada devuelve `409 Conflict` y conserva estrictamente un único registro en la base de datos.
   * **Test 5 (Verificación de Roles):** Ana (rol `ARTESANO`) intenta acceder a la bandeja administrativa global `GET /solicitudes` y recibe `403 Forbidden` (`{"mensaje": "No tiene permiso para esta operación."}`).
+  * **Test 6 (Regla 1:1 de Stands, Concurrencia y Propiedad de Productos):** Verifica la aprobación y asignación transaccional de un stand disponible, confirma que intentar asignar un segundo stand al mismo artesano se rechaza tanto por solicitud (`409 Conflict`) como por stand directo (`PATCH /stands/:id/asignar-artesano` y `PUT /stands/:id` con `400 Bad Request`), prueba la concurrencia paralela (`Promise.all`) sobre un mismo stand disponible garantizando que solo una petición gane (`200` vs `409`), y verifica que un artesano no puede editar ni eliminar productos de otro artesano (`403 Forbidden`) ni que un visitante acceda por ID a productos dados de baja lógica (`404 Not Found`).
 
 ## 8.3 Resultados Consolidados de la Suite
 Al ejecutar `npm test` (`node --env-file=.env.test --test tests/solicitudes-acceso.test.js tests/solicitud-schema.test.js tests/solicitudes-integracion.test.js`):
 ```text
-[INFO] tests 38
+[INFO] tests 39
 [INFO] suites 0
-[INFO] pass 38
+[INFO] pass 39
 [INFO] fail 0
 [INFO] cancelled 0
 [INFO] skipped 0
 [INFO] todo 0
-[INFO] duration_ms 22662.6105
+[INFO] duration_ms 25200.0000
 ```
-**Resultado:** **38 de 38 pruebas superadas con éxito**, 0 fallos, 0 procesos bloqueados o colgados.
+**Resultado:** **39 de 39 pruebas superadas con éxito**, 0 fallos, 0 procesos bloqueados o colgados.
 
 ---
 
@@ -826,8 +891,8 @@ Semana 1 ──> Semana 2 ──> Semana 3 ──> Semana 4 ──> Semana 5 ─
   2. Desacoplamiento arquitectónico de la aplicación: creación de `src/server.js` y conversión de `src/app.js` en módulo importable puro sin apertura colateral de puertos.
   3. Eliminación de código muerto en `src/services/localidad.services.js` (referencia huérfana a `sincronizarDesdeGeoref`).
   4. Cierre ordenado de sockets TCP de Prisma (`prisma.$disconnect()`) en `tests/solicitudes-acceso.test.js`, reduciendo el tiempo de prueba de 19s a 886ms y eliminando bloqueos de procesos.
-  5. Incorporación de 8 casos de prueba unitarios exhaustivos para `asignarStandSolicitudSchema`.
-  6. Unificación del comando estándar `npm test` para ejecutar las 3 suites con `--env-file=.env.test` de forma determinista (38/38 pruebas pasadas).
+  5. Incorporación de 8 casos de prueba unitarios exhaustivos para `asignarStandSolicitudSchema` y del Test 6 de integración (regla 1:1 de stands, concurrencia y propiedad de productos).
+  6. Unificación del comando estándar `npm test` para ejecutar las 3 suites con `--env-file=.env.test` de forma determinista (39/39 pruebas pasadas).
   7. Publicación del `REPORTE_AUDITORIA_UNIDAD5.md`, la presente `DOCUMENTACION_COMPLETA.md` y la presentación de diapositivas para la defensa final.
 
 ---
@@ -841,26 +906,28 @@ El sistema requiere las siguientes variables de configuración, declaradas en el
 |---|---|---|---|
 | `PORT` | Entero | No (Default: 3000) | Puerto de red TCP donde `src/server.js` pondrá a la escucha el servidor Express. |
 | `NODE_ENV` | String (`development` \| `production` \| `test`) | Sí | Define el entorno de ejecución. Si es `test`, ciertas operaciones ajustan su verbosidad de logs. |
-| `DATABASE_URL` | String (URI de PostgreSQL) | Sí | Cadena de conexión hacia el pooler transaccional de Supabase (puerto 6543 o 5432 con pgBouncer). |
+| `DATABASE_URL` | String (URI de PostgreSQL) | Sí | Cadena de conexión hacia el pooler de Supabase (puerto 5432 o 6543). |
 | `DIRECT_URL` | String (URI directa) | No | Conexión directa hacia el motor PostgreSQL para ejecución de migraciones de Prisma sin intermediación de poolers. |
 | `JWT_SECRET` | String (Secreto Criptográfico) | Sí | Clave simétrica de alta entropía (mínimo 32 caracteres) empleada por `jsonwebtoken` para firmar y verificar tokens HS256. |
 
 ## 10.2 Configuración del Cliente Prisma con Supabase
-En arquitecturas serverless o con contenedores, las conexiones persistentes a PostgreSQL pueden agotar el límite de conexiones del motor. Poncho Digital utiliza la combinación recomendada de Prisma v7 con `@prisma/adapter-pg` y el driver nativo `pg`:
+En arquitecturas serverless o con contenedores, las conexiones persistentes a PostgreSQL pueden agotar el límite de conexiones del motor. Poncho Digital utiliza la combinación recomendada de Prisma v7 con `@prisma/adapter-pg`:
 
 ```javascript
 // src/config/prisma.js
-import { PrismaClient } from "../generated/prisma/index.js";
-import { PrismaPg } from "@prisma/adapter-pg";
-import pg from "pg";
+import 'dotenv/config';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL,
+});
+
 const prisma = new PrismaClient({ adapter });
 
 export default prisma;
 ```
-Esta arquitectura delega la gestión de conexiones al pool nativo de Node.js, optimizando la reutilización de conexiones TCP y minimizando la sobrecarga de handshake SSL contra Supabase.
+Esta arquitectura delega la gestión de conexiones al pool interno del adaptador `PrismaPg`, optimizando la reutilización de conexiones TCP y minimizando la sobrecarga de handshake SSL contra Supabase.
 
 ## 10.3 Protocolos de Operación y Mantenimiento Seguro
 1. **Preservación Invariante de Localidades:**
@@ -877,7 +944,7 @@ Esta arquitectura delega la gestión de conexiones al pool nativo de Node.js, op
      ```bash
      npm test
      ```
-   * El comando debe arrojar `38 pass, 0 fail` y desconectar limpiamente el pool de conexiones.
+   * El comando debe arrojar `39 pass, 0 fail` y desconectar limpiamente el pool de conexiones.
 
 ---
 

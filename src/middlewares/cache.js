@@ -5,7 +5,8 @@ const cache = new NodeCache({ stdTTL: 30, checkperiod: 60 });
 export const cacheMiddleware = (ttl = 30) => (req, res, next) => {
     if (req.method !== 'GET') return next();
 
-    const clave = req.originalUrl; /* clave es la key para indentificar las peticiones */
+    const esAutenticado = Boolean(req.contextoUsuario?.roles?.some(r => r === "ARTESANO" || r === "ADMINISTRADOR"));
+    const clave = esAutenticado ? `${req.originalUrl}:auth` : req.originalUrl; /* clave es la key para indentificar las peticiones */
     const hit = cache.get(clave); /* valida si tiene algo guardado, si lo tiene lo devuelve y no toca la base de datos, es un "golpe a la cache", de lo contrario "pasa de largo" y toca la base de datos */
 
     if (hit) {

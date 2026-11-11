@@ -8,7 +8,7 @@ import { crearError } from '../utils/crearError.js';
   Recibe el DTO (los datos validados por Zod desde req.body),
   comprueba la regla de negocio (que el artesano exista) y persiste con Prisma. 🟩
  */
-export const crearProducto = async (crearProductoDto) => {
+export const crearProducto = async (crearProductoDto, contextoUsuario = null) => {
     const { nombre, descripcion, precio, stock, artesanoId } = crearProductoDto;
 
     // Regla de negocio: comprobar que el artesano exista antes de crear (400)
@@ -17,6 +17,14 @@ export const crearProducto = async (crearProductoDto) => {
     });
     if (!artesano) {
         throw crearError("Artesano inexistente.", 400);
+    }
+
+    // Regla de propiedad (Ownership): un artesano (que no sea administrador) solo puede publicar productos propios
+    const esAdmin = Boolean(contextoUsuario?.roles?.includes("ADMINISTRADOR"));
+    if (contextoUsuario && !esAdmin) {
+        if (!contextoUsuario.artesano || contextoUsuario.artesano.id !== artesano.id) {
+            throw crearError("No tiene permiso para crear productos a nombre de otro artesano.", 403);
+        }
     }
 
     return prisma.producto.create({
@@ -41,7 +49,7 @@ export const crearProducto = async (crearProductoDto) => {
   Recibe el id y el DTO con los datos a actualizar.
   Comprueba que el producto exista y que el artesano sea válido si se envía. 🟩
  */
-export const actualizarProducto = async (id, actualizarProductoDto) => {
+export const actualizarProducto = async (id, actualizarProductoDto, contextoUsuario = null) => {
     const producto = await prisma.producto.findUnique({
         where: { id }
     });
@@ -57,6 +65,15 @@ export const actualizarProducto = async (id, actualizarProductoDto) => {
         });
         if (!artesano) {
             throw crearError("Artesano inexistente.", 400);
+        }
+    }
+
+    // Regla de propiedad (Ownership): un artesano solo puede modificar sus propios productos
+    const esAdmin = Boolean(contextoUsuario?.roles?.includes("ADMINISTRADOR"));
+    if (contextoUsuario && !esAdmin) {
+        const miArtesanoId = contextoUsuario.artesano?.id;
+        if (!miArtesanoId || producto.artesanoId !== miArtesanoId || (artesanoId !== undefined && artesanoId !== miArtesanoId)) {
+            throw crearError("No tiene permiso para modificar un producto que pertenece a otro artesano.", 403);
         }
     }
 
@@ -156,9 +173,9 @@ export const obtenerProductos = async (criterios = {}, { esArtesano = false } = 
         };
     }
 
-    const [productos, total] = await prisma.$transaction([
-        prisma.producto.findMany(queryOptions),
-        prisma.producto.count({
+    const [productos, total] = await prisma.$transaction(async (tx) => [
+        await tx.producto.findMany(queryOptions),
+        await tx.producto.count({
             where
         })
     ]);
@@ -181,7 +198,7 @@ export const obtenerProductos = async (criterios = {}, { esArtesano = false } = 
  */
 export const obtenerProductoPorId = async (id, { esArtesano = false } = {}) => {
     const queryOptions = {
-        where: { id }
+        where: esArtesano ? { id } : { id, activo: true }
     };
 
     if (esArtesano) {
@@ -196,7 +213,7 @@ export const obtenerProductoPorId = async (id, { esArtesano = false } = {}) => {
         };
     }
 
-    const producto = await prisma.producto.findUnique(queryOptions);
+    const producto = await prisma.producto.findFirst(queryOptions);
 
     if (!producto) {
         throw crearError(`No existe un producto con id ${id}`, 404);
@@ -229,12 +246,20 @@ export const eliminarProducto = async (id) => {
 
 /* servicio para eliminar un producto logicamente  🟩*/
 
-export const deleteLogico = async (id) => {
+export const deleteLogico = async (id, contextoUsuario = null) => {
     const producto = await prisma.producto.findUnique({
         where: { id }
     });
     if (!producto) {
         throw crearError(`No existe un producto con id ${id}`, 404);
+    }
+
+    // Regla de propiedad (Ownership): un artesano solo puede dar de baja sus propios productos
+    const esAdmin = Boolean(contextoUsuario?.roles?.includes("ADMINISTRADOR"));
+    if (contextoUsuario && !esAdmin) {
+        if (!contextoUsuario.artesano || producto.artesanoId !== contextoUsuario.artesano.id) {
+            throw crearError("No tiene permiso para eliminar un producto que pertenece a otro artesano.", 403);
+        }
     }
 
     return prisma.producto.update({

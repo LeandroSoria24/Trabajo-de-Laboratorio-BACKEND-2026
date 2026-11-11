@@ -35,6 +35,9 @@ export const crearStand = async (crearStandDto) => {
 
     // Regla de negocio: si se asocia un artesano de inmediato
     if (artesanoId) {
+        if (estado === 'MANTENIMIENTO') {
+            throw crearError(`No se puede asignar un artesano a un stand en mantenimiento`, 400);
+        }
         const artesano = await prisma.artesano.findUnique({
             where: { id: artesanoId }
         });
@@ -120,6 +123,12 @@ export const actualizarStand = async (id, actualizarStandDto) => {
     // Si se modifica el artesano asociado
     if (artesanoId !== undefined) {
         if (artesanoId !== null && artesanoId !== stand.artesanoId) {
+            if (stand.artesanoId !== null) {
+                throw crearError(`El stand '${stand.codigo}' ya se encuentra asignado a otro artesano. Debe liberarlo previamente`, 400);
+            }
+            if ((estado ?? stand.estado) === 'MANTENIMIENTO') {
+                throw crearError(`El stand '${stand.codigo}' se encuentra en mantenimiento y no puede ser ocupado`, 400);
+            }
             const artesano = await prisma.artesano.findUnique({
                 where: { id: artesanoId }
             });
@@ -140,6 +149,11 @@ export const actualizarStand = async (id, actualizarStandDto) => {
         }
     }
 
+    const artesanoFinal = artesanoId !== undefined ? artesanoId : stand.artesanoId;
+    if (artesanoFinal !== null && (estado === 'DISPONIBLE' || estado === 'MANTENIMIENTO')) {
+        throw crearError(`No se puede pasar el stand '${stand.codigo}' a ${estado} mientras tiene un artesano asignado. Libérelo previamente`, 400);
+    }
+
     // Determinar coherencia de estado si se asigna o desvincula artesano
     let estadoActualizado = estado;
     if (artesanoId === null && !estado && stand.estado === 'OCUPADO') {
@@ -148,21 +162,30 @@ export const actualizarStand = async (id, actualizarStandDto) => {
         estadoActualizado = 'OCUPADO';
     }
 
-    return prisma.stand.update({
-        where: { id },
-        data: {
-            codigo,
-            numero,
-            pabellonId,
-            sectorId,
-            estado: estadoActualizado,
-            artesanoId
-        },
-        include: {
-            pabellon: true,
-            sector: true,
-            artesano: true
+    return prisma.$transaction(async (tx) => {
+        if (artesanoId === null && stand.artesanoId !== null) {
+            await tx.solicitudPostulacion.updateMany({
+                where: { standId: id, artesanoId: stand.artesanoId },
+                data: { standId: null }
+            });
         }
+
+        return tx.stand.update({
+            where: { id },
+            data: {
+                codigo,
+                numero,
+                pabellonId,
+                sectorId,
+                estado: estadoActualizado,
+                artesanoId
+            },
+            include: {
+                pabellon: true,
+                sector: true,
+                artesano: true
+            }
+        });
     });
 };
 
@@ -206,8 +229,8 @@ export const obtenerStands = async (criterios = {}) => {
 
     const desplazamiento = (pagina - 1) * limite;
 
-    const [stands, total] = await prisma.$transaction([
-        prisma.stand.findMany({
+    const [stands, total] = await prisma.$transaction(async (tx) => [
+        await tx.stand.findMany({
             where,
             orderBy: [{ [ordenarPor]: direccion }, { id: 'asc' }],
             skip: desplazamiento,
@@ -227,7 +250,7 @@ export const obtenerStands = async (criterios = {}) => {
                 }
             }
         }),
-        prisma.stand.count({ where })
+        await tx.stand.count({ where })
     ]);
 
     return {
@@ -277,50 +300,64 @@ export const obtenerStandPorId = async (id) => {
   Servicio de negocio especializado: Asignar un artesano a un stand disponible.
 */
 export const asignarArtesanoAStand = async (standId, artesanoId) => {
-    const stand = await prisma.stand.findUnique({
-        where: { id: standId }
-    });
-    if (!stand) {
-        throw crearError(`No existe un stand con id ${standId}`, 404);
-    }
-
-    if (stand.estado === 'MANTENIMIENTO') {
-        throw crearError(`El stand '${stand.codigo}' se encuentra en mantenimiento y no puede ser ocupado`, 400);
-    }
-
-    if (stand.artesanoId !== null) {
-        throw crearError(`El stand '${stand.codigo}' ya se encuentra asignado a otro artesano`, 400);
-    }
-
-    const artesano = await prisma.artesano.findUnique({
-        where: { id: artesanoId }
-    });
-    if (!artesano) {
-        throw crearError(`No existe un artesano con id ${artesanoId}`, 404);
-    }
-    if (!artesano.activo) {
-        throw crearError(`El artesano con id ${artesanoId} está inactivo y no puede ocupar un stand`, 400);
-    }
-
-    // Regla 1 a 1: verificar que el artesano no tenga asignado otro puesto
-    const standPrevio = await prisma.stand.findUnique({
-        where: { artesanoId }
-    });
-    if (standPrevio) {
-        throw crearError(`El artesano con id ${artesanoId} ya tiene asignado el stand '${standPrevio.codigo}'`, 400);
-    }
-
-    return prisma.stand.update({
-        where: { id: standId },
-        data: {
-            artesanoId,
-            estado: 'OCUPADO'
-        },
-        include: {
-            pabellon: true,
-            sector: true,
-            artesano: true
+    return prisma.$transaction(async (tx) => {
+        const stand = await tx.stand.findUnique({
+            where: { id: standId }
+        });
+        if (!stand) {
+            throw crearError(`No existe un stand con id ${standId}`, 404);
         }
+
+        if (stand.estado === 'MANTENIMIENTO') {
+            throw crearError(`El stand '${stand.codigo}' se encuentra en mantenimiento y no puede ser ocupado`, 400);
+        }
+
+        if (stand.artesanoId !== null || stand.estado === 'OCUPADO') {
+            throw crearError(`El stand '${stand.codigo}' ya se encuentra asignado a otro artesano`, 400);
+        }
+
+        const artesano = await tx.artesano.findUnique({
+            where: { id: artesanoId }
+        });
+        if (!artesano) {
+            throw crearError(`No existe un artesano con id ${artesanoId}`, 404);
+        }
+        if (!artesano.activo) {
+            throw crearError(`El artesano con id ${artesanoId} está inactivo y no puede ocupar un stand`, 400);
+        }
+
+        // Regla 1 a 1: verificar que el artesano no tenga asignado otro puesto
+        const standPrevio = await tx.stand.findUnique({
+            where: { artesanoId }
+        });
+        if (standPrevio) {
+            throw crearError(`El artesano con id ${artesanoId} ya tiene asignado el stand '${standPrevio.codigo}'`, 400);
+        }
+
+        const reserva = await tx.stand.updateMany({
+            where: {
+                id: standId,
+                estado: 'DISPONIBLE',
+                artesanoId: null
+            },
+            data: {
+                artesanoId,
+                estado: 'OCUPADO'
+            }
+        });
+
+        if (reserva.count === 0) {
+            throw crearError(`El stand '${stand.codigo}' ya se encuentra asignado a otro artesano`, 400);
+        }
+
+        return tx.stand.findUnique({
+            where: { id: standId },
+            include: {
+                pabellon: true,
+                sector: true,
+                artesano: true
+            }
+        });
     });
 };
 
@@ -339,16 +376,25 @@ export const liberarStand = async (standId) => {
         throw crearError(`El stand '${stand.codigo}' ya se encuentra disponible y sin artesano asignado`, 400);
     }
 
-    return prisma.stand.update({
-        where: { id: standId },
-        data: {
-            artesanoId: null,
-            estado: 'DISPONIBLE'
-        },
-        include: {
-            pabellon: true,
-            sector: true
+    return prisma.$transaction(async (tx) => {
+        if (stand.artesanoId !== null) {
+            await tx.solicitudPostulacion.updateMany({
+                where: { standId, artesanoId: stand.artesanoId },
+                data: { standId: null }
+            });
         }
+
+        return tx.stand.update({
+            where: { id: standId },
+            data: {
+                artesanoId: null,
+                estado: 'DISPONIBLE'
+            },
+            include: {
+                pabellon: true,
+                sector: true
+            }
+        });
     });
 };
 

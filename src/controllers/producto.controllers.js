@@ -39,7 +39,7 @@ export const createProducto = async (req, res, next) => {
     try {
         // req.body ya contiene los datos validados por el middleware Zod (DTO)
         const crearProductoDto = req.body;
-        const nuevoProducto = await crearProducto(crearProductoDto);
+        const nuevoProducto = await crearProducto(crearProductoDto, req.contextoUsuario);
         invalidarCache('/productos'); // La lista de productos cambió, invalidamos la caché
         return res.status(201).json(nuevoProducto);
     } catch (error) {
@@ -52,7 +52,7 @@ export const updateProducto = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
         const actualizarProductoDto = req.body;
-        const productoActualizado = await actualizarProducto(id, actualizarProductoDto);
+        const productoActualizado = await actualizarProducto(id, actualizarProductoDto, req.contextoUsuario);
         invalidarCache('/productos'); // Un producto fue modificado, invalidamos la caché
         return res.json(productoActualizado);
     } catch (error) {
@@ -76,7 +76,7 @@ export const deleteProducto = async (req, res, next) => {
 export const deleteProductoLogico= async (req, res,next)=>{
     try{
         const id = Number(req.params.id);
-        await deleteLogico(id)
+        await deleteLogico(id, req.contextoUsuario)
         invalidarCache('/productos'); // Un producto fue eliminado, invalidamos la caché
         res.status(200).json({ message: "Producto eliminado logicamente" });
     }catch (error){

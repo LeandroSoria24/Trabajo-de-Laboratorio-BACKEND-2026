@@ -1,7 +1,7 @@
 services:
   api:
     build: .
-    container_name: biblioteca_api
+    container_name: poncho_digital_api
     restart: always
     ports:
       - "3000:3000"

@@ -20,13 +20,13 @@ En la captura de pantalla se observa que tu companero utiliza archivos con exten
 * Al hacer clic en **`Send Request`**, VS Code ejecuta la peticion HTTP contra tu servidor local (`http://localhost:3000`) y abre automaticamente un panel a la derecha (`Response`) mostrando el codigo de estado (`200 OK`, `201 Created`, `204 No Content`, `400 Bad Request`, `401 Unauthorized`, `403 Forbidden`, `404 Not Found`, `409 Conflict`), los encabezados (como `X-Cache: MISS` o `X-Cache: HIT`) y el JSON de respuesta.
 * **Captura automatica de Tokens e IDs (sin copiar ni pegar):** En los archivos `.http` que preparamos en `api-test/`, las peticiones de login y creacion tienen la directiva `# @name loginArtesano` o `# @name loginAdmin`. De esa forma, las peticiones siguientes toman automaticamente el token con `{{loginArtesano.response.body.token}}` y los IDs creados con `{{crearSolicitud.response.body.solicitud.id}}`.
 
-### Archivos `.http` listos en la carpeta `api-test/` (163 peticiones en total)
+### Archivos `.http` listos en la carpeta `api-test/` (182 peticiones en total)
 Se crearon 5 archivos organizados para cubrir el flujo principal y cualquier flujo adicional que pida el docente:
-1. `api-test/01-flujo-critico-principal-defensa.http`: **Flujo Critico Principal de punta a punta** (45 peticiones encadenadas con todos los casos de exito y error 400, 401, 403, 404 y 409).
+1. `api-test/01-flujo-critico-principal-defensa.http`: **Flujo Critico Principal de punta a punta** (55 peticiones encadenadas con todos los casos de estudio, exito y error 400, 401, 403, 404 y 409).
 2. `api-test/02-flujo-usuarios-roles-sesiones.http`: **Flujo de Usuarios, las 3 Reglas 409 de Roles, Ultimo Admin Activo y Revocacion JWT (Blacklist)** (32 peticiones).
-3. `api-test/03-flujo-artesanos-y-solicitudes.http`: **Flujo de Autogestion de Artesano, Cancelacion, Aislamiento, Rechazo de Solicitudes y ABM Administrativo** (29 peticiones).
-4. `api-test/04-flujo-infraestructura-stands-pabellones-sectores.http`: **Flujo de Infraestructura Ferial (Pabellones, Sectores, Localidades, Mantenimiento, Artesano Inactivo y Regla 1:1 de Stands)** (41 peticiones).
-5. `api-test/05-flujo-catalogo-productos-y-cache.http`: **Flujo de Catalogo de Productos, Vista Diferenciada (Visitante vs Autenticado) y Cache de 30s (`X-Cache: MISS/HIT`)** (16 peticiones).
+3. `api-test/03-flujo-artesanos-y-solicitudes.http`: **Flujo de Autogestion de Artesano, Cancelacion, Aislamiento, Rechazo de Solicitudes y ABM Administrativo** (30 peticiones).
+4. `api-test/04-flujo-infraestructura-stands-pabellones-sectores.http`: **Flujo de Infraestructura Ferial (Pabellones, Sectores, Localidades, Mantenimiento, Artesano Inactivo y Regla 1:1 de Stands)** (45 peticiones).
+5. `api-test/05-flujo-catalogo-productos-y-cache.http`: **Flujo de Catalogo de Productos, Propiedad (Ownership), Vista Diferenciada (Visitante vs Autenticado) y Cache de 30s (`X-Cache: MISS/HIT`)** (20 peticiones).
 
 ---
 
@@ -56,7 +56,7 @@ npm run dev
 | **ADMINISTRADOR** | Santiago Admin | `santiago.admin@ponchodigital.gob.ar` | `Admin1234#` | Cuenta activa (`usuario.activo: true`) |
 | **ARTESANO** | Lorenza Gutierrez | `lorenza@artesanoscatamarca.com` | `Artesano1234#` | Cuenta activa, Perfil comercial activo (`artesano.activo: true`), Rubro Textil, Solicitud `APROBADA`, ocupa Stand `A01` |
 | **ARTESANO** | Juan Carlos Morales | `juan.ceramica@artesanoscatamarca.com` | `Artesano1234#` | Cuenta activa, Perfil comercial activo (`artesano.activo: true`), Rubro Ceramica, Solicitud `APROBADA`, ocupa Stand `B01` |
-| **ARTESANO** | Carmen Albarracin | `carmen.madera@artesanoscatamarca.com` | `Artesano1234#` | Cuenta activa, Perfil comercial activo (`artesano.activo: true`), Rubro Madera, ocupa Stand `C01` |
+| **ARTESANO** | Carmen Albarracin | `carmen.madera@artesanoscatamarca.com` | `Artesano1234#` | Cuenta activa, Perfil comercial activo (`artesano.activo: true`), Rubro Madera, Solicitud `APROBADA`, ocupa Stand `C01` |
 | **ARTESANO** | Marcos Carrizo | `marcos.plata@artesanoscatamarca.com` | `Artesano1234#` | Cuenta activa (`usuario.activo: true`), Perfil comercial pendiente de aprobacion (`artesano.activo: false`), Rubro Metales, Solicitud `PENDIENTE` |
 | **ARTESANO** | Elena Nieva | `elena.cuero@artesanoscatamarca.com` | `Artesano1234#` | Cuenta activa, Perfil comercial activo (`artesano.activo: true`), Rubro Cuero, Solicitud `EN_REVISION`, sin stand ocupado |
 
@@ -75,14 +75,14 @@ npm run dev
 
 ---
 
-## 3. Como Importar la Coleccion Completa en Postman (163 peticiones en 5 carpetas)
+## 3. Como Importar la Coleccion Completa en Postman (182 peticiones en 5 carpetas)
 
 En la raiz del proyecto se encuentra el archivo **`Poncho_Digital_Postman_Collection.json`** (y una copia en `api-test/Poncho_Digital_Postman_Collection.json`).
 
 1. Abre **Postman**.
 2. Haz clic en el boton **Import** (arriba a la izquierda).
 3. Arrastra el archivo `Poncho_Digital_Postman_Collection.json`.
-4. La coleccion contiene las **5 carpetas completas** (163 peticiones en total, espejo exacto de los 5 archivos `.http`), incluye **Variables de Coleccion** y **Scripts Automaticos (`Tests`)** en cada peticion:
+4. La coleccion contiene las **5 carpetas completas** (182 peticiones en total, espejo exacto de los 5 archivos `.http`), incluye **Variables de Coleccion** y **Scripts Automaticos (`Tests`)** en cada peticion:
    * Cada peticion verifica automaticamente el codigo HTTP esperado en la pestana **Test Results** (`PASS`).
    * Cuando ejecutas cualquier Login o creacion de entidad, los tokens e IDs se guardan automaticamente en las variables de coleccion (`pm.collectionVariables.set`) para los pasos siguientes.
 
@@ -315,23 +315,21 @@ Este flujo demuestra el ciclo de vida completo y mas critico del negocio de **Po
 ```
 * **Resultado esperado:** `200 OK`. Si a continuacion consultamos `GET /artesanos/<artesanoId>`, veremos que `activo` paso automaticamente a `true`.
 
+#### 5.5 Casos de Error `409 Conflict` (Intentar re-evaluar o cancelar una solicitud ya `APROBADA`)
+* `PATCH http://localhost:3000/solicitudes/<solicitudId>/evaluar` con `Authorization: Bearer <tokenAdmin>` -> **`409 Conflict`** (`"No se puede evaluar una solicitud que ya se encuentra en estado APROBADA."`).
+* `PATCH http://localhost:3000/solicitudes/<solicitudId>/cancelar` con `Authorization: Bearer <tokenArtesano>` -> **`409 Conflict`** (`"No se puede cancelar una solicitud en estado APROBADA."`).
+
 ---
 
-### Etapa 6: Asignacion Transaccional de Stand Ferial (`PATCH /solicitudes/:id/asignar-stand`)
+### Etapa 6: Asignacion Transaccional de Stand Ferial y Caso de Estudio 1:1 (`PATCH /solicitudes/:id/asignar-stand` y `PATCH /stands/:id/asignar-artesano`)
 
-**Regla de negocio:** Una vez que la solicitud esta `APROBADA`, el Administrador le asigna un stand disponible (especificando `standId` o dejando que el sistema elija el primer stand `DISPONIBLE`). Dentro de una transaccion (`prisma.$transaction`), verifica que el stand exista y este `DISPONIBLE`, libera cualquier stand previo del artesano (garantizando la relacion 1:1), marca el nuevo stand como `OCUPADO` y lo vincula tanto al artesano como a la solicitud.
+**Regla de negocio:** Una vez que la solicitud esta `APROBADA`, el Administrador le asigna un stand disponible (especificando `standId` o dejando que el sistema elija el primer stand `DISPONIBLE`). Dentro de una transaccion (`prisma.$transaction`), verifica que el stand exista y este `DISPONIBLE`, **comprueba que el artesano no tenga ya otro stand asignado (protegiendo la relacion 1:1 estricta sin sobrescribir puestos)**, marca el stand como `OCUPADO` y lo vincula tanto al artesano como a la solicitud.
 
-#### 6.1 Caso de Error `409 Conflict` (Intentar asignar un stand que ya esta `OCUPADO`)
+#### 6.1 Casos de Error `409 Conflict` (Intentar asignar un stand `OCUPADO` o en `MANTENIMIENTO`)
 * **Metodo y URL:** `PATCH http://localhost:3000/solicitudes/<solicitudId>/asignar-stand`
 * **Header:** `Authorization: Bearer <tokenAdmin>`
-* **Body (JSON):**
-```json
-{
-  "standId": 1
-}
-```
-*(Donde el stand 1 es `A01`, ocupado por Lorenza en el seeder).*
-* **Resultado esperado:** `409 Conflict` (`"El stand A01 no se encuentra disponible."`).
+* **Body (JSON):** `{"standId": <standOcupadoId>}` (ej. `A01`, ocupado por Lorenza) o `{"standId": <standMantenimientoId>}` (ej. `D02`, en mantenimiento).
+* **Resultado esperado:** `409 Conflict` (`"El stand A01 no se encuentra disponible."` / `"El stand D02 no se encuentra disponible."`).
 
 #### 6.2 Caso de Exito `200 OK` (Asignar stand disponible)
 * **Metodo y URL:** `PATCH http://localhost:3000/solicitudes/<solicitudId>/asignar-stand`
@@ -345,45 +343,30 @@ Este flujo demuestra el ciclo de vida completo y mas critico del negocio de **Po
 *(O enviar `{}` para que seleccione automaticamente el primer stand `DISPONIBLE`).*
 * **Resultado esperado:** `200 OK` confirmando la asignacion del stand `A02`, que pasa a estado `OCUPADO`.
 
+#### 6.3 Caso de Estudio Regla 1:1 (`409 Conflict` y `400 Bad Request` — Intentar asignar otro stand a un artesano que YA tiene stand)
+* **Via Solicitud (`PATCH /solicitudes/<solicitudId>/asignar-stand`):** Si el Administrador intenta asignarle un segundo stand disponible (`B02`) al mismo artesano cuya solicitud ya recibio `A02`, el servidor responde **`409 Conflict`** (`"El artesano ya tiene asignado el stand 'A02'. Debe liberarlo antes de asignarle otro."`).
+* **Via Stand Directo (`PATCH /stands/<segundoStandDisponibleId>/asignar-artesano`):** Si el Administrador intenta asignarle directamente otro stand fisico enviando `{"artesanoId": <artesanoId>}`, el servidor responde **`400 Bad Request`** (`"El artesano con id X ya tiene asignado el stand 'A02'"`).
+
 ---
 
-### Etapa 7: Publicacion de Productos, Vista Diferenciada y Cache (`POST`, `PUT` y `GET /productos`)
+### Etapa 7: Publicacion de Productos, Propiedad (Ownership), Vista Diferenciada y Cache (`POST`, `PUT`, `DELETE` y `GET /productos`)
 
 **Regla de negocio:**
-1. Las consultas `GET /productos` y `GET /productos/:id` utilizan `autenticarUsuarioOpcional` y `cacheMiddleware(30)`:
+1. **Propiedad estricta de recursos (*Ownership*):** Un usuario con rol `ARTESANO` (que no sea `ADMINISTRADOR`) solo puede publicar, modificar o dar de baja logica productos que pertenezcan a su propio `artesano.id`. Cualquier intento de operar sobre el catalogo de otro artesano responde **`403 Forbidden`**.
+2. Las consultas `GET /productos` y `GET /productos/:id` utilizan `autenticarUsuarioOpcional` y `cacheMiddleware(30)`:
    * Si consulta un **visitante sin token**, la API proyecta solo los datos basicos (`id`, `nombre`, `precio`, `descripcion`, `stock`) y oculta los productos dados de baja logica.
    * Si consulta un usuario autenticado con rol **`ARTESANO` o `ADMINISTRADOR`**, la API devuelve la entidad completa incluyendo `activo`, `artesanoId`, timestamps y el objeto relacional `artesano`.
-2. La cache en memoria (`node-cache`) almacena la respuesta por 30 segundos usando `req.originalUrl` como clave (devolviendo el header `X-Cache: MISS` al consultar la BD y `X-Cache: HIT` al responder desde memoria RAM).
-3. Todo `POST`, `PUT` o `DELETE` en `/productos` ejecuta `invalidarCache('/productos')` para evitar datos obsoletos (stale data).
+3. La cache en memoria (`node-cache`) almacena la respuesta por 30 segundos diferenciando clave publica vs autenticada (`req.originalUrl` vs `req.originalUrl:auth`), devolviendo el header `X-Cache: MISS` al consultar la BD y `X-Cache: HIT` al responder desde memoria RAM.
+4. Todo `POST`, `PUT` o `DELETE` en `/productos` ejecuta `invalidarCache('/productos')` para evitar datos obsoletos (stale data).
 
-#### 7.1 Caso de Error `400 Bad Request` (Precio negativo)
-* **Metodo y URL:** `POST http://localhost:3000/productos`
-* **Header:** `Authorization: Bearer <tokenArtesano>`
-* **Body (JSON):**
-```json
-{
-  "nombre": "Poncho de Llama Natural",
-  "precio": -5000,
-  "stock": 5,
-  "artesanoId": 1
-}
-```
-* **Resultado esperado:** `400 Bad Request` (`"El precio debe ser mayor a 0"`).
+#### 7.1 Caso de Error `400 Bad Request` (Precio negativo) y `403 Forbidden` (Crear producto para otro artesano)
+* `POST http://localhost:3000/productos` con `precio: -5000` -> **`400 Bad Request`** (`"El precio debe ser mayor a 0"`).
+* `POST http://localhost:3000/productos` con `Authorization: Bearer <tokenArtesano>` enviando `"artesanoId": <lorenzaArtesanoId>` -> **`403 Forbidden`** (`"No tiene permiso para crear productos a nombre de otro artesano."`).
 
-#### 7.2 Caso de Exito `201 Created` (Crear producto)
-* **Metodo y URL:** `POST http://localhost:3000/productos`
-* **Header:** `Authorization: Bearer <tokenArtesano>`
-* **Body (JSON):**
-```json
-{
-  "nombre": "Poncho de Llama Natural",
-  "descripcion": "Poncho tejido en telar criollo sin tenir, guarda pampa tradicional.",
-  "precio": 95000,
-  "stock": 4,
-  "artesanoId": 6
-}
-```
-* **Resultado esperado:** `201 Created`.
+#### 7.2 Caso de Exito `201 Created` (Crear producto propio) y `403 Forbidden` (Intentar editar o eliminar producto ajeno)
+* `POST http://localhost:3000/productos` con `"artesanoId": <artesanoId>` -> **`201 Created`**.
+* `PUT http://localhost:3000/productos/<productoAjenoId>` con `Authorization: Bearer <tokenArtesano>` -> **`403 Forbidden`** (`"No tiene permiso para modificar un producto que pertenece a otro artesano."`).
+* `DELETE http://localhost:3000/productos/<productoAjenoId>` con `Authorization: Bearer <tokenArtesano>` -> **`403 Forbidden`** (`"No tiene permiso para eliminar un producto que pertenece a otro artesano."`).
 
 #### 7.3 Demostracion de Cache (`X-Cache: MISS` vs `X-Cache: HIT`), Invalidacion con `PUT` y Vista Diferenciada (`200 OK`)
 1. **1ra Consulta Publica (`GET /productos/<productoId>` sin token):** Devuelve `X-Cache: MISS` y solo los 5 campos basicos `{ id, nombre, precio, descripcion, stock }`.
@@ -395,7 +378,7 @@ Este flujo demuestra el ciclo de vida completo y mas critico del negocio de **Po
 
 ### Etapa 8: Cierre de Sesion y Revocacion en Lista Negra (`POST /usuarios/logout`)
 
-**Regla de negocio:** Al cerrar sesion, el servidor extrae el `jti` del token JWT, calcula su hash SHA-256 y lo almacena en la tabla `tokens_revocados` junto con su fecha de expiracion (`exp`). Cualquier intento posterior de usar ese mismo token es rechazado con `401 Unauthorized`.
+**Regla de negocio:** Al cerrar sesion, el servidor extrae el identificador unico `jti` (UUIDv4) del token JWT y su timestamp de expiracion (`exp`), registrandolos de forma idempotente (`upsert`) en la tabla `TokenRevocado` (`venceEn`). Cualquier intento posterior de usar ese mismo token es rechazado con `401 Unauthorized`.
 
 #### 8.1 Caso de Exito `204 No Content` (Logout)
 * **Metodo y URL:** `POST http://localhost:3000/usuarios/logout`
@@ -466,15 +449,15 @@ El profesor indico que realizara **como maximo 2 preguntas basadas en los temas 
   3. **`autorizarRoles(...rolesPermitidos)` (`src/middlewares/autorizacion.js`):** Compara los roles de `req.contextoUsuario.roles` contra los roles exigidos por la ruta (`"ARTESANO"`, `"ADMINISTRADOR"`). Si no coincide, responde `403 Forbidden` (`"No tiene permiso para esta operación."`).
 
 ### Pregunta 3: Como implementaron el Logout si JWT es stateless (sin estado)?
-* **Respuesta:** Mediante una **lista negra persistente (Blacklist)** en la tabla `tokens_revocados` de PostgreSQL (`src/services/revocaciones.services.js`).
-* Al emitir un token en `generarToken()`, se incluye un identificador unico `jti` (`crypto.randomUUID()`).
-* Cuando el usuario llama a `POST /usuarios/logout`, no guardamos el token en crudo sino el **hash SHA-256** de su `jti` (`jtiHash`) junto con su fecha de expiracion (`expiraEn`).
-* Ademas, existe una tarea periodica (`src/tareas/limpiezaRevocaciones.js`) con `.unref()` que purga de la base de datos los tokens revocados cuya fecha de expiracion ya vencio, evitando que la tabla crezca indefinidamente.
+* **Respuesta:** Mediante una **lista negra persistente (Blacklist)** en la tabla `TokenRevocado` de PostgreSQL (`src/services/revocaciones.services.js`).
+* Al emitir un token en `generarToken()`, se incluye como claim el `sub` (`usuarioId`) y un identificador unico `jti` (`crypto.randomUUID()`).
+* Cuando el usuario llama a `POST /usuarios/logout`, no guardamos el token JWT completo sino su identificador unico `jti` junto con su fecha de expiracion (`venceEn`) mediante `prisma.tokenRevocado.upsert()`.
+* Ademas, existe una tarea periodica (`src/tareas/limpiezaRevocaciones.js`) con `.unref()` que purga de la base de datos los registros de `TokenRevocado` cuya fecha `venceEn` ya expiro, evitando que la tabla crezca indefinidamente.
 
 ### Pregunta 4: Donde y por que usaron transacciones (`prisma.$transaction`)?
 * **Respuesta:** Usamos transacciones en operaciones criticas que modifican multiples tablas o requieren lecturas y escrituras atomicas:
   1. **Evaluacion de solicitudes (`evaluarSolicitud`):** Cuando el administrador aprueba una solicitud, en una misma transaccion se actualiza `solicitudPostulacion.estado = 'APROBADA'` y se activa al artesano (`artesano.activo = true`). Si una falla, se hace rollback de ambas.
-  2. **Asignacion de stand (`asignarStandASolicitud`):** En una sola transaccion verifica que la solicitud este aprobada y el stand disponible, libera cualquier stand previo del artesano, marca el nuevo stand como `OCUPADO` y actualiza el `standId` en la solicitud.
+  2. **Asignacion y liberacion de stand (`asignarStandASolicitud` y `liberarStand`):** En una sola transaccion verifica que la solicitud este aprobada, que el artesano no tenga ya un stand asignado (`409 Conflict` si ya ocupa uno) y que el stand este disponible, marca el stand como `OCUPADO` y actualiza el `standId` en la solicitud. Al liberar (`liberarStand`), desvincula transaccionalmente tanto el stand como la referencia en la solicitud.
   3. **Gestion de roles y estado activo (`retirarRol` y `cambiarActivo`):** Verifica dentro de una transaccion que el usuario conserve al menos 1 rol y que nunca se elimine o desactive al ultimo `ADMINISTRADOR` activo del sistema.
 
 ### Pregunta 5: Como funcionan las pruebas automatizadas (`npm test`)?
