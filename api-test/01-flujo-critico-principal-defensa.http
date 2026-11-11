@@ -1,0 +1,442 @@
+# ============================================================================
+# FLUJO CRITICO PRINCIPAL PARA DEFENSA DE LABORATORIO - PONCHO DIGITAL
+# ============================================================================
+# Este archivo cubre el flujo principal e integral de reglas de negocio:
+#   1. Registro y autenticacion de un nuevo usuario (rol ARTESANO por defecto).
+#   2. Consulta de localidades y alta del perfil comercial de artesano (inactivo).
+#   3. Presentacion de solicitud de postulacion ferial (estado PENDIENTE).
+#   4. Evaluacion administrativa transaccional (aprueba solicitud y activa artesano).
+#   5. Asignacion transaccional de stand ferial disponible (pasa a OCUPADO, relacion 1:1).
+#   6. Publicacion de productos en el catalogo, vista diferenciada y cache (30s).
+#   7. Cierre de sesion con revocacion de token JWT (lista negra persistente).
+#
+# Incluye todos los casos de exito (200, 201, 204) y casos de error (400, 401, 403, 404, 409)
+# exigidos en la defensa.
+#
+# Requisito previo: ejecutar "npm run seed" y tener el servidor corriendo ("npm run dev").
+# ============================================================================
+
+@baseUrl = http://localhost:3000
+@emailNuevoArtesano = seba.artesanias@gmail.com
+@passwordNuevoArtesano = PasswordSeguro2026.
+@emailAdmin = admin@ponchodigital.gob.ar
+@passwordAdmin = Admin1234#
+
+###
+# ============================================================================
+# ETAPA 1: VERIFICACION DEL SERVIDOR Y REGISTRO DE USUARIO (POST /usuarios/registro)
+# ============================================================================
+
+### [EXITO 200 OK]: Verificar que la API este activa
+GET {{baseUrl}}/info
+
+### [ERROR 400 Bad Request]: Intento de registro con datos invalidos (password corta y email mal formado)
+POST {{baseUrl}}/usuarios/registro
+Content-Type: application/json
+
+{
+  "nombre": "S",
+  "email": "correo-invalido",
+  "password": "123"
+}
+
+### [ERROR 400 Bad Request]: Intento de registro enviando campos no permitidos (esquema Zod strict)
+POST {{baseUrl}}/usuarios/registro
+Content-Type: application/json
+
+{
+  "nombre": "Sebastian Tejidos",
+  "email": "{{emailNuevoArtesano}}",
+  "password": "{{passwordNuevoArtesano}}",
+  "rol": "ADMINISTRADOR"
+}
+
+### [EXITO 201 Created]: Registro publico de nuevo usuario (adquiere rol ARTESANO automaticamente)
+# @name registroArtesano
+POST {{baseUrl}}/usuarios/registro
+Content-Type: application/json
+
+{
+  "nombre": "Sebastian Tejidos",
+  "email": "{{emailNuevoArtesano}}",
+  "password": "{{passwordNuevoArtesano}}"
+}
+
+### [ERROR 409 Conflict]: Intento de registro duplicado con el mismo correo electronico
+POST {{baseUrl}}/usuarios/registro
+Content-Type: application/json
+
+{
+  "nombre": "Sebastian Duplicado",
+  "email": "{{emailNuevoArtesano}}",
+  "password": "{{passwordNuevoArtesano}}"
+}
+
+###
+# ============================================================================
+# ETAPA 2: INICIO DE SESION Y AUTENTICACION JWT (POST /usuarios/login y GET /usuarios/me)
+# ============================================================================
+
+### [ERROR 401 Unauthorized]: Intento de login con credenciales erroneas (contrasena invalida)
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailNuevoArtesano}}",
+  "password": "PasswordIncorrecta!"
+}
+
+### [ERROR 401 Unauthorized]: Intento de login con credenciales erroneas (correo inexistente)
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "seba99.artesanias@gmail.com",
+  "password": "{{passwordNuevoArtesano}}"
+}
+
+### [EXITO 200 OK]: Login exitoso del nuevo artesano (captura automatica de tokenArtesano)
+# @name loginArtesano
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailNuevoArtesano}}",
+  "password": "{{passwordNuevoArtesano}}"
+}
+
+###
+@tokenArtesano = {{loginArtesano.response.body.token}}
+@usuarioArtesanoId = {{loginArtesano.response.body.usuario.id}}
+
+### [ERROR 401 Unauthorized]: Consultar perfil propio sin enviar encabezado Authorization
+GET {{baseUrl}}/usuarios/me
+
+### [ERROR 400 Bad Request]: Consultar perfil propio con formato de encabezado Authorization mal formado (sin Bearer)
+GET {{baseUrl}}/usuarios/me
+Authorization: Token {{tokenArtesano}}
+
+### [EXITO 200 OK]: Consultar perfil de la cuenta autenticada (roles y estado activo)
+GET {{baseUrl}}/usuarios/me
+Authorization: Bearer {{tokenArtesano}}
+
+###
+# ============================================================================
+# ETAPA 3: PERFIL COMERCIAL DEL ARTESANO (POST /artesanos/me y GET /localidades)
+# ============================================================================
+
+### [ERROR 404 Not Found]: Regla de Negocio - Intentar postularse a la feria sin haber completado el perfil de artesano
+POST {{baseUrl}}/solicitudes
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "observaciones": "Quiero postularme sin tener perfil de artesano cargado"
+}
+
+### [ERROR 404 Not Found]: Consultar perfil comercial de artesano cuando aun no fue creado
+GET {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenArtesano}}
+
+### [EXITO 200 OK]: Listar localidades de Catamarca para obtener un localidadId valido
+# @name listarLocalidades
+GET {{baseUrl}}/localidades
+
+###
+@localidadId = {{listarLocalidades.response.body.$[0].id}}
+
+### [ERROR 404 Not Found]: Intentar completar perfil de artesano con una localidad inexistente
+POST {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "nombre": "Sebastian",
+  "apellido": "Quiroga",
+  "dni": "39888777",
+  "telefono": "+54 3834 556677",
+  "localidadId": 999999,
+  "rubro": "Textil",
+  "nombreEmprendimiento": "Telares del Valle",
+  "descripcionTrayectoria": "Artesano textil con 12 anos de experiencia en lana de llama y oveja."
+}
+
+### [ERROR 409 Conflict]: Intentar completar perfil usando un DNI que ya pertenece a otro artesano (Lorenza: 18234567)
+POST {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "nombre": "Sebastian",
+  "apellido": "Quiroga",
+  "dni": "18234567",
+  "telefono": "+54 3834 556677",
+  "localidadId": {{localidadId}},
+  "rubro": "Textil",
+  "nombreEmprendimiento": "Telares del Valle"
+}
+
+### [EXITO 201 Created]: Completar perfil comercial propio (nace con activo = false hasta ser aprobado)
+# @name completarPerfil
+POST {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "nombre": "Sebastian",
+  "apellido": "Quiroga",
+  "dni": "39888777",
+  "telefono": "+54 3834 556677",
+  "localidadId": {{localidadId}},
+  "rubro": "Textil",
+  "nombreEmprendimiento": "Telares del Valle",
+  "descripcionTrayectoria": "Artesano textil con 12 anos de experiencia en lana de llama y oveja."
+}
+
+###
+@artesanoId = {{completarPerfil.response.body.artesano.id}}
+
+### [ERROR 409 Conflict]: Intentar crear un segundo perfil de artesano para la misma cuenta de usuario
+POST {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "nombre": "Sebastian",
+  "apellido": "Quiroga",
+  "dni": "40111222",
+  "localidadId": {{localidadId}},
+  "rubro": "Textil",
+  "nombreEmprendimiento": "Otro Emprendimiento"
+}
+
+### [EXITO 200 OK]: Consultar mi perfil comercial de artesano recien creado (verificar activo: false)
+GET {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenArtesano}}
+
+###
+# ============================================================================
+# ETAPA 4: SOLICITUD DE POSTULACION FERIAL (POST /solicitudes y GET /solicitudes/me)
+# ============================================================================
+
+### [EXITO 201 Created]: Presentar solicitud de postulacion ferial (nace en estado PENDIENTE)
+# @name crearSolicitud
+POST {{baseUrl}}/solicitudes
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "observaciones": "Solicito stand en sector textil para exhibicion de ponchos y mantas tradicionales."
+}
+
+###
+@solicitudId = {{crearSolicitud.response.body.solicitud.id}}
+
+### [ERROR 409 Conflict]: Regla de Negocio - Impedir presentar una segunda solicitud mientras posee una activa (PENDIENTE, EN_REVISION o APROBADA)
+POST {{baseUrl}}/solicitudes
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "observaciones": "Intento duplicado de postulacion para el mismo artesano."
+}
+
+### [EXITO 200 OK]: Consultar mis solicitudes de postulacion propias (solo devuelve las del artesano autenticado)
+GET {{baseUrl}}/solicitudes/me
+Authorization: Bearer {{tokenArtesano}}
+
+### [ERROR 403 Forbidden]: Control de Roles - Un ARTESANO intenta acceder al listado global administrativo de solicitudes
+GET {{baseUrl}}/solicitudes
+Authorization: Bearer {{tokenArtesano}}
+
+### [ERROR 403 Forbidden]: Control de Roles - Un ARTESANO intenta auto-aprobar su propia solicitud
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/evaluar
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "estado": "APROBADA",
+  "observaciones": "Intento de auto-aprobacion sin rol ADMINISTRADOR"
+}
+
+###
+# ============================================================================
+# ETAPA 5: AUDITORIA Y EVALUACION ADMINISTRATIVA (LOGIN ADMIN + PATCH /solicitudes/:id/evaluar)
+# ============================================================================
+
+### [EXITO 200 OK]: Login con cuenta ADMINISTRADOR (creada por el seeder)
+# @name loginAdmin
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailAdmin}}",
+  "password": "{{passwordAdmin}}"
+}
+
+###
+@tokenAdmin = {{loginAdmin.response.body.token}}
+
+### [EXITO 200 OK]: Listar todas las solicitudes en estado PENDIENTE (bandeja de auditoria del Administrador)
+GET {{baseUrl}}/solicitudes?estado=PENDIENTE&pagina=1&limite=10
+Authorization: Bearer {{tokenAdmin}}
+
+### [ERROR 409 Conflict]: Regla de Negocio - Intentar asignar un stand a una solicitud que aun NO fue APROBADA (esta PENDIENTE)
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/asignar-stand
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{}
+
+### [ERROR 400 Bad Request]: Intentar evaluar una solicitud con un estado no permitido por el esquema Zod
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/evaluar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "estado": "PENDIENTE",
+  "observaciones": "Estado invalido para el dictamen"
+}
+
+### [ERROR 404 Not Found]: Intentar evaluar una solicitud con ID inexistente
+PATCH {{baseUrl}}/solicitudes/999999/evaluar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "estado": "APROBADA",
+  "observaciones": "Solicitud inexistente"
+}
+
+### [EXITO 200 OK]: Evaluar y APROBAR la solicitud (Transaccion Prisma: aprueba solicitud y activa al artesano automaticamente)
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/evaluar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "estado": "APROBADA",
+  "observaciones": "Piezas textiles verificadas por la comision evaluadora. Se aprueba participacion."
+}
+
+### [EXITO 200 OK]: Verificar que el artesano paso automaticamente a estado activo = true en el catalogo publico
+GET {{baseUrl}}/artesanos/{{artesanoId}}
+
+###
+# ============================================================================
+# ETAPA 6: ASIGNACION TRANSACCIONAL DE STAND FERIAL (PATCH /solicitudes/:id/asignar-stand)
+# ============================================================================
+
+### [EXITO 200 OK]: Consultar stands disponibles en el predio ferial antes de asignar
+# @name listarStandsDisponibles
+GET {{baseUrl}}/stands?estado=DISPONIBLE
+
+###
+@standDisponibleId = {{listarStandsDisponibles.response.body.stands[0].id}}
+
+### [EXITO 200 OK]: Consultar stands ocupados para probar el caso de error de conflicto
+# @name listarStandsOcupados
+GET {{baseUrl}}/stands?estado=OCUPADO
+
+###
+@standOcupadoId = {{listarStandsOcupados.response.body.stands[0].id}}
+
+### [ERROR 409 Conflict]: Regla de Negocio - Intentar asignar un stand que ya se encuentra OCUPADO por otro artesano
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/asignar-stand
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "standId": {{standOcupadoId}}
+}
+
+### [ERROR 404 Not Found]: Intentar asignar un stand con ID inexistente
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/asignar-stand
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "standId": 999999
+}
+
+### [EXITO 200 OK]: Asignar stand disponible a la solicitud aprobada (Transaccion: stand pasa a OCUPADO y se vincula al artesano)
+PATCH {{baseUrl}}/solicitudes/{{solicitudId}}/asignar-stand
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "standId": {{standDisponibleId}}
+}
+
+### [EXITO 200 OK]: Verificar el stand asignado (ahora figura como OCUPADO y con los datos del artesano Sebastian Quiroga)
+GET {{baseUrl}}/stands/{{standDisponibleId}}
+
+###
+# ============================================================================
+# ETAPA 7: PUBLICACION DE PRODUCTOS, VISTA DIFERENCIADA Y CACHE (POST / PUT / GET /productos)
+# ============================================================================
+
+### [ERROR 400 Bad Request]: Intentar crear producto con precio negativo o cero
+POST {{baseUrl}}/productos
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "nombre": "Poncho de Llama Natural",
+  "descripcion": "Poncho tejido en telar criollo",
+  "precio": -5000,
+  "stock": 5,
+  "artesanoId": {{artesanoId}}
+}
+
+### [EXITO 201 Created]: El artesano publica un nuevo producto en su catalogo (invalida la cache de /productos)
+# @name crearProducto
+POST {{baseUrl}}/productos
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "nombre": "Poncho de Llama Natural",
+  "descripcion": "Poncho tejido en telar criollo sin tenir, guarda pampa tradicional.",
+  "precio": 95000,
+  "stock": 4,
+  "artesanoId": {{artesanoId}}
+}
+
+###
+@productoId = {{crearProducto.response.body.id}}
+
+### [EXITO 200 OK]: Consulta PUBLICA del producto (sin token -> X-Cache: MISS, devuelve vista resumida: id, nombre, precio, descripcion, stock)
+GET {{baseUrl}}/productos/{{productoId}}
+
+### [EXITO 200 OK]: Segunda consulta PUBLICA inmediata del producto (sin token -> X-Cache: HIT desde memoria RAM por 30s)
+GET {{baseUrl}}/productos/{{productoId}}
+
+### [EXITO 200 OK]: Actualizar precio y stock del producto (PUT /productos/:id -> invalida automaticamente la cache de /productos)
+PUT {{baseUrl}}/productos/{{productoId}}
+Authorization: Bearer {{tokenArtesano}}
+Content-Type: application/json
+
+{
+  "nombre": "Poncho de Llama Natural Seleccion Especial",
+  "descripcion": "Poncho tejido en telar criollo sin tenir, guarda pampa tradicional.",
+  "precio": 98000,
+  "stock": 5,
+  "artesanoId": {{artesanoId}}
+}
+
+### [EXITO 200 OK]: Consulta AUTENTICADA del producto tras invalidar cache (con token -> X-Cache: MISS, devuelve entidad completa incluyendo objeto artesano, activo y timestamps)
+GET {{baseUrl}}/productos/{{productoId}}
+Authorization: Bearer {{tokenArtesano}}
+
+###
+# ============================================================================
+# ETAPA 8: CIERRE DE SESION Y REVOCACION DE TOKEN EN LISTA NEGRA (POST /usuarios/logout)
+# ============================================================================
+
+### [EXITO 204 No Content]: Cerrar sesion del artesano (el JTI del token se guarda hasheado en la tabla tokens_revocados)
+POST {{baseUrl}}/usuarios/logout
+Authorization: Bearer {{tokenArtesano}}
+
+### [ERROR 401 Unauthorized]: Intentar reutilizar el token JWT revocado luego del logout (Demostracion de Blacklist)
+GET {{baseUrl}}/usuarios/me
+Authorization: Bearer {{tokenArtesano}}

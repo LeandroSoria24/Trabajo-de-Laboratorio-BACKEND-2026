@@ -1,0 +1,267 @@
+# ============================================================================
+# FLUJO 3: GESTION DE ARTESANOS Y CICLO COMPLETO DE SOLICITUDES (CANCELACION Y RECHAZO)
+# ============================================================================
+# Cubre las operaciones de autogestion del artesano, cancelacion y rechazo de postulaciones,
+# aislamiento entre artesanos (no poder cancelar postulaciones ajenas) y el ABM
+# administrativo completo de artesanos:
+#   - GET /artesanos (Catalogo publico con filtros, ordenamiento y paginacion)
+#   - GET /artesanos/:id (Detalle publico de un artesano)
+#   - GET /artesanos/me, POST /artesanos/me, PUT /artesanos/me (Autogestion)
+#   - POST /solicitudes, GET /solicitudes/me, PATCH /solicitudes/:id/cancelar, PATCH /solicitudes/:id/evaluar (RECHAZADA)
+#   - POST /artesanos, PUT /artesanos/:id, PATCH /artesanos/:id/activo, DELETE /artesanos/:id
+# ============================================================================
+
+@baseUrl = http://localhost:3000
+@emailAdmin = admin@ponchodigital.gob.ar
+@passwordAdmin = Admin1234#
+@emailMarcos = marcos.plata@artesanoscatamarca.com
+@emailLorenza = lorenza@artesanoscatamarca.com
+@passwordArtesano = Artesano1234#
+
+###
+# ============================================================================
+# 1. CONSULTA PUBLICA DE ARTESANOS Y FILTROS (GET /artesanos)
+# ============================================================================
+
+### [EXITO 200 OK]: Listar artesanos activos del catalogo publico (paginado por defecto)
+# @name listarArtesanos
+GET {{baseUrl}}/artesanos?pagina=1&limite=10&ordenarPor=nombre&direccion=asc
+
+###
+@primerArtesanoId = {{listarArtesanos.response.body.artesanos[0].id}}
+@localidadValidaId = {{listarArtesanos.response.body.artesanos[0].localidadId}}
+
+### [EXITO 200 OK]: Filtrar artesanos por rubro (ejemplo: Ceramica)
+GET {{baseUrl}}/artesanos?rubro=Ceramica
+
+### [EXITO 200 OK]: Filtrar artesanos inactivos (activo=false, como Marcos en el seeder)
+GET {{baseUrl}}/artesanos?activo=false
+
+### [ERROR 400 Bad Request]: Parametros de paginacion invalidos (limite mayor a 50)
+GET {{baseUrl}}/artesanos?limite=500
+
+### [EXITO 200 OK]: Consultar detalle de un artesano por su ID
+GET {{baseUrl}}/artesanos/{{primerArtesanoId}}
+
+### [ERROR 400 Bad Request]: Consultar artesano con ID no numerico
+GET {{baseUrl}}/artesanos/id-invalido
+
+### [ERROR 404 Not Found]: Consultar artesano con ID inexistente
+GET {{baseUrl}}/artesanos/999999
+
+###
+# ============================================================================
+# 2. AUTOGESTION DEL PERFIL DE ARTESANO (GET / PUT /artesanos/me)
+# ============================================================================
+
+### [EXITO 200 OK]: Login como Lorenza (Artesana textil aprobada)
+# @name loginLorenza
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailLorenza}}",
+  "password": "{{passwordArtesano}}"
+}
+
+###
+@tokenLorenza = {{loginLorenza.response.body.token}}
+
+### [EXITO 200 OK]: Consultar mi propio perfil de artesano (incluye stand, productos y solicitudes)
+GET {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenLorenza}}
+
+### [EXITO 200 OK]: Actualizar datos de mi propio perfil comercial (PUT /artesanos/me)
+PUT {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenLorenza}}
+Content-Type: application/json
+
+{
+  "telefono": "+54 3835 499999",
+  "nombreEmprendimiento": "Tejidos de Altura Belen - Edicion Poncho 2026"
+}
+
+### [ERROR 409 Conflict]: Intentar actualizar mi DNI con el DNI de otro artesano existente (Juan: 24567890)
+PUT {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenLorenza}}
+Content-Type: application/json
+
+{
+  "dni": "24567890"
+}
+
+###
+# ============================================================================
+# 3. FLUJO DE CANCELACION, AISLAMIENTO ENTRE ARTESANOS Y RECHAZO DE POSTULACION
+# ============================================================================
+
+### [EXITO 200 OK]: Login como Marcos (Artesano de Metales con solicitud PENDIENTE en el seeder)
+# @name loginMarcos
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailMarcos}}",
+  "password": "{{passwordArtesano}}"
+}
+
+###
+@tokenMarcos = {{loginMarcos.response.body.token}}
+
+### [EXITO 200 OK]: Login como Administrador (para dictaminar rechazo y gestionar ABM)
+# @name loginAdmin
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailAdmin}}",
+  "password": "{{passwordAdmin}}"
+}
+
+###
+@tokenAdmin = {{loginAdmin.response.body.token}}
+
+### [EXITO 200 OK]: Consultar las solicitudes propias de Marcos (obtener el ID de su solicitud PENDIENTE)
+# @name misSolicitudesMarcos
+GET {{baseUrl}}/solicitudes/me
+Authorization: Bearer {{tokenMarcos}}
+
+###
+@solicitudMarcosId = {{misSolicitudesMarcos.response.body.$[0].id}}
+
+### [ERROR 404 Not Found]: Seguridad / Aislamiento - Lorenza intenta cancelar la solicitud que pertenece a Marcos
+PATCH {{baseUrl}}/solicitudes/{{solicitudMarcosId}}/cancelar
+Authorization: Bearer {{tokenLorenza}}
+
+### [EXITO 200 OK]: Marcos cancela su propia solicitud en estado PENDIENTE (pasa a CANCELADA)
+PATCH {{baseUrl}}/solicitudes/{{solicitudMarcosId}}/cancelar
+Authorization: Bearer {{tokenMarcos}}
+
+### [ERROR 409 Conflict]: Intentar cancelar nuevamente una solicitud que ya esta CANCELADA
+PATCH {{baseUrl}}/solicitudes/{{solicitudMarcosId}}/cancelar
+Authorization: Bearer {{tokenMarcos}}
+
+### [EXITO 201 Created]: Como su solicitud anterior quedo CANCELADA, Marcos puede presentar una segunda postulacion
+# @name segundaSolicitudMarcos
+POST {{baseUrl}}/solicitudes
+Authorization: Bearer {{tokenMarcos}}
+Content-Type: application/json
+
+{
+  "observaciones": "Segunda postulacion con documentacion incompleta de taller."
+}
+
+###
+@segundaSolicitudMarcosId = {{segundaSolicitudMarcos.response.body.solicitud.id}}
+
+### [EXITO 200 OK]: El Administrador evalua y RECHAZA la segunda solicitud de Marcos (el artesano permanece con activo: false)
+PATCH {{baseUrl}}/solicitudes/{{segundaSolicitudMarcosId}}/evaluar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "estado": "RECHAZADA",
+  "observaciones": "Se rechaza por falta de fotografias del proceso productivo artesanal."
+}
+
+### [ERROR 409 Conflict]: Intentar cancelar una solicitud que ya fue dictaminada como RECHAZADA
+PATCH {{baseUrl}}/solicitudes/{{segundaSolicitudMarcosId}}/cancelar
+Authorization: Bearer {{tokenMarcos}}
+
+### [EXITO 201 Created]: Como la solicitud anterior fue RECHAZADA (no esta activa), Marcos presenta una nueva postulacion corregida (queda PENDIENTE)
+# @name nuevaSolicitudMarcos
+POST {{baseUrl}}/solicitudes
+Authorization: Bearer {{tokenMarcos}}
+Content-Type: application/json
+
+{
+  "observaciones": "Nueva postulacion actualizada con coleccion completa de orfebreria en rodocrosita."
+}
+
+###
+# ============================================================================
+# 4. ADMINISTRACION DE ARTESANOS (POST / PUT / PATCH / DELETE /artesanos)
+# ============================================================================
+
+### [ERROR 403 Forbidden]: Un ADMINISTRADOR intenta usar el endpoint exclusivo de autogestion /artesanos/me
+GET {{baseUrl}}/artesanos/me
+Authorization: Bearer {{tokenAdmin}}
+
+### [EXITO 201 Created]: Registrar cuenta de usuario para dar de alta su perfil desde administracion (POST /artesanos)
+# @name registroPedro
+POST {{baseUrl}}/usuarios/registro
+Content-Type: application/json
+
+{
+  "nombre": "Pedro Cesteria",
+  "email": "pedro.cesteria@artesanoscatamarca.com",
+  "password": "PasswordSeguro2026."
+}
+
+###
+@pedroUsuarioId = {{registroPedro.response.body.nuevoUsuario.id}}
+
+### [EXITO 201 Created]: El Administrador da de alta directamente la ficha de artesano para Pedro (POST /artesanos)
+# @name crearArtesanoAdmin
+POST {{baseUrl}}/artesanos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Pedro",
+  "apellido": "Roldan",
+  "dni": "36555444",
+  "email": "pedro.cesteria@artesanoscatamarca.com",
+  "telefono": "+54 3834 667788",
+  "localidadId": {{localidadValidaId}},
+  "rubro": "Cesteria",
+  "nombreEmprendimiento": "Cesteria Tradicional de Simbol",
+  "descripcionTrayectoria": "Artesano cestero especializado en fibra vegetal de simbol.",
+  "usuarioId": "{{pedroUsuarioId}}",
+  "activo": true
+}
+
+###
+@pedroArtesanoId = {{crearArtesanoAdmin.response.body.id}}
+
+### [ERROR 409 Conflict]: Intentar dar de alta otro perfil de artesano para el mismo usuario (POST /artesanos)
+POST {{baseUrl}}/artesanos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Pedro",
+  "apellido": "Roldan",
+  "dni": "36555999",
+  "email": "pedro.otro@artesanoscatamarca.com",
+  "localidadId": {{localidadValidaId}},
+  "rubro": "Cesteria",
+  "nombreEmprendimiento": "Cesteria Duplicada",
+  "usuarioId": "{{pedroUsuarioId}}"
+}
+
+### [EXITO 200 OK]: El Administrador modifica datos de un artesano por ID (PUT /artesanos/:id)
+PUT {{baseUrl}}/artesanos/{{pedroArtesanoId}}
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "descripcionTrayectoria": "Trayectoria verificada y certificada por la Direccion Provincial de Artesanias."
+}
+
+### [EXITO 200 OK]: El Administrador aplica baja logica a un artesano activo (DELETE /artesanos/:id -> activo = false)
+DELETE {{baseUrl}}/artesanos/{{pedroArtesanoId}}
+Authorization: Bearer {{tokenAdmin}}
+
+### [ERROR 400 Bad Request]: Intentar dar de baja logica nuevamente a un artesano que ya esta inactivo
+DELETE {{baseUrl}}/artesanos/{{pedroArtesanoId}}
+Authorization: Bearer {{tokenAdmin}}
+
+### [EXITO 200 OK]: El Administrador reactiva manualmente al artesano (PATCH /artesanos/:id/activo)
+PATCH {{baseUrl}}/artesanos/{{pedroArtesanoId}}/activo
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "activo": true
+}

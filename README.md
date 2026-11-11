@@ -77,7 +77,9 @@ Trabajo-de-Laboratorio-BACKEND-2026/
 │   ├── solicitudes-integracion.test.js# 5 pruebas de integración relacional contra Supabase
 │   └── helpers/
 │       └── escenario-solicitudes.js   # Aislamiento seguro (@clase10.test) protegiendo Localidad
-├── documentacionPropia/               # Documentación maestra, auditoría Unidad 5 y diapositivas
+├── api-test/                          # 5 archivos .http (163 peticiones para VS Code REST Client) y colección Postman
+├── documentacionPropia/               # Documentación maestra, guía de flujos, auditoría Unidad 5 y diapositivas
+├── Poncho_Digital_Postman_Collection.json # Colección Postman v2.1 completa (163 peticiones y scripts automáticos)
 ├── generar-docs.js                    # Script compilador de swagger-output.json
 └── swagger-output.json                # Especificación OpenAPI 3.0 generada
 ```
@@ -303,8 +305,9 @@ En la carpeta [`documentacionPropia/`](documentacionPropia/) se encuentran todos
 | # | Documento | Contenido |
 |---|---|---|
 | Ref 1 | **[Documentación Completa Unificada (`DOCUMENTACION_COMPLETA.md`)](documentacionPropia/DOCUMENTACION_COMPLETA.md)** | **Manual maestro (885 líneas): arquitectura, base de datos, seguridad JWT, caché, catálogo de endpoints y evolución en las 13 ramas.** |
-| Ref 2 | **[Presentación Defensa de Laboratorio (`PRESENTACION_DEFENSA_LABORATORIO.md`)](documentacionPropia/PRESENTACION_DEFENSA_LABORATORIO.md)** | **Mazo de 16 diapositivas con notas de orador, circuito de demostración en vivo en 5 pasos y preguntas frecuentes.** |
-| Ref 3 | **[Reporte de Auditoría Unidad 5 (`REPORTE_AUDITORIA_UNIDAD5.md`)](documentacionPropia/REPORTE_AUDITORIA_UNIDAD5.md)** | **Matriz de cumplimiento punto por punto contra `pautas.md` (Nivel 1 OpenAPI y Nivel 2 Testing).** |
+| Ref 2 | **[Guía de Defensa, Flujos y Pruebas (`GUIA_DEFENSA_FLUJOS_Y_PRUEBAS.md`)](documentacionPropia/GUIA_DEFENSA_FLUJOS_Y_PRUEBAS.md)** | **Flujo crítico paso a paso con casos de error, flujos de respaldo, uso de `.http` en VS Code (REST Client), Postman (163 peticiones) y banco de preguntas de defensas semanales.** |
+| Ref 3 | **[Presentación Defensa de Laboratorio (`PRESENTACION_DEFENSA_LABORATORIO.md`)](documentacionPropia/PRESENTACION_DEFENSA_LABORATORIO.md)** | **Mazo de 16 diapositivas con notas de orador, circuito de demostración en vivo en 5 pasos y preguntas frecuentes.** |
+| Ref 4 | **[Reporte de Auditoría Unidad 5 (`REPORTE_AUDITORIA_UNIDAD5.md`)](documentacionPropia/REPORTE_AUDITORIA_UNIDAD5.md)** | **Matriz de cumplimiento punto por punto contra `pautas.md` (Nivel 1 OpenAPI y Nivel 2 Testing).** |
 | 1 | [Arquitectura por Capas (`arquitectura-capas.md`)](documentacionPropia/arquitectura-capas.md) | Organización desacoplada Routes $\rightarrow$ Middlewares $\rightarrow$ Controllers $\rightarrow$ Services $\rightarrow$ Prisma |
 | 2 | [Estructura de Base de Datos (`estructura-base-de-datos.md`)](documentacionPropia/estructura-base-de-datos.md) | Modelo relacional, RBAC con `UsuarioRol`, diagrama ER, normalización y decisiones de diseño |
 | 3 | [Guía de Prisma ORM (`guia-prisma.md`)](documentacionPropia/guia-prisma.md) | Configuración con PostgreSQL, Prisma 7, schema declarativo, migraciones y cliente singleton |

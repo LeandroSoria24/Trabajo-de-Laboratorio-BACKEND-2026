@@ -1,0 +1,329 @@
+# ============================================================================
+# FLUJO 2: GESTION DE USUARIOS, ROLES, ESTADO ACTIVO Y SESIONES JWT
+# ============================================================================
+# Cubre todas las rutas de /usuarios y sus reglas de negocio criticas:
+#   - POST /usuarios/registro (Alta publica con rol ARTESANO)
+#   - POST /usuarios/login (Autenticacion JWT HS256 con jti)
+#   - GET /usuarios/me (Contexto completo de la cuenta autenticada)
+#   - POST /usuarios/registro-administrador (Alta de ADMINISTRADOR solo por otro Admin)
+#   - POST /usuarios/:id/roles (Asignar rol ADMINISTRADOR a un usuario existente)
+#   - DELETE /usuarios/:id/roles/:rol (Retirar rol validando las 3 reglas de integridad 409)
+#   - PATCH /usuarios/:id/activo (Activar/Desactivar cuenta validando regla de ultimo admin activo)
+#   - POST /usuarios/logout (Revocacion de token en lista negra persistente)
+# ============================================================================
+
+@baseUrl = http://localhost:3000
+@emailAdmin = admin@ponchodigital.gob.ar
+@emailAdminSecundario = santiago.admin@ponchodigital.gob.ar
+@passwordAdmin = Admin1234#
+@emailLorenza = lorenza@artesanoscatamarca.com
+@passwordArtesano = Artesano1234#
+
+###
+# ============================================================================
+# 1. LOGIN DE ADMINISTRADORES Y DE ARTESANA EXISTENTE (SEED)
+# ============================================================================
+
+### [EXITO 200 OK]: Login como Administrador Principal
+# @name loginAdmin
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailAdmin}}",
+  "password": "{{passwordAdmin}}"
+}
+
+###
+@tokenAdmin = {{loginAdmin.response.body.token}}
+@adminId = {{loginAdmin.response.body.usuario.id}}
+
+### [EXITO 200 OK]: Login como Administrador Secundario (para capturar su UUID y probar la Regla 2 del ultimo admin activo)
+# @name loginSantiagoAdmin
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailAdminSecundario}}",
+  "password": "{{passwordAdmin}}"
+}
+
+###
+@santiagoAdminId = {{loginSantiagoAdmin.response.body.usuario.id}}
+
+### [EXITO 200 OK]: Login como Artesana Lorenza (tiene postulacion aprobada en el seeder)
+# @name loginLorenza
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailLorenza}}",
+  "password": "{{passwordArtesano}}"
+}
+
+###
+@tokenLorenza = {{loginLorenza.response.body.token}}
+@lorenzaUsuarioId = {{loginLorenza.response.body.usuario.id}}
+
+###
+# ============================================================================
+# 2. REGISTRO DE USUARIO DE PRUEBA Y ALTA DE ADMINISTRADOR
+# ============================================================================
+
+### [EXITO 201 Created]: Registrar un nuevo usuario para pruebas de roles
+# @name registroUsuarioRoles
+POST {{baseUrl}}/usuarios/registro
+Content-Type: application/json
+
+{
+  "nombre": "Valeria Roles",
+  "email": "valeria.roles@artesanoscatamarca.com",
+  "password": "PasswordSeguro2026."
+}
+
+###
+@valeriaId = {{registroUsuarioRoles.response.body.nuevoUsuario.id}}
+
+### [ERROR 403 Forbidden]: Un ARTESANO intenta crear una cuenta con rol ADMINISTRADOR
+POST {{baseUrl}}/usuarios/registro-administrador
+Authorization: Bearer {{tokenLorenza}}
+Content-Type: application/json
+
+{
+  "nombre": "Admin No Autorizado",
+  "email": "falso.admin@ponchodigital.gob.ar",
+  "password": "PasswordSeguro2026."
+}
+
+### [EXITO 201 Created]: Un ADMINISTRADOR da de alta una nueva cuenta con rol ADMINISTRADOR
+# @name crearNuevoAdmin
+POST {{baseUrl}}/usuarios/registro-administrador
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Leandro Auditor",
+  "email": "leandro.auditor@ponchodigital.gob.ar",
+  "password": "Admin1234#"
+}
+
+###
+@nuevoAdminId = {{crearNuevoAdmin.response.body.usuario.id}}
+
+### [ERROR 409 Conflict]: Intentar registrar otro administrador con un email ya existente
+POST {{baseUrl}}/usuarios/registro-administrador
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Leandro Duplicado",
+  "email": "leandro.auditor@ponchodigital.gob.ar",
+  "password": "Admin1234#"
+}
+
+###
+# ============================================================================
+# 3. GESTION DE ROLES Y LAS 3 REGLAS DE INTEGRIDAD 409 (POST y DELETE /usuarios/:id/roles)
+# ============================================================================
+
+### [ERROR 409 Conflict]: Regla 1 - No se puede retirar el unico rol de un usuario (debe conservar al menos un rol)
+DELETE {{baseUrl}}/usuarios/{{valeriaId}}/roles/ARTESANO
+Authorization: Bearer {{tokenAdmin}}
+
+### [ERROR 400 Bad Request]: Intentar asignar un rol distinto de ADMINISTRADOR en el body
+POST {{baseUrl}}/usuarios/{{valeriaId}}/roles
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "rol": "SUPERUSUARIO"
+}
+
+### [ERROR 400 Bad Request]: Intentar asignar rol enviando un UUID invalido en la URL
+POST {{baseUrl}}/usuarios/id-no-es-uuid/roles
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "rol": "ADMINISTRADOR"
+}
+
+### [ERROR 404 Not Found]: Intentar asignar rol a un UUID que no existe en la base de datos
+POST {{baseUrl}}/usuarios/00000000-0000-4000-8000-000000000000/roles
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "rol": "ADMINISTRADOR"
+}
+
+### [EXITO 200 OK]: Asignar el rol ADMINISTRADOR a Valeria (ahora tiene ARTESANO y ADMINISTRADOR)
+POST {{baseUrl}}/usuarios/{{valeriaId}}/roles
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "rol": "ADMINISTRADOR"
+}
+
+### [EXITO 200 OK]: Desactivar temporalmente a Leandro Auditor y a Santiago Admin para probar la Regla 2
+PATCH {{baseUrl}}/usuarios/{{nuevoAdminId}}/activo
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "activo": false
+}
+
+### [EXITO 200 OK]: Desactivar temporalmente a Santiago Admin
+PATCH {{baseUrl}}/usuarios/{{santiagoAdminId}}/activo
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "activo": false
+}
+
+### [EXITO 200 OK]: Desactivar temporalmente al Admin Principal (quedando Valeria como UNICA administradora activa con 2 roles)
+PATCH {{baseUrl}}/usuarios/{{adminId}}/activo
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "activo": false
+}
+
+### [EXITO 200 OK]: Login como Valeria (actualmente unica ADMINISTRADOR activa del sistema)
+# @name loginValeriaAdmin
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "valeria.roles@artesanoscatamarca.com",
+  "password": "PasswordSeguro2026."
+}
+
+###
+@tokenValeriaAdmin = {{loginValeriaAdmin.response.body.token}}
+
+### [ERROR 409 Conflict]: Regla 2 (Retiro de Rol) - No se puede retirar el rol ADMINISTRADOR al ultimo administrador activo ("Debe quedar un administrador activo.")
+DELETE {{baseUrl}}/usuarios/{{valeriaId}}/roles/ADMINISTRADOR
+Authorization: Bearer {{tokenValeriaAdmin}}
+
+### [ERROR 409 Conflict]: Regla 2 (Inhabilitacion) - No se puede desactivar al ultimo administrador activo ("Debe quedar un administrador activo.")
+PATCH {{baseUrl}}/usuarios/{{valeriaId}}/activo
+Authorization: Bearer {{tokenValeriaAdmin}}
+Content-Type: application/json
+
+{
+  "activo": false
+}
+
+### [EXITO 200 OK]: Reactivar al Administrador Principal y a Santiago Admin
+PATCH {{baseUrl}}/usuarios/{{adminId}}/activo
+Authorization: Bearer {{tokenValeriaAdmin}}
+Content-Type: application/json
+
+{
+  "activo": true
+}
+
+### [EXITO 200 OK]: Reactivar a Santiago Admin
+PATCH {{baseUrl}}/usuarios/{{santiagoAdminId}}/activo
+Authorization: Bearer {{tokenValeriaAdmin}}
+Content-Type: application/json
+
+{
+  "activo": true
+}
+
+### [EXITO 204 No Content]: Retirar el rol ARTESANO a Valeria (permitido porque tiene rol ADMINISTRADOR y no tiene postulaciones)
+DELETE {{baseUrl}}/usuarios/{{valeriaId}}/roles/ARTESANO
+Authorization: Bearer {{tokenAdmin}}
+
+### [EXITO 200 OK]: Asignar rol ADMINISTRADOR a Lorenza para probar la Regla 3 de postulaciones
+POST {{baseUrl}}/usuarios/{{lorenzaUsuarioId}}/roles
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "rol": "ADMINISTRADOR"
+}
+
+### [ERROR 409 Conflict]: Regla 3 - No se puede retirar el rol ARTESANO a un usuario que ya posee solicitudes de postulacion registradas
+DELETE {{baseUrl}}/usuarios/{{lorenzaUsuarioId}}/roles/ARTESANO
+Authorization: Bearer {{tokenAdmin}}
+
+### [EXITO 204 No Content]: Retirar el rol ADMINISTRADOR que le habiamos agregado a Lorenza (vuelve a tener solo ARTESANO)
+DELETE {{baseUrl}}/usuarios/{{lorenzaUsuarioId}}/roles/ADMINISTRADOR
+Authorization: Bearer {{tokenAdmin}}
+
+###
+# ============================================================================
+# 4. ACTIVACION E INHABILITACION DE CUENTAS (PATCH /usuarios/:id/activo)
+# ============================================================================
+
+### [ERROR 400 Bad Request]: Enviar un valor no booleano en PATCH /usuarios/:id/activo
+PATCH {{baseUrl}}/usuarios/{{valeriaId}}/activo
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "activo": "false"
+}
+
+### [EXITO 200 OK]: Desactivar la cuenta de Valeria (activo = false)
+PATCH {{baseUrl}}/usuarios/{{valeriaId}}/activo
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "activo": false
+}
+
+### [ERROR 401 Unauthorized]: Una cuenta desactivada (activo = false) no puede iniciar sesion
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "valeria.roles@artesanoscatamarca.com",
+  "password": "PasswordSeguro2026."
+}
+
+### [EXITO 200 OK]: Reactivar la cuenta de Valeria (activo = true)
+PATCH {{baseUrl}}/usuarios/{{valeriaId}}/activo
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "activo": true
+}
+
+### [EXITO 200 OK]: Verificar que Valeria puede iniciar sesion nuevamente tras ser reactivada
+# @name loginValeria
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "valeria.roles@artesanoscatamarca.com",
+  "password": "PasswordSeguro2026."
+}
+
+###
+@tokenValeria = {{loginValeria.response.body.token}}
+
+###
+# ============================================================================
+# 5. CIERRE DE SESION Y REVOCACION DE TOKEN (POST /usuarios/logout)
+# ============================================================================
+
+### [ERROR 401 Unauthorized]: Intentar cerrar sesion sin enviar token
+POST {{baseUrl}}/usuarios/logout
+
+### [EXITO 204 No Content]: Cerrar sesion de Valeria (revoca el token actual)
+POST {{baseUrl}}/usuarios/logout
+Authorization: Bearer {{tokenValeria}}
+
+### [ERROR 401 Unauthorized]: Confirmar que el token revocado ya no permite acceder a /usuarios/me
+GET {{baseUrl}}/usuarios/me
+Authorization: Bearer {{tokenValeria}}

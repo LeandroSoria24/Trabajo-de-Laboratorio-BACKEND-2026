@@ -1,0 +1,340 @@
+# ============================================================================
+# FLUJO 4: INFRAESTRUCTURA FERIAL (LOCALIDADES, PABELLONES, SECTORES Y STANDS 1:1)
+# ============================================================================
+# Cubre todas las reglas de negocio de infraestructura fisica del Predio Ferial:
+#   - Localidades: GET /localidades y GET /localidades/:id
+#   - Pabellones: GET, POST, PUT, DELETE (con proteccion de integridad si tiene stands)
+#   - Sectores: GET, POST, PUT, DELETE (con proteccion de integridad si tiene stands)
+#   - Stands: GET, POST, PUT, PATCH /:id/asignar-artesano, PATCH /:id/liberar, DELETE /:id
+#     Validando unicidad de codigo, prohibicion de ocupar stand en MANTENIMIENTO,
+#     prohibicion de asignar artesano inactivo, y relacion estricta 1 a 1 (un artesano = un stand).
+# ============================================================================
+
+@baseUrl = http://localhost:3000
+@emailAdmin = admin@ponchodigital.gob.ar
+@passwordAdmin = Admin1234#
+@emailLorenza = lorenza@artesanoscatamarca.com
+@passwordArtesano = Artesano1234#
+
+###
+# ============================================================================
+# 1. AUTENTICACION PREVIA
+# ============================================================================
+
+### [EXITO 200 OK]: Login Administrador
+# @name loginAdmin
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailAdmin}}",
+  "password": "{{passwordAdmin}}"
+}
+
+###
+@tokenAdmin = {{loginAdmin.response.body.token}}
+
+### [EXITO 200 OK]: Login Artesana (para probar errores 403 en rutas administrativas)
+# @name loginLorenza
+POST {{baseUrl}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "{{emailLorenza}}",
+  "password": "{{passwordArtesano}}"
+}
+
+###
+@tokenLorenza = {{loginLorenza.response.body.token}}
+
+###
+# ============================================================================
+# 2. LOCALIDADES DE CATAMARCA (GET /localidades)
+# ============================================================================
+
+### [EXITO 200 OK]: Listar todas las localidades registradas
+# @name listarLocalidades
+GET {{baseUrl}}/localidades?ordenarPor=nombre&direccion=asc
+
+###
+@primeraLocalidadId = {{listarLocalidades.response.body.$[0].id}}
+
+### [EXITO 200 OK]: Filtrar localidades por nombre
+GET {{baseUrl}}/localidades?nombre=Belen
+
+### [EXITO 200 OK]: Consultar localidad por ID (incluye artesanos de esa localidad)
+GET {{baseUrl}}/localidades/{{primeraLocalidadId}}
+
+### [ERROR 404 Not Found]: Consultar localidad con ID inexistente
+GET {{baseUrl}}/localidades/999999
+
+###
+# ============================================================================
+# 3. PABELLONES DEL PREDIO FERIAL (CRUD COMPLETO + REGLAS DE INTEGRIDAD)
+# ============================================================================
+
+### [EXITO 200 OK]: Listar pabellones (incluye conteo de stands asociados)
+# @name listarPabellones
+GET {{baseUrl}}/pabellones
+
+###
+@pabellonConStandsId = {{listarPabellones.response.body.$[0].id}}
+
+### [EXITO 200 OK]: Consultar detalle de un pabellon por ID
+GET {{baseUrl}}/pabellones/{{pabellonConStandsId}}
+
+### [ERROR 403 Forbidden]: Un ARTESANO intenta crear un pabellon
+POST {{baseUrl}}/pabellones
+Authorization: Bearer {{tokenLorenza}}
+Content-Type: application/json
+
+{
+  "nombre": "Pabellon No Autorizado"
+}
+
+### [ERROR 400 Bad Request]: Intentar crear un pabellon con nombre demasiado corto (menos de 3 caracteres)
+POST {{baseUrl}}/pabellones
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "AB"
+}
+
+### [EXITO 201 Created]: Crear un nuevo pabellon temporal (Administrador)
+# @name crearPabellon
+POST {{baseUrl}}/pabellones
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Pabellon Bicentenario Temporal"
+}
+
+###
+@nuevoPabellonId = {{crearPabellon.response.body.id}}
+
+### [ERROR 400 Bad Request]: Regla de Unicidad - Intentar crear otro pabellon con el mismo nombre exacto
+POST {{baseUrl}}/pabellones
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Pabellon Bicentenario Temporal"
+}
+
+### [EXITO 200 OK]: Actualizar el nombre del pabellon creado
+PUT {{baseUrl}}/pabellones/{{nuevoPabellonId}}
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Pabellon Bicentenario Renovado"
+}
+
+### [ERROR 400 Bad Request]: Regla de Integridad - No se puede eliminar un pabellon que tiene stands asociados
+DELETE {{baseUrl}}/pabellones/{{pabellonConStandsId}}
+Authorization: Bearer {{tokenAdmin}}
+
+### [EXITO 204 No Content]: Eliminar el pabellon temporal (permitido porque no tiene stands asociados)
+DELETE {{baseUrl}}/pabellones/{{nuevoPabellonId}}
+Authorization: Bearer {{tokenAdmin}}
+
+###
+# ============================================================================
+# 4. SECTORES TEMATICOS (CRUD COMPLETO + REGLAS DE INTEGRIDAD)
+# ============================================================================
+
+### [EXITO 200 OK]: Listar sectores tematicos
+# @name listarSectores
+GET {{baseUrl}}/sectores
+
+###
+@sectorConStandsId = {{listarSectores.response.body.$[0].id}}
+
+### [EXITO 200 OK]: Consultar detalle de un sector por ID
+GET {{baseUrl}}/sectores/{{sectorConStandsId}}
+
+### [ERROR 404 Not Found]: Consultar sector con ID inexistente
+GET {{baseUrl}}/sectores/999999
+
+### [EXITO 201 Created]: Crear un nuevo sector tematico temporal
+# @name crearSector
+POST {{baseUrl}}/sectores
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Sector Piedras Semipreciosas"
+}
+
+###
+@nuevoSectorId = {{crearSector.response.body.id}}
+
+### [ERROR 400 Bad Request]: Regla de Unicidad - Intentar crear un sector con nombre repetido
+POST {{baseUrl}}/sectores
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Sector Piedras Semipreciosas"
+}
+
+### [EXITO 200 OK]: Actualizar nombre del sector temporal
+PUT {{baseUrl}}/sectores/{{nuevoSectorId}}
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Sector Lapidacion y Gemas"
+}
+
+### [ERROR 400 Bad Request]: Regla de Integridad - No se puede eliminar un sector que posee stands vinculados
+DELETE {{baseUrl}}/sectores/{{sectorConStandsId}}
+Authorization: Bearer {{tokenAdmin}}
+
+### [EXITO 204 No Content]: Eliminar el sector temporal sin stands asociados
+DELETE {{baseUrl}}/sectores/{{nuevoSectorId}}
+Authorization: Bearer {{tokenAdmin}}
+
+###
+# ============================================================================
+# 5. STANDS FERIALES, ASIGNACION 1:1, LIBERACION Y MANTENIMIENTO
+# ============================================================================
+
+### [EXITO 200 OK]: Listar todos los stands del predio ferial
+# @name listarStands
+GET {{baseUrl}}/stands?pagina=1&limite=20
+
+### [EXITO 200 OK]: Buscar un stand en estado MANTENIMIENTO (Stand D02 en el seeder)
+# @name listarStandsMantenimiento
+GET {{baseUrl}}/stands?estado=MANTENIMIENTO
+
+###
+@standMantenimientoId = {{listarStandsMantenimiento.response.body.stands[0].id}}
+
+### [EXITO 200 OK]: Obtener un artesano activo con stand ya asignado (Lorenza)
+# @name listarArtesanosActivos
+GET {{baseUrl}}/artesanos?activo=true
+
+###
+@artesanoConStandId = {{listarArtesanosActivos.response.body.artesanos[0].id}}
+
+### [EXITO 200 OK]: Obtener un artesano inactivo (Marcos, activo = false en el seeder)
+# @name listarArtesanosInactivos
+GET {{baseUrl}}/artesanos?activo=false
+
+###
+@artesanoInactivoId = {{listarArtesanosInactivos.response.body.artesanos[0].id}}
+
+### [EXITO 201 Created]: Crear un nuevo stand ferial DISPONIBLE para pruebas
+# @name crearStand
+POST {{baseUrl}}/stands
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "codigo": "E99",
+  "numero": 99,
+  "pabellonId": {{pabellonConStandsId}},
+  "sectorId": {{sectorConStandsId}},
+  "estado": "DISPONIBLE"
+}
+
+###
+@nuevoStandId = {{crearStand.response.body.id}}
+
+### [EXITO 200 OK]: Consultar detalle del stand recien creado por ID (GET /stands/:id)
+GET {{baseUrl}}/stands/{{nuevoStandId}}
+
+### [EXITO 200 OK]: Actualizar datos del stand (PUT /stands/:id)
+PUT {{baseUrl}}/stands/{{nuevoStandId}}
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "numero": 98
+}
+
+### [ERROR 400 Bad Request]: Regla de Unicidad - Intentar crear otro stand con el mismo codigo 'E99'
+POST {{baseUrl}}/stands
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "codigo": "E99",
+  "numero": 100,
+  "pabellonId": {{pabellonConStandsId}},
+  "sectorId": {{sectorConStandsId}}
+}
+
+### [ERROR 404 Not Found]: Intentar crear un stand con un pabellonId inexistente
+POST {{baseUrl}}/stands
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "codigo": "E100",
+  "numero": 100,
+  "pabellonId": 999999,
+  "sectorId": {{sectorConStandsId}}
+}
+
+### [ERROR 400 Bad Request]: Regla de Negocio - Intentar asignar un artesano a un stand en MANTENIMIENTO
+PATCH {{baseUrl}}/stands/{{standMantenimientoId}}/asignar-artesano
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "artesanoId": {{artesanoConStandId}}
+}
+
+### [ERROR 400 Bad Request]: Regla de Negocio - Intentar asignar al stand E99 un artesano que se encuentra INACTIVO (activo = false)
+PATCH {{baseUrl}}/stands/{{nuevoStandId}}/asignar-artesano
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "artesanoId": {{artesanoInactivoId}}
+}
+
+### [ERROR 400 Bad Request]: Regla de Negocio 1:1 - Intentar asignar al stand E99 un artesano que YA tiene otro stand asignado
+PATCH {{baseUrl}}/stands/{{nuevoStandId}}/asignar-artesano
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "artesanoId": {{artesanoConStandId}}
+}
+
+### [EXITO 200 OK]: Buscar a la artesana Elena (activa y sin stand ocupado en el seeder)
+# @name buscarElena
+GET {{baseUrl}}/artesanos?nombre=Elena
+
+###
+@elenaArtesanoId = {{buscarElena.response.body.artesanos[0].id}}
+
+### [EXITO 200 OK]: Asignar a Elena al nuevo stand E99 (pasa automaticamente a estado OCUPADO)
+PATCH {{baseUrl}}/stands/{{nuevoStandId}}/asignar-artesano
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "artesanoId": {{elenaArtesanoId}}
+}
+
+### [ERROR 400 Bad Request]: Regla de Integridad - Intentar eliminar fisicamente el stand E99 mientras esta OCUPADO por un artesano
+DELETE {{baseUrl}}/stands/{{nuevoStandId}}
+Authorization: Bearer {{tokenAdmin}}
+
+### [EXITO 200 OK]: Liberar el stand E99 desvinculando a la artesana (pasa a estado DISPONIBLE y artesanoId = null)
+PATCH {{baseUrl}}/stands/{{nuevoStandId}}/liberar
+Authorization: Bearer {{tokenAdmin}}
+
+### [ERROR 400 Bad Request]: Intentar liberar nuevamente un stand que ya se encuentra DISPONIBLE
+PATCH {{baseUrl}}/stands/{{nuevoStandId}}/liberar
+Authorization: Bearer {{tokenAdmin}}
+
+### [EXITO 204 No Content]: Eliminar fisicamente el stand E99 ahora que esta libre y sin solicitudes
+DELETE {{baseUrl}}/stands/{{nuevoStandId}}
+Authorization: Bearer {{tokenAdmin}}
