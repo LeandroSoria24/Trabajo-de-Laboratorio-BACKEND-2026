@@ -109,5 +109,5 @@ jobs:
           }
           EOF
 
-      - name: Ejecutar suite completa (39 tests: unitarios, contratos e integración)
+      - name: Ejecutar suite completa (39 tests unitarios, contratos e integración)
         run: npm test
