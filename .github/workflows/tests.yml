@@ -84,7 +84,7 @@ jobs:
       - name: Aplicar migraciones Prisma 7 sobre PostgreSQL de CI
         run: npx prisma migrate deploy
 
-      - name: Cargar catálogo base mínimo (Localidad) para escenario de integración
+      - name: Cargar catálogo base y sincronizar secuencias en PostgreSQL de CI
         run: |
           node --input-type=module << 'EOF'
           import prisma from "./src/config/prisma.js";
@@ -94,7 +94,13 @@ jobs:
               update: {},
               create: { nombre: "Belén", provincia: "Catamarca" }
             });
-            console.log("Localidad base verificada.");
+            await prisma.$executeRawUnsafe(
+              `SELECT setval(pg_get_serial_sequence('"Pabellon"', 'id'), COALESCE((SELECT MAX("id") FROM "Pabellon"), 1), true);`
+            );
+            await prisma.$executeRawUnsafe(
+              `SELECT setval(pg_get_serial_sequence('"Sector"', 'id'), COALESCE((SELECT MAX("id") FROM "Sector"), 1), true);`
+            );
+            console.log("Base de CI lista.");
           } catch (error) {
             console.error(error);
             process.exit(1);
