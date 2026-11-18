@@ -1,0 +1,101 @@
+name: Tests Automatizados (CI)
+
+on:
+  push:
+    branches:
+      - main
+      - "semana*"
+  pull_request:
+    branches:
+      - main
+      - "semana*"
+  workflow_dispatch:
+
+jobs:
+  unit-and-contract-tests:
+    name: Pruebas Unitarias, Contratos HTTP y OpenAPI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 24 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Instalar dependencias (incluye postinstall prisma generate)
+        run: npm ci
+
+      - name: Verificar generación de documentación OpenAPI 3.0
+        run: npm run docs
+
+      - name: Ejecutar pruebas unitarias y de acceso HTTP (33 tests)
+        run: npm run test:clase10
+
+  integration-tests:
+    name: Pruebas de Integración y Concurrencia (PostgreSQL)
+    runs-on: ubuntu-latest
+    needs: unit-and-contract-tests
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_ci_password
+          POSTGRES_DB: poncho_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d poncho_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres_ci_password@localhost:5432/poncho_test
+      JWT_SECRET: ci-test-secret-key-at-least-32-characters-long
+      NODE_ENV: test
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 24 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Instalar dependencias (incluye postinstall prisma generate)
+        run: npm ci
+
+      - name: Crear archivo .env.test para la suite
+        run: |
+          cat << 'EOF' > .env.test
+          DATABASE_URL="postgresql://postgres:postgres_ci_password@localhost:5432/poncho_test"
+          NODE_ENV=test
+          JWT_SECRET="ci-test-secret-key-at-least-32-characters-long"
+          EOF
+
+      - name: Aplicar migraciones Prisma 7 sobre PostgreSQL de CI
+        run: npx prisma migrate deploy
+
+      - name: Cargar catálogo base mínimo (Localidad) para escenario de integración
+        run: |
+          node -e '
+            import("./src/config/prisma.js").then(async ({ default: prisma }) => {
+              await prisma.localidad.upsert({
+                where: { nombre: "Belén" },
+                update: {},
+                create: { nombre: "Belén", provincia: "Catamarca" }
+              });
+              await prisma.$disconnect();
+            });
+          '
+
+      - name: Ejecutar suite completa (39 tests: unitarios, contratos e integración)
+        run: npm test
