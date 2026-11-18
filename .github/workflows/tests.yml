@@ -86,16 +86,22 @@ jobs:
 
       - name: Cargar catálogo base mínimo (Localidad) para escenario de integración
         run: |
-          node -e '
-            import("./src/config/prisma.js").then(async ({ default: prisma }) => {
-              await prisma.localidad.upsert({
-                where: { nombre: "Belén" },
-                update: {},
-                create: { nombre: "Belén", provincia: "Catamarca" }
-              });
-              await prisma.$disconnect();
+          node --input-type=module << 'EOF'
+          import prisma from "./src/config/prisma.js";
+          try {
+            await prisma.localidad.upsert({
+              where: { nombre: "Belén" },
+              update: {},
+              create: { nombre: "Belén", provincia: "Catamarca" }
             });
-          '
+            console.log("Localidad base verificada.");
+          } catch (error) {
+            console.error(error);
+            process.exit(1);
+          } finally {
+            await prisma.$disconnect();
+          }
+          EOF
 
       - name: Ejecutar suite completa (39 tests: unitarios, contratos e integración)
         run: npm test
